@@ -31,12 +31,14 @@ export function ChatSidebar() {
     <div className="flex flex-col h-full border-r bg-sidebar/50 backdrop-blur-sm">
       <div className="p-4 space-y-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold font-headline text-accent flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center">
-              <span className="text-white text-xs">A</span>
-            </div>
-            Arbogram
-          </h1>
+          <Link href="/chat" className="hover:opacity-80 transition-opacity">
+            <h1 className="text-2xl font-bold font-headline text-accent flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center">
+                <span className="text-white text-xs">A</span>
+              </div>
+              Arbogram
+            </h1>
+          </Link>
           <Button variant="ghost" size="icon" className="rounded-full">
             <Plus className="w-5 h-5 text-accent" />
           </Button>
