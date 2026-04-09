@@ -10,9 +10,9 @@
         "displayName": { "type": "string" },
         "photoURL": { "type": "string" },
         "email": { "type": "string", "format": "email" },
-        "lastSeen": { "type": "string", "format": "date-time" }
+        "lastSeen": { "type": "number" }
       },
-      "required": ["uid", "displayName"]
+      "required": ["uid", "email"]
     },
     "Chat": {
       "title": "Chat",
@@ -39,7 +39,7 @@
     }
   },
   "auth": {
-    "providers": ["google.com"]
+    "providers": ["password"]
   },
   "firestore": {
     "/users/{userId}": { "schema": "User", "description": "Профили пользователей" },
