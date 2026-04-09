@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useAuth, useUser, useFirestore } from "@/firebase";
@@ -34,7 +35,7 @@ export default function LoginPage() {
     if (user && !loading && db) {
       const userData = {
         uid: user.uid,
-        displayName: user.displayName || email.split('@')[0],
+        displayName: user.displayName || email.split('@')[0] || "User",
         photoURL: user.photoURL || `https://picsum.photos/seed/${user.uid}/200/200`,
         email: user.email,
         lastSeen: Date.now()
@@ -80,8 +81,8 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-background p-4 overflow-y-auto">
-      <div className="w-full max-w-md space-y-8 bg-white p-6 sm:p-8 rounded-3xl shadow-xl border border-primary/10 animate-in fade-in zoom-in duration-500 my-4">
+    <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-background p-4">
+      <div className="w-full max-w-md space-y-8 bg-white p-8 rounded-3xl shadow-xl border border-primary/10 animate-in fade-in zoom-in duration-500">
         <div className="flex flex-col items-center space-y-4">
           <div className="w-16 h-16 rounded-2xl bg-accent flex items-center justify-center shadow-lg shadow-accent/20">
             <MessageSquare className="w-8 h-8 text-white" />

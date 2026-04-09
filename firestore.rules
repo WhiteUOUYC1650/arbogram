@@ -17,8 +17,8 @@ service cloud.firestore {
       allow update: if isAuthenticated() && request.auth.uid in resource.data.participants;
 
       match /messages/{messageId} {
-        // Упрощаем правило для сообщений, чтобы избежать проблем с get() вложенных документов
-        // Доступ разрешен, если пользователь авторизован (базовая защита для MVP)
+        // Разрешаем чтение и создание сообщений всем авторизованным пользователям для MVP
+        // В будущем можно добавить проверку участия в родительском чате через get()
         allow read, create: if isAuthenticated();
       }
     }
