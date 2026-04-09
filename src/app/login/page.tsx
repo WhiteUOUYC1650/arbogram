@@ -42,6 +42,9 @@ export default function LoginPage() {
       };
 
       setDoc(doc(db, "users", user.uid), userData, { merge: true })
+        .then(() => {
+          router.push("/chat");
+        })
         .catch(async (e) => {
           const error = new FirestorePermissionError({
             path: `users/${user.uid}`,
@@ -50,8 +53,6 @@ export default function LoginPage() {
           });
           errorEmitter.emit("permission-error", error);
         });
-      
-      router.push("/chat");
     }
   }, [user, loading, db, router, email]);
 
@@ -81,7 +82,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-background p-4">
+    <div className="min-h-dvh flex flex-col items-center justify-center bg-background p-4">
       <div className="w-full max-w-md space-y-8 bg-white p-8 rounded-3xl shadow-xl border border-primary/10 animate-in fade-in zoom-in duration-500">
         <div className="flex flex-col items-center space-y-4">
           <div className="w-16 h-16 rounded-2xl bg-accent flex items-center justify-center shadow-lg shadow-accent/20">
