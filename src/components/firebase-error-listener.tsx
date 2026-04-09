@@ -13,8 +13,8 @@ export function FirebaseErrorListener() {
     const handlePermissionError = (error: FirestorePermissionError) => {
       toast({
         variant: 'destructive',
-        title: 'Ошибка прав доступа',
-        description: `Запрос "${error.context.operation}" отклонен. Проверьте правила безопасности Firestore для пути: ${error.context.path}`,
+        title: 'Ошибка доступа или базы данных',
+        description: `Действие отклонено. Убедитесь, что Firestore создан в консоли и правила разрешают запись. Подробности в консоли браузера.`,
       });
     };
 
