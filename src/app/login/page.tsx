@@ -60,10 +60,8 @@ export default function LoginPage() {
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "Ошибка входа",
-        description: error.message === "Firebase: Error (auth/email-already-in-use)." 
-          ? "Этот email уже используется." 
-          : "Неверный email или пароль.",
+        title: "Ошибка",
+        description: error.message,
       });
     } finally {
       setIsSubmitting(false);
@@ -71,8 +69,8 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="h-screen flex flex-col items-center justify-center bg-background p-4">
-      <div className="w-full max-w-md space-y-8 bg-white p-8 rounded-3xl shadow-xl border border-primary/10 animate-in fade-in zoom-in duration-500">
+    <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-background p-4 overflow-y-auto">
+      <div className="w-full max-w-md space-y-8 bg-white p-6 sm:p-8 rounded-3xl shadow-xl border border-primary/10 animate-in fade-in zoom-in duration-500 my-4">
         <div className="flex flex-col items-center space-y-4">
           <div className="w-16 h-16 rounded-2xl bg-accent flex items-center justify-center shadow-lg shadow-accent/20">
             <MessageSquare className="w-8 h-8 text-white" />
@@ -128,7 +126,7 @@ export default function LoginPage() {
           <Button 
             type="submit"
             disabled={isSubmitting}
-            className="w-full h-12 bg-accent hover:bg-accent/90 text-white font-semibold rounded-xl transition-all hover:scale-[1.02]"
+            className="w-full h-12 bg-accent hover:bg-accent/90 text-white font-semibold rounded-xl transition-all active:scale-[0.98]"
           >
             {isSubmitting ? "Загрузка..." : (isRegistering ? "Зарегистрироваться" : "Войти")}
           </Button>
@@ -136,8 +134,9 @@ export default function LoginPage() {
 
         <div className="text-center">
           <button 
+            type="button"
             onClick={() => setIsRegistering(!isRegistering)}
-            className="text-sm text-accent hover:underline font-medium"
+            className="text-sm text-accent hover:underline font-medium p-2"
           >
             {isRegistering ? "Уже есть аккаунт? Войти" : "Нет аккаунта? Регистрация"}
           </button>

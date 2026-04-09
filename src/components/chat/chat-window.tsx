@@ -76,9 +76,9 @@ export function ChatWindow({ chatId }: { chatId: string }) {
   const chatName = chatData?.name || `Чат ${chatId.substring(0, 4)}`;
 
   return (
-    <div className="flex flex-col h-full bg-background">
+    <div className="flex flex-col h-full bg-background overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b bg-white/80 backdrop-blur-md sticky top-0 z-10">
+      <div className="flex items-center justify-between p-4 border-b bg-white/80 backdrop-blur-md z-10 shrink-0">
         <div className="flex items-center gap-3">
           {isMobile && (
             <Button variant="ghost" size="icon" asChild className="mr-1">
@@ -92,7 +92,7 @@ export function ChatWindow({ chatId }: { chatId: string }) {
             <AvatarFallback>{chatName[0]}</AvatarFallback>
           </Avatar>
           <div>
-            <h2 className="font-semibold text-sm">{chatName}</h2>
+            <h2 className="font-semibold text-sm leading-tight">{chatName}</h2>
             <p className="text-[10px] text-accent font-medium">Онлайн</p>
           </div>
         </div>
@@ -107,8 +107,8 @@ export function ChatWindow({ chatId }: { chatId: string }) {
       </div>
 
       {/* Messages */}
-      <ScrollArea className="flex-1 p-4">
-        <div className="flex flex-col gap-4 max-w-4xl mx-auto">
+      <ScrollArea className="flex-1 min-h-0 bg-sidebar/10">
+        <div className="p-4 flex flex-col gap-4 max-w-4xl mx-auto">
           {messages?.map((msg) => {
             const isMe = msg.senderId === user?.uid;
             return (
@@ -131,17 +131,17 @@ export function ChatWindow({ chatId }: { chatId: string }) {
               </div>
             );
           })}
-          <div ref={scrollRef} />
+          <div ref={scrollRef} className="h-2" />
         </div>
       </ScrollArea>
 
       {/* Input */}
-      <div className="p-4 bg-white/80 backdrop-blur-md border-t">
+      <div className="p-4 bg-white/80 backdrop-blur-md border-t shrink-0">
         <div className="max-w-4xl mx-auto flex items-center gap-2">
-          <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-accent">
+          <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-accent shrink-0">
             <Paperclip className="w-5 h-5" />
           </Button>
-          <div className="flex-1 relative">
+          <div className="flex-1 relative min-w-0">
             <Input 
               placeholder="Введите сообщение..." 
               className="pr-10 bg-background border-none rounded-full focus-visible:ring-primary shadow-inner h-11"
@@ -160,12 +160,12 @@ export function ChatWindow({ chatId }: { chatId: string }) {
             </Button>
           </div>
           <Button 
-            className="rounded-full bg-accent hover:bg-accent/90 shadow-md text-white px-4 sm:px-6 h-11"
+            className="rounded-full bg-accent hover:bg-accent/90 shadow-md text-white px-4 h-11 shrink-0"
             onClick={handleSend}
             disabled={!message.trim()}
           >
-            <Send className="w-4 h-4 sm:mr-2" />
-            <span className="hidden sm:inline">Отправить</span>
+            <Send className="w-4 h-4" />
+            <span className="hidden sm:inline ml-2">Отправить</span>
           </Button>
         </div>
       </div>

@@ -9,11 +9,11 @@ export default function ChatLayout({
 }) {
   return (
     <AuthGuard>
-      <div className="flex h-screen overflow-hidden bg-background">
+      <div className="flex h-[100dvh] overflow-hidden bg-background">
         <div className="w-80 flex-shrink-0 hidden md:block border-r bg-sidebar/50 backdrop-blur-sm">
           <ChatSidebar />
         </div>
-        <main className="flex-1 relative h-full">
+        <main className="flex-1 relative h-full overflow-hidden">
           {children}
         </main>
       </div>
