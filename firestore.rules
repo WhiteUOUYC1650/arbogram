@@ -1,20 +1,18 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Проверка авторизации
+    // Вспомогательная функция для проверки авторизации
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    // Проверка, является ли пользователь владельцем документа
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
-    }
-
     // Правила для профилей пользователей
     match /users/{userId} {
+      // Любой авторизованный пользователь может видеть чужие профили (для поиска)
       allow read: if isAuthenticated();
-      allow write: if isOwner(userId);
+      // Только сам пользователь может менять свои данные
+      allow write: if isAuthenticated() && request.auth.uid == userId;
     }
 
     // Правила для чатов
@@ -22,17 +20,20 @@ service cloud.firestore {
       // Доступ к чату имеют только его участники
       allow read: if isAuthenticated() && request.auth.uid in resource.data.participants;
       
-      // Создавать чат может любой авторизованный пользователь, если он сам в списке участников
+      // Создавать чат может любой, если он сам есть в списке участников
       allow create: if isAuthenticated() && request.auth.uid in request.resource.data.participants;
       
-      // Обновлять метаданные чата (напр. последнее сообщение) могут только участники
+      // Обновлять метаданные (напр. последнее сообщение) могут только участники
       allow update: if isAuthenticated() && request.auth.uid in resource.data.participants;
 
-      // Сообщения внутри чата
+      // Правила для сообщений внутри чата
       match /messages/{messageId} {
-        // Доступ к сообщениям только если пользователь участник родительского чата
-        allow read, write: if isAuthenticated() && 
+        // Читать и отправлять сообщения могут только участники родительского чата
+        allow read, create: if isAuthenticated() && 
           request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+        
+        // В MVP сообщения обычно не редактируются и не удаляются
+        allow update, delete: if false;
       }
     }
   }
