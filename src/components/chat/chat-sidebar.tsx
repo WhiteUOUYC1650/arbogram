@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { Search, Plus, MoreVertical, MessageSquare, Users } from "lucide-react";
+import { Search, Plus, MessageSquare, Users } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -12,11 +12,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const DUMMY_CHATS = [
-  { id: "1", name: "Forest Group", lastMessage: "Let's plant some trees!", time: "10:30 AM", type: "group", avatar: "https://picsum.photos/seed/nature/200/200" },
-  { id: "2", name: "Oakley Smith", lastMessage: "Did you see the new arboretum?", time: "9:15 AM", type: "individual", avatar: "https://picsum.photos/seed/user1/200/200" },
-  { id: "3", name: "Willow Green", lastMessage: "Shared a photo", time: "Yesterday", type: "individual", avatar: "https://picsum.photos/seed/user2/200/200" },
-  { id: "4", name: "Green Thumb Society", lastMessage: "Meeting at 5pm", time: "Yesterday", type: "group", avatar: "https://picsum.photos/seed/forest/200/200" },
-  { id: "5", name: "River Fern", lastMessage: "Thanks for the seeds!", time: "Monday", type: "individual", avatar: "https://picsum.photos/seed/user3/200/200" },
+  { id: "1", name: "Общий чат", lastMessage: "Привет всем!", time: "10:30", type: "group", avatar: "https://picsum.photos/seed/chat1/200/200" },
+  { id: "2", name: "Алексей Иванов", lastMessage: "Договорились, до завтра", time: "9:15", type: "individual", avatar: "https://picsum.photos/seed/user1/200/200" },
+  { id: "3", name: "Марина Сергеева", lastMessage: "Отправила документ", time: "Вчера", type: "individual", avatar: "https://picsum.photos/seed/user2/200/200" },
+  { id: "4", name: "Рабочая группа", lastMessage: "Встреча в 17:00", time: "Вчера", type: "group", avatar: "https://picsum.photos/seed/group1/200/200" },
+  { id: "5", name: "Дмитрий Петров", lastMessage: "Спасибо!", time: "Пн", type: "individual", avatar: "https://picsum.photos/seed/user3/200/200" },
 ];
 
 export function ChatSidebar() {
@@ -28,7 +28,7 @@ export function ChatSidebar() {
   );
 
   return (
-    <div className="flex flex-col h-full border-r bg-sidebar/50 backdrop-blur-sm">
+    <div className="flex flex-col h-full">
       <div className="p-4 space-y-4">
         <div className="flex items-center justify-between">
           <Link href="/chat" className="hover:opacity-80 transition-opacity">
@@ -47,7 +47,7 @@ export function ChatSidebar() {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input 
-            placeholder="Search conversations..." 
+            placeholder="Поиск..." 
             className="pl-9 bg-background/50 border-none focus-visible:ring-primary"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
