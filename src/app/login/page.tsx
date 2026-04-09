@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { MessageSquare } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { doc, setDoc } from "firebase/firestore";
+import { doc, setDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
@@ -28,48 +28,75 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [username, setUsername] = useState("@");
   const [isRegistering, setIsRegistering] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (user && !loading && db) {
-      const userData = {
-        uid: user.uid,
-        displayName: user.displayName || email.split('@')[0] || "User",
-        photoURL: user.photoURL || `https://picsum.photos/seed/${user.uid}/200/200`,
-        email: user.email,
-        lastSeen: Date.now()
-      };
-
-      setDoc(doc(db, "users", user.uid), userData, { merge: true })
-        .then(() => {
-          router.push("/chat");
-        })
-        .catch(async (e) => {
-          const error = new FirestorePermissionError({
-            path: `users/${user.uid}`,
-            operation: "write",
-            requestResourceData: userData
-          });
-          errorEmitter.emit("permission-error", error);
-        });
+      router.push("/chat");
     }
-  }, [user, loading, db, router, email]);
+  }, [user, loading, db, router]);
+
+  const validateUsername = (name: string) => {
+    return name.startsWith("@") && name.length >= 3;
+  };
+
+  const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    if (val === "" || val === "@") {
+      setUsername("@");
+    } else if (val.startsWith("@")) {
+      setUsername(val.toLowerCase().replace(/\s/g, ""));
+    } else {
+      setUsername("@" + val.toLowerCase().replace(/\s/g, ""));
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auth || !email || !password) return;
+    if (!auth || !db || !email || !password) return;
     
+    if (isRegistering && !validateUsername(username)) {
+      toast({
+        variant: "destructive",
+        title: "Ошибка",
+        description: "Юзернейм должен начинаться с @ и содержать минимум 2 символа после него.",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       if (isRegistering) {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        if (displayName) {
-          await updateProfile(userCredential.user, { displayName });
+        // Проверка уникальности юзернейма
+        const q = query(collection(db, "users"), where("username", "==", username));
+        const snapshot = await getDocs(q);
+        if (!snapshot.empty) {
+          throw new Error("Этот юзернейм уже занят.");
         }
+
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const newUser = userCredential.user;
+        
+        if (displayName) {
+          await updateProfile(newUser, { displayName });
+        }
+
+        const userData = {
+          uid: newUser.uid,
+          displayName: displayName || email.split('@')[0],
+          username: username,
+          photoURL: `https://picsum.photos/seed/${newUser.uid}/200/200`,
+          email: newUser.email,
+          lastSeen: Date.now()
+        };
+
+        await setDoc(doc(db, "users", newUser.uid), userData);
       } else {
         await signInWithEmailAndPassword(auth, email, password);
       }
+      router.push("/chat");
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -82,7 +109,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-dvh flex flex-col items-center justify-center bg-background p-4">
+    <div className="min-h-dvh flex flex-col items-center justify-center bg-background p-4 overflow-y-auto">
       <div className="w-full max-w-md space-y-8 bg-white p-8 rounded-3xl shadow-xl border border-primary/10 animate-in fade-in zoom-in duration-500">
         <div className="flex flex-col items-center space-y-4">
           <div className="w-16 h-16 rounded-2xl bg-accent flex items-center justify-center shadow-lg shadow-accent/20">
@@ -98,16 +125,29 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {isRegistering && (
-            <div className="space-y-2">
-              <Label htmlFor="name">Имя пользователя</Label>
-              <Input 
-                id="name"
-                placeholder="Иван Иванов" 
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                className="rounded-xl border-primary/20 focus-visible:ring-accent"
-              />
-            </div>
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="name">Имя (отображаемое)</Label>
+                <Input 
+                  id="name"
+                  placeholder="Иван Иванов" 
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  className="rounded-xl border-primary/20 focus-visible:ring-accent"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="username">Юзернейм (обязательно @)</Label>
+                <Input 
+                  id="username"
+                  placeholder="@ivan_the_great" 
+                  value={username}
+                  onChange={handleUsernameChange}
+                  className="rounded-xl border-primary/20 focus-visible:ring-accent font-mono"
+                  required
+                />
+              </div>
+            </>
           )}
           
           <div className="space-y-2">

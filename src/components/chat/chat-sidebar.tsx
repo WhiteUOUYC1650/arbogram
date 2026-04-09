@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -10,10 +11,9 @@ import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCollection, useFirestore, useAuth, useUser, useMemoFirebase } from "@/firebase";
-import { collection, query, where, orderBy, addDoc } from "firebase/firestore";
+import { collection, query, where, orderBy } from "firebase/firestore";
 import { signOut } from "firebase/auth";
-import { errorEmitter } from "@/firebase/error-emitter";
-import { FirestorePermissionError } from "@/firebase/errors";
+import { CreateChatDialog } from "./create-chat-dialog";
 
 export function ChatSidebar() {
   const pathname = usePathname();
@@ -37,28 +37,6 @@ export function ChatSidebar() {
     (chat.name || "Чат").toLowerCase().includes(search.toLowerCase())
   ) || [];
 
-  const handleCreateChat = () => {
-    if (!db || !user) return;
-    
-    const chatData = {
-      participants: [user.uid, "system"],
-      name: "Общий чат",
-      type: "group",
-      lastMessage: "Добро пожаловать в Arbogram!",
-      lastMessageTime: Date.now()
-    };
-
-    addDoc(collection(db, "chats"), chatData)
-      .catch(async (e) => {
-        const error = new FirestorePermissionError({
-          path: "chats",
-          operation: "create",
-          requestResourceData: chatData
-        });
-        errorEmitter.emit("permission-error", error);
-      });
-  };
-
   return (
     <div className="flex flex-col h-full bg-sidebar/30">
       <div className="p-4 space-y-4">
@@ -72,9 +50,11 @@ export function ChatSidebar() {
             </h1>
           </Link>
           <div className="flex gap-1">
-            <Button variant="ghost" size="icon" className="rounded-full" onClick={handleCreateChat}>
-              <Plus className="w-5 h-5 text-accent" />
-            </Button>
+            <CreateChatDialog>
+              <Button variant="ghost" size="icon" className="rounded-full">
+                <Plus className="w-5 h-5 text-accent" />
+              </Button>
+            </CreateChatDialog>
             <Button variant="ghost" size="icon" className="rounded-full" onClick={() => auth && signOut(auth)}>
               <LogOut className="w-5 h-5 text-muted-foreground" />
             </Button>
@@ -124,6 +104,14 @@ export function ChatSidebar() {
               </Link>
             );
           })}
+          {filteredChats.length === 0 && !search && (
+            <div className="p-8 text-center space-y-2">
+              <p className="text-sm text-muted-foreground">У вас пока нет чатов.</p>
+              <CreateChatDialog>
+                <Button variant="link" className="text-accent text-xs">Найти собеседника</Button>
+              </CreateChatDialog>
+            </div>
+          )}
         </div>
       </ScrollArea>
     </div>

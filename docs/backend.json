@@ -8,11 +8,12 @@
       "properties": {
         "uid": { "type": "string" },
         "displayName": { "type": "string" },
+        "username": { "type": "string", "description": "Уникальный тег пользователя, начинается с @" },
         "photoURL": { "type": "string" },
         "email": { "type": "string", "format": "email" },
         "lastSeen": { "type": "number" }
       },
-      "required": ["uid", "email"]
+      "required": ["uid", "email", "username"]
     },
     "Chat": {
       "title": "Chat",
@@ -20,6 +21,7 @@
       "type": "object",
       "properties": {
         "participants": { "type": "array", "items": { "type": "string" } },
+        "ownerId": { "type": "string", "description": "ID создателя группы" },
         "lastMessage": { "type": "string" },
         "lastMessageTime": { "type": "number" },
         "type": { "type": "string", "enum": ["individual", "group"] },

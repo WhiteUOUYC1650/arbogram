@@ -2,24 +2,33 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Функция проверки авторизации
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    // Профили пользователей: читать могут все вошедшие, писать - только владелец
     match /users/{userId} {
+      // Позволяем всем авторизованным искать пользователей по username
       allow read: if isAuthenticated();
       allow write: if isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Чаты и сообщения: для MVP разрешаем доступ всем авторизованным пользователям.
-    // Это гарантирует, что "Missing permissions" не возникнет из-за сложных проверок участия.
     match /chats/{chatId} {
-      allow read, write: if isAuthenticated();
+      // Доступ к чату только для участников
+      allow read: if isAuthenticated() && request.auth.uid in resource.data.participants;
+      
+      // Создавать чат может любой авторизованный, если он есть в списке участников
+      allow create: if isAuthenticated() && request.auth.uid in request.resource.data.participants;
+      
+      // Обновлять чат могут участники (для lastMessage) или владелец
+      allow update: if isAuthenticated() && (
+        request.auth.uid in resource.data.participants || 
+        request.auth.uid == resource.data.ownerId
+      );
 
       match /messages/{messageId} {
-        allow read, write: if isAuthenticated();
+        // Сообщения доступны только участникам чата
+        allow read: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+        allow create: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
       }
     }
   }
