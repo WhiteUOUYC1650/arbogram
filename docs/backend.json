@@ -1,0 +1,49 @@
+
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Профиль пользователя мессенджера",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "lastSeen": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName"]
+    },
+    "Chat": {
+      "title": "Chat",
+      "description": "Метаданные чата",
+      "type": "object",
+      "properties": {
+        "participants": { "type": "array", "items": { "type": "string" } },
+        "lastMessage": { "type": "string" },
+        "lastMessageTime": { "type": "number" },
+        "type": { "type": "string", "enum": ["individual", "group"] },
+        "name": { "type": "string" }
+      }
+    },
+    "Message": {
+      "title": "Message",
+      "description": "Сообщение в чате",
+      "type": "object",
+      "properties": {
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "text": { "type": "string" },
+        "timestamp": { "type": "number" }
+      }
+    }
+  },
+  "auth": {
+    "providers": ["google.com"]
+  },
+  "firestore": {
+    "/users/{userId}": { "schema": "User", "description": "Профили пользователей" },
+    "/chats/{chatId}": { "schema": "Chat", "description": "Список чатов" },
+    "/chats/{chatId}/messages/{messageId}": { "schema": "Message", "description": "Сообщения в чате" }
+  }
+}
