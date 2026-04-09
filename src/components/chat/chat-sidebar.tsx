@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -13,6 +12,8 @@ import { usePathname } from "next/navigation";
 import { useCollection, useFirestore, useAuth, useUser, useMemoFirebase } from "@/firebase";
 import { collection, query, where, orderBy, addDoc } from "firebase/firestore";
 import { signOut } from "firebase/auth";
+import { errorEmitter } from "@/firebase/error-emitter";
+import { FirestorePermissionError } from "@/firebase/errors";
 
 export function ChatSidebar() {
   const pathname = usePathname();
@@ -38,14 +39,24 @@ export function ChatSidebar() {
 
   const handleCreateChat = () => {
     if (!db || !user) return;
-    // Создаем демонстрационный чат. В реальном приложении здесь был бы поиск пользователей.
-    addDoc(collection(db, "chats"), {
+    
+    const chatData = {
       participants: [user.uid, "system"],
       name: "Общий чат",
       type: "group",
       lastMessage: "Добро пожаловать в Arbogram!",
       lastMessageTime: Date.now()
-    }).catch(console.error);
+    };
+
+    addDoc(collection(db, "chats"), chatData)
+      .catch(async (e) => {
+        const error = new FirestorePermissionError({
+          path: "chats",
+          operation: "create",
+          requestResourceData: chatData
+        });
+        errorEmitter.emit("permission-error", error);
+      });
   };
 
   return (

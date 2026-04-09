@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useAuth, useUser, useFirestore } from "@/firebase";
@@ -15,6 +14,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { doc, setDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
+import { errorEmitter } from "@/firebase/error-emitter";
+import { FirestorePermissionError } from "@/firebase/errors";
 
 export default function LoginPage() {
   const auth = useAuth();
@@ -31,13 +32,23 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (user && !loading && db) {
-      setDoc(doc(db, "users", user.uid), {
+      const userData = {
         uid: user.uid,
         displayName: user.displayName || email.split('@')[0],
         photoURL: user.photoURL || `https://picsum.photos/seed/${user.uid}/200/200`,
         email: user.email,
         lastSeen: Date.now()
-      }, { merge: true }).catch(console.error);
+      };
+
+      setDoc(doc(db, "users", user.uid), userData, { merge: true })
+        .catch(async (e) => {
+          const error = new FirestorePermissionError({
+            path: `users/${user.uid}`,
+            operation: "write",
+            requestResourceData: userData
+          });
+          errorEmitter.emit("permission-error", error);
+        });
       
       router.push("/chat");
     }

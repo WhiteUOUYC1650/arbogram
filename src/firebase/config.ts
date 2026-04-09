@@ -1,9 +1,11 @@
 
 export const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyDummyKey",
-  authDomain: `${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "studio-8196387615-98503"}.firebaseapp.com`,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "studio-8196387615-98503",
-  storageBucket: `${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "studio-8196387615-98503"}.firebasestorage.app`,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "123456789",
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "1:123456789:web:abcdef"
+  apiKey: "AIzaSyBwFm_ELgNp6CvtHrPvScT-m7bu-L79z38",
+  authDomain: "arbogramchik.firebaseapp.com",
+  projectId: "arbogramchik",
+  storageBucket: "arbogramchik.firebasestorage.app",
+  messagingSenderId: "294100861157",
+  appId: "1:294100861157:web:483a157a873a3fc101d40c",
+  measurementId: "G-XSKJBQNRHC"
 };
+
