@@ -8,8 +8,8 @@ service cloud.firestore {
 
     // Проверка, является ли пользователь участником чата
     function isChatParticipant(chatId) {
-      return isAuthenticated() && 
-        request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+      let chat = get(/databases/$(database)/documents/chats/$(chatId)).data;
+      return isAuthenticated() && request.auth.uid in chat.participants;
     }
 
     match /users/{userId} {
