@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "User": {
@@ -20,12 +21,17 @@
       "type": "object",
       "properties": {
         "participants": { "type": "array", "items": { "type": "string" } },
-        "ownerId": { "type": "string", "description": "ID создателя группы (только для type='group')" },
+        "metadata": { 
+          "type": "object", 
+          "description": "Данные участников для личных чатов: { uid: { displayName, photoURL } }" 
+        },
+        "ownerId": { "type": "string", "description": "ID создателя группы" },
         "lastMessage": { "type": "string" },
         "lastMessageTime": { "type": "number" },
         "type": { "type": "string", "enum": ["individual", "group"] },
-        "name": { "type": "string", "description": "Имя группы или отображаемое имя собеседника" },
-        "createdAt": { "type": "object", "description": "Firebase serverTimestamp" }
+        "name": { "type": "string", "description": "Имя группы" },
+        "photoURL": { "type": "string", "description": "Фото группы" },
+        "createdAt": { "type": "object" }
       },
       "required": ["participants", "type", "lastMessageTime"]
     },

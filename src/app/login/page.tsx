@@ -16,6 +16,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { doc, setDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
+import { PlaceHolderImages } from "@/lib/placeholder-images";
 
 export default function LoginPage() {
   const auth = useAuth();
@@ -68,31 +69,30 @@ export default function LoginPage() {
     setIsSubmitting(true);
     try {
       if (isRegistering) {
-        // 1. Сначала создаем пользователя, чтобы стать авторизованным
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const newUser = userCredential.user;
 
         try {
-          // 2. Теперь, когда мы isAuthenticated(), проверяем уникальность юзернейма
           const q = query(collection(db, "users"), where("username", "==", username));
           const snapshot = await getDocs(q);
           
           if (!snapshot.empty) {
-            // Если занят, удаляем созданный аккаунт и выбрасываем ошибку
             await deleteUser(newUser);
             throw new Error("Этот юзернейм уже занят.");
           }
 
-          // 3. Обновляем профиль и сохраняем в Firestore
           if (displayName) {
             await updateProfile(newUser, { displayName });
           }
+
+          // Назначаем одну из доступных аватарок-заглушек
+          const randomAvatar = PlaceHolderImages.find(img => img.id.startsWith('avatar'))?.imageUrl || "";
 
           const userData = {
             uid: newUser.uid,
             displayName: displayName || email.split('@')[0],
             username: username,
-            photoURL: `https://picsum.photos/seed/${newUser.uid}/200/200`,
+            photoURL: randomAvatar,
             email: newUser.email,
             lastSeen: Date.now()
           };
@@ -100,7 +100,6 @@ export default function LoginPage() {
           await setDoc(doc(db, "users", newUser.uid), userData);
           router.push("/chat");
         } catch (innerError: any) {
-          // Если что-то пошло не так после создания аккаунта (например, юзернейм занят)
           toast({
             variant: "destructive",
             title: "Ошибка регистрации",
@@ -125,8 +124,8 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-dvh flex flex-col items-center justify-center bg-background p-4 overflow-y-auto">
-      <div className="w-full max-w-md space-y-8 bg-white p-8 rounded-3xl shadow-xl border border-primary/10 animate-in fade-in zoom-in duration-500">
+    <div className="min-h-dvh flex flex-col items-center justify-center bg-background p-4">
+      <div className="w-full max-w-md space-y-8 bg-white p-8 rounded-3xl shadow-xl border border-primary/10">
         <div className="flex flex-col items-center space-y-4">
           <div className="w-16 h-16 rounded-2xl bg-accent flex items-center justify-center shadow-lg shadow-accent/20">
             <MessageSquare className="w-8 h-8 text-white" />
@@ -149,7 +148,7 @@ export default function LoginPage() {
                   placeholder="Иван Иванов" 
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
-                  className="rounded-xl border-primary/20 focus-visible:ring-accent"
+                  className="rounded-xl"
                 />
               </div>
               <div className="space-y-2">
@@ -159,7 +158,7 @@ export default function LoginPage() {
                   placeholder="@ivan_the_great" 
                   value={username}
                   onChange={handleUsernameChange}
-                  className="rounded-xl border-primary/20 focus-visible:ring-accent font-mono"
+                  className="rounded-xl font-mono"
                   required
                 />
               </div>
@@ -175,7 +174,7 @@ export default function LoginPage() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="rounded-xl border-primary/20 focus-visible:ring-accent"
+              className="rounded-xl"
             />
           </div>
 
@@ -188,14 +187,14 @@ export default function LoginPage() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="rounded-xl border-primary/20 focus-visible:ring-accent"
+              className="rounded-xl"
             />
           </div>
 
           <Button 
             type="submit"
             disabled={isSubmitting}
-            className="w-full h-12 bg-accent hover:bg-accent/90 text-white font-semibold rounded-xl transition-all active:scale-[0.98]"
+            className="w-full h-12 bg-accent hover:bg-accent/90 text-white font-semibold rounded-xl"
           >
             {isSubmitting ? "Загрузка..." : (isRegistering ? "Зарегистрироваться" : "Войти")}
           </Button>

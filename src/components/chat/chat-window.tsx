@@ -73,7 +73,17 @@ export function ChatWindow({ chatId }: { chatId: string }) {
     }
   };
 
-  const chatName = chatData?.name || `Чат ${chatId.substring(0, 4)}`;
+  // Логика отображения имени чата в заголовке
+  let chatName = chatData?.name || "Загрузка...";
+  let chatAvatar = chatData?.photoURL;
+
+  if (chatData?.type === 'individual' && user) {
+    const otherId = chatData.participants.find(p => p !== user.uid);
+    if (otherId && chatData.metadata?.[otherId]) {
+      chatName = chatData.metadata[otherId].displayName;
+      chatAvatar = chatData.metadata[otherId].photoURL;
+    }
+  }
 
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden">
@@ -88,12 +98,12 @@ export function ChatWindow({ chatId }: { chatId: string }) {
             </Button>
           )}
           <Avatar className="w-10 h-10 border-2 border-primary/20">
-            <AvatarImage src={`https://picsum.photos/seed/${chatId}/200/200`} />
+            {chatAvatar && <AvatarImage src={chatAvatar} />}
             <AvatarFallback>{chatName[0]}</AvatarFallback>
           </Avatar>
           <div>
-            <h2 className="font-semibold text-sm leading-tight">{chatName}</h2>
-            <p className="text-[10px] text-accent font-medium">Онлайн</p>
+            <h2 className="font-semibold text-sm leading-tight truncate max-w-[150px] sm:max-w-none">{chatName}</h2>
+            <p className="text-[10px] text-accent font-medium">В сети</p>
           </div>
         </div>
         <div className="flex items-center gap-1">
@@ -122,7 +132,9 @@ export function ChatWindow({ chatId }: { chatId: string }) {
                     ? "bg-accent text-white rounded-tr-none" 
                     : "bg-white text-foreground rounded-tl-none border border-primary/10"
                 )}>
-                  {!isMe && <p className="text-[9px] font-bold opacity-70 mb-1">{msg.senderName}</p>}
+                  {!isMe && chatData?.type === 'group' && (
+                    <p className="text-[9px] font-bold opacity-70 mb-1">{msg.senderName}</p>
+                  )}
                   {msg.text}
                 </div>
                 <span className="text-[10px] text-muted-foreground mt-1 px-1">

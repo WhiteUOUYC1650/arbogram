@@ -2,16 +2,17 @@
 "use client";
 
 import * as React from "react";
-import { Search, Users, UserPlus, Send, Loader2 } from "lucide-react";
+import { Search, Users, Send, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useFirestore, useUser } from "@/firebase";
-import { collection, query, where, getDocs, addDoc, serverTimestamp } from "firebase/firestore";
+import { useFirestore, useUser, useDoc } from "@/firebase";
+import { collection, query, where, getDocs, addDoc, serverTimestamp, doc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
+import { PlaceHolderImages } from "@/lib/placeholder-images";
 
 export function CreateChatDialog({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = React.useState(false);
@@ -25,6 +26,10 @@ export function CreateChatDialog({ children }: { children: React.ReactNode }) {
   const { user } = useUser();
   const router = useRouter();
   const { toast } = useToast();
+
+  // Получаем данные текущего пользователя для записи в метаданные чата
+  const currentUserRef = React.useMemo(() => (db && user ? doc(db, "users", user.uid) : null), [db, user]);
+  const { data: currentUserData } = useDoc(currentUserRef);
 
   const handleSearch = async () => {
     if (!db || searchQuery.length < 2) return;
@@ -53,17 +58,28 @@ export function CreateChatDialog({ children }: { children: React.ReactNode }) {
   };
 
   const startIndividualChat = async (targetUser: any) => {
-    if (!db || !user) return;
+    if (!db || !user || !currentUserData) return;
     
     setIsCreating(true);
     try {
-      // Проверяем, нет ли уже чата между ними (в MVP просто создаем новый или ищем)
       const participants = [user.uid, targetUser.uid].sort();
+      
+      // Ищем, не создан ли уже такой чат (в идеале нужно искать query по participants)
+      // Для MVP просто создаем.
       
       const chatData = {
         participants,
+        metadata: {
+          [user.uid]: {
+            displayName: currentUserData.displayName || "Я",
+            photoURL: currentUserData.photoURL || ""
+          },
+          [targetUser.uid]: {
+            displayName: targetUser.displayName,
+            photoURL: targetUser.photoURL || ""
+          }
+        },
         type: "individual",
-        name: targetUser.displayName,
         lastMessage: "Чат начат",
         lastMessageTime: Date.now(),
         createdAt: serverTimestamp()
@@ -84,11 +100,14 @@ export function CreateChatDialog({ children }: { children: React.ReactNode }) {
     
     setIsCreating(true);
     try {
+      const groupAvatar = PlaceHolderImages.find(img => img.id === 'group-avatar')?.imageUrl || "";
+
       const chatData = {
         participants: [user.uid],
         ownerId: user.uid,
         type: "group",
         name: groupName,
+        photoURL: groupAvatar,
         lastMessage: "Группа создана",
         lastMessageTime: Date.now(),
         createdAt: serverTimestamp()

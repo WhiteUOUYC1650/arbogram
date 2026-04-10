@@ -33,9 +33,12 @@ export function ChatSidebar() {
 
   const { data: chats } = useCollection(chatsQuery);
 
-  const filteredChats = chats?.filter(chat => 
-    (chat.name || "Чат").toLowerCase().includes(search.toLowerCase())
-  ) || [];
+  const filteredChats = chats?.filter(chat => {
+    const chatName = chat.type === 'individual' && user 
+      ? chat.metadata?.[chat.participants.find(p => p !== user.uid)]?.displayName
+      : chat.name;
+    return (chatName || "Чат").toLowerCase().includes(search.toLowerCase());
+  }) || [];
 
   return (
     <div className="flex flex-col h-full bg-sidebar/30">
@@ -76,7 +79,18 @@ export function ChatSidebar() {
         <div className="px-2 pb-4 space-y-1">
           {filteredChats.map((chat) => {
             const isActive = pathname === `/chat/${chat.id}`;
-            const displayName = chat.name || "Личный чат";
+            
+            // Логика определения имени и аватара
+            let displayName = chat.name || "Группа";
+            let displayAvatar = chat.photoURL;
+
+            if (chat.type === 'individual' && user) {
+              const otherId = chat.participants.find(p => p !== user.uid);
+              if (otherId && chat.metadata?.[otherId]) {
+                displayName = chat.metadata[otherId].displayName;
+                displayAvatar = chat.metadata[otherId].photoURL;
+              }
+            }
             
             return (
               <Link key={chat.id} href={`/chat/${chat.id}`}>
@@ -85,7 +99,7 @@ export function ChatSidebar() {
                   isActive && "bg-white shadow-sm ring-1 ring-primary/10"
                 )}>
                   <Avatar className="w-12 h-12 border-2 border-primary/20">
-                    <AvatarImage src={`https://picsum.photos/seed/${chat.id}/200/200`} />
+                    {displayAvatar && <AvatarImage src={displayAvatar} />}
                     <AvatarFallback>{displayName[0]}</AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
