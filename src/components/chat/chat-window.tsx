@@ -76,6 +76,7 @@ export function ChatWindow({ chatId }: { chatId: string }) {
   // Логика отображения имени чата в заголовке
   let chatName = chatData?.name || "Загрузка...";
   let chatAvatar = chatData?.photoURL;
+  let statusText = "В сети";
 
   if (chatData?.type === 'individual' && user) {
     const otherId = chatData.participants.find(p => p !== user.uid);
@@ -83,6 +84,10 @@ export function ChatWindow({ chatId }: { chatId: string }) {
       chatName = chatData.metadata[otherId].displayName;
       chatAvatar = chatData.metadata[otherId].photoURL;
     }
+  } else if (chatData?.type === 'group') {
+    const count = chatData.participants?.length || 0;
+    const suffix = count === 1 ? "участник" : (count > 1 && count < 5) ? "участника" : "участников";
+    statusText = `${count} ${suffix}`;
   }
 
   return (
@@ -103,7 +108,7 @@ export function ChatWindow({ chatId }: { chatId: string }) {
           </Avatar>
           <div>
             <h2 className="font-semibold text-sm leading-tight truncate max-w-[150px] sm:max-w-none">{chatName}</h2>
-            <p className="text-[10px] text-accent font-medium">В сети</p>
+            <p className="text-[10px] text-accent font-medium">{statusText}</p>
           </div>
         </div>
         <div className="flex items-center gap-1">
