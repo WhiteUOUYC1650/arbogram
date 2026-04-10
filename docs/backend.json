@@ -1,9 +1,8 @@
-
 {
   "entities": {
     "User": {
       "title": "User",
-      "description": "Профиль пользователя мессенджера",
+      "description": "Профиль пользователя мессенджера. Юзернейм должен начинаться с @.",
       "type": "object",
       "properties": {
         "uid": { "type": "string" },
@@ -17,16 +16,18 @@
     },
     "Chat": {
       "title": "Chat",
-      "description": "Метаданные чата",
+      "description": "Метаданные чата (личного или группового)",
       "type": "object",
       "properties": {
         "participants": { "type": "array", "items": { "type": "string" } },
-        "ownerId": { "type": "string", "description": "ID создателя группы" },
+        "ownerId": { "type": "string", "description": "ID создателя группы (только для type='group')" },
         "lastMessage": { "type": "string" },
         "lastMessageTime": { "type": "number" },
         "type": { "type": "string", "enum": ["individual", "group"] },
-        "name": { "type": "string" }
-      }
+        "name": { "type": "string", "description": "Имя группы или отображаемое имя собеседника" },
+        "createdAt": { "type": "object", "description": "Firebase serverTimestamp" }
+      },
+      "required": ["participants", "type", "lastMessageTime"]
     },
     "Message": {
       "title": "Message",
@@ -37,7 +38,8 @@
         "senderName": { "type": "string" },
         "text": { "type": "string" },
         "timestamp": { "type": "number" }
-      }
+      },
+      "required": ["senderId", "text", "timestamp"]
     }
   },
   "auth": {
