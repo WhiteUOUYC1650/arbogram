@@ -5,7 +5,8 @@ import { useAuth, useUser, useFirestore } from "@/firebase";
 import { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword,
-  updateProfile
+  updateProfile,
+  deleteUser
 } from "firebase/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,8 +16,6 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { doc, setDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
-import { errorEmitter } from "@/firebase/error-emitter";
-import { FirestorePermissionError } from "@/firebase/errors";
 
 export default function LoginPage() {
   const auth = useAuth();
@@ -33,10 +32,10 @@ export default function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (user && !loading && db) {
+    if (user && !loading && !isSubmitting) {
       router.push("/chat");
     }
-  }, [user, loading, db, router]);
+  }, [user, loading, isSubmitting, router]);
 
   const validateUsername = (name: string) => {
     return name.startsWith("@") && name.length >= 3;
@@ -69,34 +68,51 @@ export default function LoginPage() {
     setIsSubmitting(true);
     try {
       if (isRegistering) {
-        // Проверка уникальности юзернейма
-        const q = query(collection(db, "users"), where("username", "==", username));
-        const snapshot = await getDocs(q);
-        if (!snapshot.empty) {
-          throw new Error("Этот юзернейм уже занят.");
-        }
-
+        // 1. Сначала создаем пользователя, чтобы стать авторизованным
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const newUser = userCredential.user;
-        
-        if (displayName) {
-          await updateProfile(newUser, { displayName });
+
+        try {
+          // 2. Теперь, когда мы isAuthenticated(), проверяем уникальность юзернейма
+          const q = query(collection(db, "users"), where("username", "==", username));
+          const snapshot = await getDocs(q);
+          
+          if (!snapshot.empty) {
+            // Если занят, удаляем созданный аккаунт и выбрасываем ошибку
+            await deleteUser(newUser);
+            throw new Error("Этот юзернейм уже занят.");
+          }
+
+          // 3. Обновляем профиль и сохраняем в Firestore
+          if (displayName) {
+            await updateProfile(newUser, { displayName });
+          }
+
+          const userData = {
+            uid: newUser.uid,
+            displayName: displayName || email.split('@')[0],
+            username: username,
+            photoURL: `https://picsum.photos/seed/${newUser.uid}/200/200`,
+            email: newUser.email,
+            lastSeen: Date.now()
+          };
+
+          await setDoc(doc(db, "users", newUser.uid), userData);
+          router.push("/chat");
+        } catch (innerError: any) {
+          // Если что-то пошло не так после создания аккаунта (например, юзернейм занят)
+          toast({
+            variant: "destructive",
+            title: "Ошибка регистрации",
+            description: innerError.message,
+          });
+          setIsSubmitting(false);
+          return;
         }
-
-        const userData = {
-          uid: newUser.uid,
-          displayName: displayName || email.split('@')[0],
-          username: username,
-          photoURL: `https://picsum.photos/seed/${newUser.uid}/200/200`,
-          email: newUser.email,
-          lastSeen: Date.now()
-        };
-
-        await setDoc(doc(db, "users", newUser.uid), userData);
       } else {
         await signInWithEmailAndPassword(auth, email, password);
+        router.push("/chat");
       }
-      router.push("/chat");
     } catch (error: any) {
       toast({
         variant: "destructive",
