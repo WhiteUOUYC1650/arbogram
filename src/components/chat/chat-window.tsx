@@ -276,8 +276,7 @@ export function ChatWindow({ chatId }: { chatId: string }) {
                       <img 
                         src={msg.imageUrl} 
                         alt="Shared photo" 
-                        className="w-full max-h-[300px] object-cover rounded-xl cursor-pointer"
-                        onClick={() => saveImage(msg.imageUrl!)}
+                        className="w-full max-h-[300px] object-cover rounded-xl"
                       />
                     )}
                     {msg.text && (
@@ -385,4 +384,3 @@ export function ChatWindow({ chatId }: { chatId: string }) {
     </div>
   );
 }
-
