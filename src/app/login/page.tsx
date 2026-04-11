@@ -13,9 +13,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { MessageSquare, Chrome } from "lucide-react";
+import { MessageSquare, Chrome, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { doc, setDoc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
@@ -26,12 +26,19 @@ const TelegramIcon = (props: React.SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
+declare global {
+  interface Window {
+    onTelegramAuth: (user: any) => void;
+  }
+}
+
 export default function LoginPage() {
   const auth = useAuth();
   const db = useFirestore();
   const { user, loading } = useUser();
   const router = useRouter();
   const { toast } = useToast();
+  const tgContainerRef = useRef<HTMLDivElement>(null);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -45,6 +52,60 @@ export default function LoginPage() {
       router.push("/chat");
     }
   }, [user, loading, isSubmitting, router]);
+
+  useEffect(() => {
+    // Интеграция виджета Telegram
+    if (tgContainerRef.current) {
+      const script = document.createElement('script');
+      script.src = "https://telegram.org/js/telegram-widget.js?22";
+      script.async = true;
+      script.setAttribute('data-telegram-login', 'Arbogram_login_bot');
+      script.setAttribute('data-size', 'large');
+      script.setAttribute('data-radius', '12');
+      script.setAttribute('data-onauth', 'onTelegramAuth(user)');
+      script.setAttribute('data-request-access', 'write');
+      tgContainerRef.current.appendChild(script);
+
+      window.onTelegramAuth = async (tgUser: any) => {
+        if (!auth || !db) return;
+        setIsSubmitting(true);
+        try {
+          // Для прототипа используем детерминированный email на базе TG ID
+          const tgEmail = `tg_${tgUser.id}@arbogram.me`;
+          const tgPassword = `tg_pass_${tgUser.id}_secure`; // В реальности нужна проверка hash на сервере
+          
+          let firebaseUser;
+          try {
+            const cred = await signInWithEmailAndPassword(auth, tgEmail, tgPassword);
+            firebaseUser = cred.user;
+          } catch (e) {
+            const cred = await createUserWithEmailAndPassword(auth, tgEmail, tgPassword);
+            firebaseUser = cred.user;
+          }
+
+          const userDocRef = doc(db, "users", firebaseUser.uid);
+          const userDoc = await getDoc(userDocRef);
+
+          if (!userDoc.exists()) {
+            const userData = {
+              uid: firebaseUser.uid,
+              displayName: tgUser.first_name + (tgUser.last_name ? ` ${tgUser.last_name}` : ""),
+              username: tgUser.username ? `@${tgUser.username}` : `@user_${tgUser.id}`,
+              photoURL: tgUser.photo_url || PlaceHolderImages.find(img => img.id === 'avatar-1')?.imageUrl || "",
+              email: tgEmail,
+              lastSeen: Date.now()
+            };
+            await setDoc(userDocRef, userData);
+          }
+          router.push("/chat");
+        } catch (error: any) {
+          toast({ variant: "destructive", title: "Ошибка Telegram", description: error.message });
+        } finally {
+          setIsSubmitting(false);
+        }
+      };
+    }
+  }, [auth, db, router, toast]);
 
   const validateUsername = (name: string) => {
     return name.startsWith("@") && name.length >= 3;
@@ -64,63 +125,40 @@ export default function LoginPage() {
   const handleGoogleLogin = async () => {
     if (!auth || !db) return;
     setIsSubmitting(true);
-    
     try {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
       const loggedUser = result.user;
 
       const userDoc = await getDoc(doc(db, "users", loggedUser.uid));
-      
       if (!userDoc.exists()) {
         const baseUsername = loggedUser.displayName 
           ? loggedUser.displayName.toLowerCase().replace(/\s/g, "_") 
           : loggedUser.email?.split('@')[0] || "user";
         
         let finalUsername = `@${baseUsername}`;
-        
         const q = query(collection(db, "users"), where("username", "==", finalUsername));
         const snapshot = await getDocs(q);
         if (!snapshot.empty) {
           finalUsername = `@${baseUsername}_${loggedUser.uid.substring(0, 4)}`;
         }
 
-        const avatar = PlaceHolderImages.find(img => img.id === 'avatar-1')?.imageUrl || "";
-
         const userData = {
           uid: loggedUser.uid,
           displayName: loggedUser.displayName || loggedUser.email?.split('@')[0] || "User",
           username: finalUsername,
-          photoURL: loggedUser.photoURL || avatar,
+          photoURL: loggedUser.photoURL || PlaceHolderImages.find(img => img.id === 'avatar-1')?.imageUrl || "",
           email: loggedUser.email,
           lastSeen: Date.now()
         };
-
         await setDoc(doc(db, "users", loggedUser.uid), userData);
       }
-      
       router.push("/chat");
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Ошибка Google входа",
-        description: error.message,
-      });
+      toast({ variant: "destructive", title: "Ошибка Google", description: error.message });
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const handleTelegramLogin = async () => {
-    setIsSubmitting(true);
-    // Это симуляция, так как настоящий TG Login требует серверной проверки хеша
-    toast({
-      title: "Telegram Login (Mock)",
-      description: "Для работы этой функции нужно подключить бота. В прототипе мы имитируем процесс.",
-    });
-    setTimeout(() => {
-      setIsSubmitting(false);
-    }, 1000);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -128,65 +166,41 @@ export default function LoginPage() {
     if (!auth || !db || !email || !password) return;
     
     if (isRegistering && !validateUsername(username)) {
-      toast({
-        variant: "destructive",
-        title: "Ошибка",
-        description: "Юзернейм должен начинаться с @ и содержать минимум 2 символа после него.",
-      });
+      toast({ variant: "destructive", title: "Ошибка", description: "Юзернейм должен начинаться с @." });
       return;
     }
 
     setIsSubmitting(true);
     try {
       if (isRegistering) {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const newUser = userCredential.user;
-
-        try {
-          const q = query(collection(db, "users"), where("username", "==", username));
-          const snapshot = await getDocs(q);
-          
-          if (!snapshot.empty) {
-            await deleteUser(newUser);
-            throw new Error("Этот юзернейм уже занят.");
-          }
-
-          if (displayName) {
-            await updateProfile(newUser, { displayName });
-          }
-
-          const defaultAvatar = PlaceHolderImages.find(img => img.id === 'avatar-1')?.imageUrl || "";
-
-          const userData = {
-            uid: newUser.uid,
-            displayName: displayName || email.split('@')[0],
-            username: username,
-            photoURL: defaultAvatar,
-            email: newUser.email,
-            lastSeen: Date.now()
-          };
-
-          await setDoc(doc(db, "users", newUser.uid), userData);
-          router.push("/chat");
-        } catch (innerError: any) {
-          toast({
-            variant: "destructive",
-            title: "Ошибка регистрации",
-            description: innerError.message,
-          });
+        const q = query(collection(db, "users"), where("username", "==", username));
+        const snapshot = await getDocs(q);
+        if (!snapshot.empty) {
+          toast({ variant: "destructive", title: "Ошибка", description: "Юзернейм занят." });
           setIsSubmitting(false);
           return;
         }
+
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const newUser = userCredential.user;
+
+        const userData = {
+          uid: newUser.uid,
+          displayName: displayName || email.split('@')[0],
+          username: username,
+          photoURL: PlaceHolderImages.find(img => img.id === 'avatar-1')?.imageUrl || "",
+          email: newUser.email,
+          lastSeen: Date.now()
+        };
+
+        await setDoc(doc(db, "users", newUser.uid), userData);
+        router.push("/chat");
       } else {
         await signInWithEmailAndPassword(auth, email, password);
         router.push("/chat");
       }
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Ошибка",
-        description: error.message,
-      });
+      toast({ variant: "destructive", title: "Ошибка", description: error.message });
     } finally {
       setIsSubmitting(false);
     }
@@ -202,7 +216,7 @@ export default function LoginPage() {
           <div className="text-center">
             <h1 className="text-3xl font-bold font-headline text-foreground">Arbogram</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              {isRegistering ? "Создайте аккаунт для общения" : "С возвращением в мессенджер"}
+              {isRegistering ? "Создайте аккаунт" : "С возвращением"}
             </p>
           </div>
         </div>
@@ -214,19 +228,13 @@ export default function LoginPage() {
             onClick={handleGoogleLogin}
             disabled={isSubmitting}
           >
-            <Chrome className="w-5 h-5" />
+            {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Chrome className="w-5 h-5" />}
             <span>Войти через Google</span>
           </Button>
 
-          <Button 
-            variant="outline" 
-            className="w-full h-12 rounded-xl border-primary/20 hover:bg-primary/5 flex items-center justify-center gap-2"
-            onClick={handleTelegramLogin}
-            disabled={isSubmitting}
-          >
-            <TelegramIcon className="w-5 h-5 text-[#24A1DE]" />
-            <span>Войти через Telegram</span>
-          </Button>
+          <div className="flex justify-center py-2">
+             <div ref={tgContainerRef} id="telegram-login-container"></div>
+          </div>
 
           <div className="relative pt-2">
             <div className="absolute inset-0 flex items-center">
@@ -242,7 +250,7 @@ export default function LoginPage() {
           {isRegistering && (
             <>
               <div className="space-y-2">
-                <Label htmlFor="name">Имя (отображаемое)</Label>
+                <Label htmlFor="name">Имя</Label>
                 <Input 
                   id="name"
                   placeholder="Иван Иванов" 
@@ -253,10 +261,10 @@ export default function LoginPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="username">Юзернейм (обязательно @)</Label>
+                <Label htmlFor="username">Юзернейм (@...)</Label>
                 <Input 
                   id="username"
-                  placeholder="@ivan_the_great" 
+                  placeholder="@ivan" 
                   value={username}
                   onChange={handleUsernameChange}
                   className="rounded-xl font-mono"
@@ -300,7 +308,7 @@ export default function LoginPage() {
             disabled={isSubmitting}
             className="w-full h-12 bg-accent hover:bg-accent/90 text-white font-semibold rounded-xl"
           >
-            {isSubmitting ? "Загрузка..." : (isRegistering ? "Зарегистрироваться" : "Войти")}
+            {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : (isRegistering ? "Зарегистрироваться" : "Войти")}
           </Button>
         </form>
 
