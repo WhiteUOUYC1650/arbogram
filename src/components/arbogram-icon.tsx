@@ -1,3 +1,4 @@
+
 "use client";
 
 import { cn } from "@/lib/utils";
@@ -9,7 +10,7 @@ interface ArbogramIconProps {
 }
 
 /**
- * Фолбек-иконка (Base64 или URL), если в Firestore ничего не задано.
+ * Фолбек-иконка (URL), если в Firestore ничего не задано.
  */
 const DEFAULT_ICON = "https://docs.google.com/uc?export=download&id=1KXNoBIvgzPrBLjJrqpq-QR6Tq7DphLpQ";
 

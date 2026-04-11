@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -48,7 +49,7 @@ export default function ChannelSlugClient({ slug }: { slug: string }) {
 
   if (loading) {
     return (
-      <div className="h-screen flex flex-col items-center justify-center space-y-4">
+      <div className="h-screen flex flex-col items-center justify-center space-y-4 bg-background">
         <Loader2 className="w-8 h-8 animate-spin text-accent" />
         <p className="text-sm text-muted-foreground">Поиск канала agc/{slug}...</p>
       </div>
@@ -57,14 +58,14 @@ export default function ChannelSlugClient({ slug }: { slug: string }) {
 
   if (error) {
     return (
-      <div className="h-screen flex flex-col items-center justify-center space-y-6 p-4 text-center">
+      <div className="h-screen flex flex-col items-center justify-center space-y-6 p-4 text-center bg-background">
         <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center">
           <MessageSquareOff className="w-8 h-8 text-destructive" />
         </div>
         <div className="space-y-2">
           <h1 className="text-xl font-bold">Канал не найден</h1>
           <p className="text-sm text-muted-foreground max-w-xs">
-            Ссылка agc/{slug} не существует или канал был удален.
+            Ссылка agc/{slug} не существует или была удалена.
           </p>
         </div>
         <Button asChild className="rounded-xl bg-accent">
