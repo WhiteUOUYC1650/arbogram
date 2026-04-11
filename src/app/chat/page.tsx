@@ -1,4 +1,3 @@
-
 "use client";
 
 import { ChatSidebar } from "@/components/chat/chat-sidebar";
