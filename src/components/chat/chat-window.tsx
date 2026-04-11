@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { Info, Send, Paperclip, Smile, Megaphone, X, Loader2, Image as ImageIcon, MoreVertical, Trash2, Copy, Download } from "lucide-react";
+import { Info, Send, Paperclip, Smile, Megaphone, X, Loader2, Image as ImageIcon, MoreVertical, Trash2, Copy, Download, Calendar, Users, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -20,6 +20,20 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+
+const COMMON_EMOJIS = ["😀", "😂", "🥰", "😍", "😎", "🤔", "😊", "👍", "🔥", "❤️", "✨", "🎉", "🙌", "😭", "😮", "🙏", "🚀", "🍕", "☀️", "🌚"];
 
 export function ChatWindow({ chatId }: { chatId: string }) {
   const [message, setMessage] = React.useState("");
@@ -165,6 +179,10 @@ export function ChatWindow({ chatId }: { chatId: string }) {
     toast({ title: "Изображение сохранено" });
   };
 
+  const addEmoji = (emoji: string) => {
+    setMessage(prev => prev + emoji);
+  };
+
   let chatName = chatData?.name || "Чат";
   let avatarTargetId = chatId; 
   let subText = "В сети";
@@ -213,9 +231,73 @@ export function ChatWindow({ chatId }: { chatId: string }) {
           </div>
         </div>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-accent">
-            <Info className="w-5 h-5" />
-          </Button>
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-accent">
+                <Info className="w-5 h-5" />
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="rounded-3xl sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Информация о {chatData?.type === 'individual' ? 'собеседнике' : 'чате'}</DialogTitle>
+              </DialogHeader>
+              <div className="flex flex-col items-center gap-6 py-4">
+                <UserAvatar userId={avatarTargetId} fallback={chatName} className="w-24 h-24 border-4 border-accent/20" />
+                <div className="text-center space-y-1">
+                  <h3 className="text-xl font-bold">{chatName}</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {chatData?.type === 'individual' ? 'Личный чат' : chatData?.type === 'group' ? 'Групповой чат' : 'Канал'}
+                  </p>
+                </div>
+                
+                <div className="w-full space-y-3">
+                  <div className="flex items-center justify-between p-4 bg-sidebar/20 rounded-2xl border border-primary/10">
+                    <div className="flex items-center gap-3 text-sm font-medium">
+                      <Calendar className="w-4 h-4 text-accent" />
+                      <span>Создан</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {chatData?.createdAt?.seconds 
+                        ? new Date(chatData.createdAt.seconds * 1000).toLocaleDateString('ru-RU') 
+                        : 'Недавно'}
+                    </span>
+                  </div>
+
+                  {chatData?.type !== 'individual' && (
+                    <div className="flex items-center justify-between p-4 bg-sidebar/20 rounded-2xl border border-primary/10">
+                      <div className="flex items-center gap-3 text-sm font-medium">
+                        <Users className="w-4 h-4 text-accent" />
+                        <span>Участников</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">{chatData?.participants?.length || 0}</span>
+                    </div>
+                  )}
+
+                  {chatData?.ownerId && (
+                    <div className="flex items-center justify-between p-4 bg-sidebar/20 rounded-2xl border border-primary/10">
+                      <div className="flex items-center gap-3 text-sm font-medium">
+                        <ShieldCheck className="w-4 h-4 text-accent" />
+                        <span>Админ</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {chatData.ownerId === user?.uid ? 'Вы' : 'Другой'}
+                      </span>
+                    </div>
+                  )}
+
+                  {chatData?.slug && (
+                    <div className="flex items-center justify-between p-4 bg-sidebar/20 rounded-2xl border border-primary/10">
+                      <div className="flex items-center gap-3 text-sm font-medium">
+                        <ImageIcon className="w-4 h-4 text-accent" />
+                        <span>Ссылка</span>
+                      </div>
+                      <span className="text-xs text-accent font-mono truncate max-w-[150px]">agc/{chatData.slug}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
@@ -358,13 +440,28 @@ export function ChatWindow({ chatId }: { chatId: string }) {
                   if (e.key === 'Enter') handleSend();
                 }}
               />
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="absolute right-1 top-1/2 -translate-y-1/2 rounded-full text-muted-foreground hover:text-accent"
-              >
-                <Smile className="w-5 h-5" />
-              </Button>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="absolute right-1 top-1/2 -translate-y-1/2 rounded-full text-muted-foreground hover:text-accent"
+                  >
+                    <Smile className="w-5 h-5" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-64 p-2 rounded-2xl grid grid-cols-5 gap-1 shadow-xl" align="end" side="top">
+                  {COMMON_EMOJIS.map(emoji => (
+                    <button 
+                      key={emoji} 
+                      onClick={() => addEmoji(emoji)}
+                      className="text-xl hover:bg-sidebar/50 p-1 rounded-lg transition-colors text-center"
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </PopoverContent>
+              </Popover>
             </div>
             <Button 
               className="rounded-full bg-accent hover:bg-accent/90 shadow-md text-white px-4 h-11 shrink-0"
