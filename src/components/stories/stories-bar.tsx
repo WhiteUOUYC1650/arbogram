@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { Plus } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
@@ -10,6 +10,7 @@ import { collection, query, orderBy, where } from "firebase/firestore";
 import { CreateStoryDialog } from "./create-story-dialog";
 import { Dialog, DialogContent, DialogTrigger, DialogTitle, DialogHeader } from "@/components/ui/dialog";
 import { UserAvatar } from "@/components/user-avatar";
+import { cn } from "@/lib/utils";
 
 export function StoriesBar() {
   const db = useFirestore();
@@ -26,21 +27,32 @@ export function StoriesBar() {
 
   const { data: stories } = useCollection(storiesQuery);
 
-  // Группируем истории по пользователям для отображения кружков
-  const userStories = React.useMemo(() => {
+  // Группируем все истории по пользователям
+  const userGroups = React.useMemo(() => {
     if (!stories) return [];
     const groups: Record<string, any> = {};
-    stories.forEach(s => {
+    
+    // Сортируем истории от старых к новым для правильного порядка просмотра внутри группы
+    const sortedStories = [...stories].sort((a, b) => a.timestamp - b.timestamp);
+
+    sortedStories.forEach(s => {
       if (!groups[s.userId]) {
         groups[s.userId] = {
           userId: s.userId,
           userName: s.userName,
           userPhoto: s.userPhoto,
-          lastStory: s
+          stories: []
         };
       }
+      groups[s.userId].stories.push(s);
     });
-    return Object.values(groups);
+    
+    // Возвращаем группы, отсортированные по времени последней истории (самые свежие в начале ленты)
+    return Object.values(groups).sort((a: any, b: any) => {
+      const lastA = a.stories[a.stories.length - 1].timestamp;
+      const lastB = b.stories[b.stories.length - 1].timestamp;
+      return lastB - lastA;
+    });
   }, [stories]);
 
   return (
@@ -56,8 +68,8 @@ export function StoriesBar() {
             </div>
           </CreateStoryDialog>
 
-          {userStories.map((user) => (
-            <StoryViewer key={user.userId} user={user} />
+          {userGroups.map((group: any) => (
+            <StoryViewer key={group.userId} group={group} />
           ))}
         </div>
         <ScrollBar orientation="horizontal" />
@@ -66,58 +78,121 @@ export function StoriesBar() {
   );
 }
 
-function StoryViewer({ user }: { user: any }) {
+function StoryViewer({ group }: { group: any }) {
+  const [currentIndex, setCurrentIndex] = React.useState(0);
+  const currentStory = group.stories[currentIndex];
+
+  const handleNext = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (currentIndex < group.stories.length - 1) {
+      setCurrentIndex(currentIndex + 1);
+    }
+  };
+
+  const handlePrev = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (currentIndex > 0) {
+      setCurrentIndex(currentIndex - 1);
+    }
+  };
+
   return (
-    <Dialog>
+    <Dialog onOpenChange={(open) => !open && setCurrentIndex(0)}>
       <DialogTrigger asChild>
         <div className="flex flex-col items-center gap-1 cursor-pointer group">
-          <div className="w-14 h-14 rounded-full p-0.5 border-2 border-accent transition-transform hover:scale-105 active:scale-95">
+          <div className={cn(
+            "w-14 h-14 rounded-full p-0.5 border-2 border-accent transition-transform hover:scale-105 active:scale-95",
+            group.stories.length > 1 && "ring-2 ring-accent/20 ring-offset-2"
+          )}>
             <UserAvatar 
-              userId={user.userId} 
-              fallback={user.userName} 
+              userId={group.userId} 
+              fallback={group.userName} 
               className="w-full h-full border-2 border-white" 
             />
           </div>
-          <span className="text-[10px] font-medium truncate max-w-[60px]">{user.userName}</span>
+          <span className="text-[10px] font-medium truncate max-w-[60px]">{group.userName}</span>
         </div>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md p-0 overflow-hidden bg-black rounded-3xl border-none h-[80vh] flex flex-col items-center justify-center">
+      <DialogContent className="sm:max-w-md p-0 overflow-hidden bg-black rounded-3xl border-none h-[80vh] flex flex-col items-center justify-center select-none">
         <DialogHeader className="sr-only">
-          <DialogTitle>История от {user.userName}</DialogTitle>
+          <DialogTitle>Истории от {group.userName}</DialogTitle>
         </DialogHeader>
         
-        <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
+        {/* Индикаторы прогресса */}
+        <div className="absolute top-2 left-2 right-2 z-30 flex gap-1">
+          {group.stories.map((_: any, idx: number) => (
+            <div 
+              key={idx} 
+              className={cn(
+                "h-1 flex-1 rounded-full transition-colors",
+                idx === currentIndex ? "bg-white" : idx < currentIndex ? "bg-white/60" : "bg-white/20"
+              )}
+            />
+          ))}
+        </div>
+
+        <div className="absolute top-6 left-4 z-20 flex items-center gap-2">
           <UserAvatar 
-            userId={user.userId} 
-            fallback={user.userName} 
+            userId={group.userId} 
+            fallback={group.userName} 
             className="w-8 h-8 border border-white/20" 
           />
-          <span className="text-white text-sm font-semibold shadow-black drop-shadow-md">
-            {user.userName}
-          </span>
+          <div className="flex flex-col">
+            <span className="text-white text-sm font-semibold shadow-black drop-shadow-md">
+              {group.userName}
+            </span>
+            <span className="text-white/60 text-[8px]">
+              {new Date(currentStory.timestamp).toLocaleString('ru-RU', { 
+                day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' 
+              })}
+            </span>
+          </div>
+        </div>
+
+        {/* Зоны клика для навигации */}
+        <div className="absolute inset-0 z-10 flex">
+          <div className="w-1/3 h-full cursor-west-resize" onClick={handlePrev} />
+          <div className="w-1/3 h-full" />
+          <div className="w-1/3 h-full cursor-east-resize" onClick={handleNext} />
         </div>
         
-        {user.lastStory.type === 'image' ? (
+        {currentStory.type === 'image' ? (
           <img 
-            src={user.lastStory.content} 
+            src={currentStory.content} 
             alt="Story" 
             className="w-full h-full object-contain"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center p-8 bg-gradient-to-br from-accent/40 to-primary/40 text-center">
-            <h2 className="text-2xl font-bold text-white drop-shadow-lg leading-relaxed">
-              {user.lastStory.content}
+            <h2 className="text-2xl font-bold text-white drop-shadow-lg leading-relaxed whitespace-pre-wrap">
+              {currentStory.content}
             </h2>
           </div>
         )}
 
-        <div className="absolute bottom-6 left-0 right-0 text-center">
-          <span className="text-white/60 text-[10px]">
-            {new Date(user.lastStory.timestamp).toLocaleString('ru-RU', { 
-              day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' 
-            })}
-          </span>
+        <div className="absolute bottom-6 left-0 right-0 text-center z-20">
+           <span className="text-white/40 text-[9px]">
+             История {currentIndex + 1} из {group.stories.length}
+           </span>
         </div>
+
+        {/* Кнопки навигации для десктопа */}
+        {currentIndex > 0 && (
+          <button 
+            onClick={handlePrev}
+            className="absolute left-2 top-1/2 -translate-y-1/2 z-30 p-2 rounded-full bg-black/20 text-white hover:bg-black/40 hidden sm:block"
+          >
+            <ChevronLeft className="w-6 h-6" />
+          </button>
+        )}
+        {currentIndex < group.stories.length - 1 && (
+          <button 
+            onClick={handleNext}
+            className="absolute right-2 top-1/2 -translate-y-1/2 z-30 p-2 rounded-full bg-black/20 text-white hover:bg-black/40 hidden sm:block"
+          >
+            <ChevronRight className="w-6 h-6" />
+          </button>
+        )}
       </DialogContent>
     </Dialog>
   );

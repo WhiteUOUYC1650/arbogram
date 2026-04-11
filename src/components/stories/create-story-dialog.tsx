@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useFirestore, useUser } from "@/firebase";
-import { collection, addDoc } from "firebase/firestore";
+import { collection, addDoc, query, where, orderBy, getDocs, deleteDoc, doc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 
@@ -26,10 +26,22 @@ export function CreateStoryDialog({ children }: { children: React.ReactNode }) {
     
     setIsCreating(true);
     try {
+      // 1. Проверяем количество текущих историй пользователя
+      const q = query(
+        collection(db, "stories"),
+        where("userId", "==", user.uid),
+        orderBy("timestamp", "asc")
+      );
+      const snapshot = await getDocs(q);
+      
+      // 2. Если историй 10 или больше, удаляем самую старую
+      if (snapshot.size >= 10) {
+        const oldestStory = snapshot.docs[0];
+        await deleteDoc(doc(db, "stories", oldestStory.id));
+      }
+
       let finalContent = content;
       if (type === 'image') {
-        // В реальном приложении тут была бы загрузка файла.
-        // Для прототипа используем случайный плейсхолдер.
         const randomImg = PlaceHolderImages[Math.floor(Math.random() * PlaceHolderImages.length)];
         finalContent = randomImg.imageUrl;
       }
@@ -95,6 +107,7 @@ export function CreateStoryDialog({ children }: { children: React.ReactNode }) {
           >
             {isCreating ? <Loader2 className="w-5 h-5 animate-spin" /> : "Опубликовать"}
           </Button>
+          <p className="text-[10px] text-center text-muted-foreground">Максимум 10 историй. При добавлении новой старые удаляются.</p>
         </div>
       </DialogContent>
     </Dialog>
