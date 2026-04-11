@@ -8,8 +8,7 @@ interface ArbogramIconProps {
 }
 
 /**
- * Компонент иконки Arbogram.
- * Ссылка на изображение из Google Drive (прямая ссылка).
+ * Прямая ссылка на изображение из Google Диска.
  */
 const ICON_URL = "https://docs.google.com/uc?export=download&id=1KXNoBIvgzPrBLjJrqpq-QR6Tq7DphLpQ";
 

@@ -1,13 +1,14 @@
 import ChatClient from "./chat-client";
 
 export function generateStaticParams() {
-  // Для статического экспорта динамических путей в SPA стиле
+  // Для output: export нам нужно вернуть хотя бы пустой массив для динамических роутов
   return [];
 }
 
+// Запрещаем генерацию параметров на лету, так как в APK нет сервера
 export const dynamicParams = false;
 
 export default async function IndividualChatPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  return <ChatClient id={id} />;
+  const resolvedParams = await params;
+  return <ChatClient id={resolvedParams.id} />;
 }
