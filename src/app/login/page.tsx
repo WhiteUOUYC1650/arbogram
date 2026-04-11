@@ -6,15 +6,17 @@ import {
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword,
   updateProfile,
-  deleteUser
+  deleteUser,
+  GoogleAuthProvider,
+  signInWithPopup
 } from "firebase/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { MessageSquare } from "lucide-react";
+import { MessageSquare, Chrome } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { doc, setDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { doc, setDoc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 
@@ -53,6 +55,57 @@ export default function LoginPage() {
     }
   };
 
+  const handleGoogleLogin = async () => {
+    if (!auth || !db) return;
+    setIsSubmitting(true);
+    
+    try {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      const loggedUser = result.user;
+
+      // Проверяем, есть ли уже профиль пользователя в Firestore
+      const userDoc = await getDoc(doc(db, "users", loggedUser.uid));
+      
+      if (!userDoc.exists()) {
+        // Создаем новый профиль для пользователя Google
+        const baseUsername = loggedUser.displayName 
+          ? loggedUser.displayName.toLowerCase().replace(/\s/g, "_") 
+          : loggedUser.email?.split('@')[0] || "user";
+        
+        let finalUsername = `@${baseUsername}`;
+        
+        // Простая проверка уникальности для Google (добавляем кусочек UID если занято)
+        const q = query(collection(db, "users"), where("username", "==", finalUsername));
+        const snapshot = await getDocs(q);
+        if (!snapshot.empty) {
+          finalUsername = `@${baseUsername}_${loggedUser.uid.substring(0, 4)}`;
+        }
+
+        const userData = {
+          uid: loggedUser.uid,
+          displayName: loggedUser.displayName || loggedUser.email?.split('@')[0] || "User",
+          username: finalUsername,
+          photoURL: loggedUser.photoURL || PlaceHolderImages.find(img => img.id.startsWith('avatar'))?.imageUrl || "",
+          email: loggedUser.email,
+          lastSeen: Date.now()
+        };
+
+        await setDoc(doc(db, "users", loggedUser.uid), userData);
+      }
+      
+      router.push("/chat");
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Ошибка Google входа",
+        description: error.message,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!auth || !db || !email || !password) return;
@@ -85,7 +138,6 @@ export default function LoginPage() {
             await updateProfile(newUser, { displayName });
           }
 
-          // Назначаем одну из доступных аватарок-заглушек
           const randomAvatar = PlaceHolderImages.find(img => img.id.startsWith('avatar'))?.imageUrl || "";
 
           const userData = {
@@ -138,6 +190,27 @@ export default function LoginPage() {
           </div>
         </div>
 
+        <div className="space-y-4">
+          <Button 
+            variant="outline" 
+            className="w-full h-12 rounded-xl border-primary/20 hover:bg-primary/5 flex items-center justify-center gap-2"
+            onClick={handleGoogleLogin}
+            disabled={isSubmitting}
+          >
+            <Chrome className="w-5 h-5" />
+            <span>Войти через Google</span>
+          </Button>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-muted"></span>
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-white px-2 text-muted-foreground">Или через email</span>
+            </div>
+          </div>
+        </div>
+
         <form onSubmit={handleSubmit} className="space-y-4">
           {isRegistering && (
             <>
@@ -149,6 +222,7 @@ export default function LoginPage() {
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   className="rounded-xl"
+                  disabled={isSubmitting}
                 />
               </div>
               <div className="space-y-2">
@@ -160,6 +234,7 @@ export default function LoginPage() {
                   onChange={handleUsernameChange}
                   className="rounded-xl font-mono"
                   required
+                  disabled={isSubmitting}
                 />
               </div>
             </>
@@ -175,6 +250,7 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="rounded-xl"
+              disabled={isSubmitting}
             />
           </div>
 
@@ -188,6 +264,7 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="rounded-xl"
+              disabled={isSubmitting}
             />
           </div>
 
