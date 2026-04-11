@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { Search, Plus, MessageSquare, Users, LogOut } from "lucide-react";
+import { Search, Plus, MessageSquare, Users, LogOut, Megaphone } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -70,7 +70,7 @@ export function ChatSidebar() {
             placeholder="Поиск чатов..." 
             className="pl-9 bg-background/50 border-none focus-visible:ring-primary rounded-xl"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
       </div>
@@ -79,8 +79,6 @@ export function ChatSidebar() {
         <div className="px-2 pb-4 space-y-1">
           {filteredChats.map((chat) => {
             const isActive = pathname === `/chat/${chat.id}`;
-            
-            // Логика определения имени и аватара
             let displayName = chat.name || "Группа";
             let displayAvatar = chat.photoURL;
 
@@ -91,6 +89,8 @@ export function ChatSidebar() {
                 displayAvatar = chat.metadata[otherId].photoURL;
               }
             }
+            
+            const Icon = chat.type === "group" ? Users : chat.type === "channel" ? Megaphone : MessageSquare;
             
             return (
               <Link key={chat.id} href={`/chat/${chat.id}`}>
@@ -110,7 +110,7 @@ export function ChatSidebar() {
                       </span>
                     </div>
                     <div className="flex items-center gap-1">
-                      {chat.type === "group" ? <Users className="w-3 h-3 text-muted-foreground" /> : <MessageSquare className="w-3 h-3 text-muted-foreground" />}
+                      <Icon className="w-3 h-3 text-muted-foreground" />
                       <p className="text-xs text-muted-foreground truncate">{chat.lastMessage}</p>
                     </div>
                   </div>
@@ -118,14 +118,6 @@ export function ChatSidebar() {
               </Link>
             );
           })}
-          {filteredChats.length === 0 && !search && (
-            <div className="p-8 text-center space-y-2">
-              <p className="text-sm text-muted-foreground">У вас пока нет чатов.</p>
-              <CreateChatDialog>
-                <Button variant="link" className="text-accent text-xs">Найти собеседника</Button>
-              </CreateChatDialog>
-            </div>
-          )}
         </div>
       </ScrollArea>
     </div>

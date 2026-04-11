@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { Search, Users, Send, Loader2 } from "lucide-react";
+import { Search, Users, Send, Loader2, Megaphone } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ export function CreateChatDialog({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("@");
   const [groupName, setGroupName] = React.useState("");
+  const [channelName, setChannelName] = React.useState("");
   const [isSearching, setIsSearching] = React.useState(false);
   const [isCreating, setIsCreating] = React.useState(false);
   const [foundUser, setFoundUser] = React.useState<any>(null);
@@ -27,7 +28,6 @@ export function CreateChatDialog({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { toast } = useToast();
 
-  // Получаем данные текущего пользователя для записи в метаданные чата
   const currentUserRef = React.useMemo(() => (db && user ? doc(db, "users", user.uid) : null), [db, user]);
   const { data: currentUserData } = useDoc(currentUserRef);
 
@@ -63,10 +63,6 @@ export function CreateChatDialog({ children }: { children: React.ReactNode }) {
     setIsCreating(true);
     try {
       const participants = [user.uid, targetUser.uid].sort();
-      
-      // Ищем, не создан ли уже такой чат (в идеале нужно искать query по participants)
-      // Для MVP просто создаем.
-      
       const chatData = {
         participants,
         metadata: {
@@ -97,11 +93,9 @@ export function CreateChatDialog({ children }: { children: React.ReactNode }) {
 
   const createGroup = async () => {
     if (!db || !user || !groupName.trim()) return;
-    
     setIsCreating(true);
     try {
       const groupAvatar = PlaceHolderImages.find(img => img.id === 'group-avatar')?.imageUrl || "";
-
       const chatData = {
         participants: [user.uid],
         ownerId: user.uid,
@@ -112,12 +106,36 @@ export function CreateChatDialog({ children }: { children: React.ReactNode }) {
         lastMessageTime: Date.now(),
         createdAt: serverTimestamp()
       };
-
       const docRef = await addDoc(collection(db, "chats"), chatData);
       setOpen(false);
       router.push(`/chat/${docRef.id}`);
     } catch (e) {
       toast({ variant: "destructive", title: "Ошибка", description: "Не удалось создать группу." });
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const createChannel = async () => {
+    if (!db || !user || !channelName.trim()) return;
+    setIsCreating(true);
+    try {
+      const channelAvatar = PlaceHolderImages.find(img => img.id === 'chat-media-1')?.imageUrl || "";
+      const chatData = {
+        participants: [user.uid],
+        ownerId: user.uid,
+        type: "channel",
+        name: channelName,
+        photoURL: channelAvatar,
+        lastMessage: "Канал создан",
+        lastMessageTime: Date.now(),
+        createdAt: serverTimestamp()
+      };
+      const docRef = await addDoc(collection(db, "chats"), chatData);
+      setOpen(false);
+      router.push(`/chat/${docRef.id}`);
+    } catch (e) {
+      toast({ variant: "destructive", title: "Ошибка", description: "Не удалось создать канал." });
     } finally {
       setIsCreating(false);
     }
@@ -130,12 +148,13 @@ export function CreateChatDialog({ children }: { children: React.ReactNode }) {
       </DialogTrigger>
       <DialogContent className="sm:max-w-md rounded-3xl">
         <DialogHeader>
-          <DialogTitle>Новый чат</DialogTitle>
+          <DialogTitle>Новый Arbogram</DialogTitle>
         </DialogHeader>
         <Tabs defaultValue="direct" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 rounded-xl">
-            <TabsTrigger value="direct" className="rounded-lg">Личный чат</TabsTrigger>
-            <TabsTrigger value="group" className="rounded-lg">Группа</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-3 rounded-xl h-12">
+            <TabsTrigger value="direct" className="rounded-lg text-xs">Личный</TabsTrigger>
+            <TabsTrigger value="group" className="rounded-lg text-xs">Группа</TabsTrigger>
+            <TabsTrigger value="channel" className="rounded-lg text-xs">Канал</TabsTrigger>
           </TabsList>
           
           <TabsContent value="direct" className="space-y-4 py-4">
@@ -186,9 +205,6 @@ export function CreateChatDialog({ children }: { children: React.ReactNode }) {
                 onChange={(e) => setGroupName(e.target.value)}
                 className="rounded-xl"
               />
-              <p className="text-[10px] text-muted-foreground px-1">
-                Вы станете владельцем этой группы. Участников можно будет добавить позже.
-              </p>
             </div>
             <Button 
               className="w-full rounded-xl bg-accent" 
@@ -196,6 +212,27 @@ export function CreateChatDialog({ children }: { children: React.ReactNode }) {
               disabled={isCreating || !groupName.trim()}
             >
               {isCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : "Создать группу"}
+            </Button>
+          </TabsContent>
+
+          <TabsContent value="channel" className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Input 
+                placeholder="Название канала" 
+                value={channelName}
+                onChange={(e) => setChannelName(e.target.value)}
+                className="rounded-xl"
+              />
+              <p className="text-[10px] text-muted-foreground px-1 flex items-center gap-1">
+                <Megaphone className="w-3 h-3" /> В каналах писать можете только вы.
+              </p>
+            </div>
+            <Button 
+              className="w-full rounded-xl bg-accent" 
+              onClick={createChannel} 
+              disabled={isCreating || !channelName.trim()}
+            >
+              {isCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : "Создать канал"}
             </Button>
           </TabsContent>
         </Tabs>

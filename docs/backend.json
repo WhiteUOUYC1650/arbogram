@@ -17,7 +17,7 @@
     },
     "Chat": {
       "title": "Chat",
-      "description": "Метаданные чата (личного или группового)",
+      "description": "Метаданные чата (личного, группового или канала)",
       "type": "object",
       "properties": {
         "participants": { "type": "array", "items": { "type": "string" } },
@@ -25,12 +25,12 @@
           "type": "object", 
           "description": "Данные участников для личных чатов: { uid: { displayName, photoURL } }" 
         },
-        "ownerId": { "type": "string", "description": "ID создателя группы" },
+        "ownerId": { "type": "string", "description": "ID создателя группы или канала" },
         "lastMessage": { "type": "string" },
         "lastMessageTime": { "type": "number" },
-        "type": { "type": "string", "enum": ["individual", "group"] },
-        "name": { "type": "string", "description": "Имя группы" },
-        "photoURL": { "type": "string", "description": "Фото группы" },
+        "type": { "type": "string", "enum": ["individual", "group", "channel"] },
+        "name": { "type": "string", "description": "Имя группы или канала" },
+        "photoURL": { "type": "string", "description": "Фото группы или канала" },
         "createdAt": { "type": "object" }
       },
       "required": ["participants", "type", "lastMessageTime"]

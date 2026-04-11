@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { Phone, Info, Send, Paperclip, Smile, ChevronLeft } from "lucide-react";
+import { Phone, Info, Send, Paperclip, Smile, ChevronLeft, Megaphone } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -73,7 +73,6 @@ export function ChatWindow({ chatId }: { chatId: string }) {
     }
   };
 
-  // Логика отображения имени чата и участников
   let chatName = chatData?.name || "Чат";
   let chatAvatar = chatData?.photoURL;
   let subText = "В сети";
@@ -92,11 +91,14 @@ export function ChatWindow({ chatId }: { chatId: string }) {
       return "участников";
     };
     subText = `${count} ${getRussianMemberSuffix(count)}`;
+  } else if (chatData?.type === 'channel') {
+    subText = "Канал";
   }
+
+  const canWrite = chatData?.type !== 'channel' || chatData?.ownerId === user?.uid;
 
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden">
-      {/* Header */}
       <div className="flex items-center justify-between p-4 border-b bg-white/80 backdrop-blur-md z-10 shrink-0">
         <div className="flex items-center gap-3">
           {isMobile && (
@@ -111,37 +113,39 @@ export function ChatWindow({ chatId }: { chatId: string }) {
             <AvatarFallback>{chatName[0]}</AvatarFallback>
           </Avatar>
           <div className="min-w-0">
-            <h2 className="font-semibold text-sm leading-tight truncate max-w-[150px] sm:max-w-none">{chatName}</h2>
+            <h2 className="font-semibold text-sm leading-tight truncate max-w-[150px] sm:max-w-none flex items-center gap-1">
+              {chatName}
+              {chatData?.type === 'channel' && <Megaphone className="w-3 h-3 text-accent" />}
+            </h2>
             <p className="text-[10px] text-accent font-medium">{subText}</p>
           </div>
         </div>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-accent hidden sm:flex">
-            <Phone className="w-5 h-5" />
-          </Button>
           <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-accent">
             <Info className="w-5 h-5" />
           </Button>
         </div>
       </div>
 
-      {/* Messages */}
       <ScrollArea className="flex-1 min-h-0 bg-sidebar/10">
         <div className="p-4 flex flex-col gap-4 max-w-4xl mx-auto">
           {messages?.map((msg) => {
             const isMe = msg.senderId === user?.uid;
+            // В каналах ВСЕ сообщения слева
+            const alignLeft = chatData?.type === 'channel' || !isMe;
+            
             return (
               <div key={msg.id} className={cn(
                 "flex flex-col max-w-[85%] sm:max-w-[75%]",
-                isMe ? "ml-auto items-end" : "mr-auto items-start"
+                alignLeft ? "mr-auto items-start" : "ml-auto items-end"
               )}>
                 <div className={cn(
                   "px-4 py-2.5 rounded-2xl text-sm shadow-sm transition-all",
-                  isMe 
+                  !alignLeft
                     ? "bg-accent text-white rounded-tr-none" 
                     : "bg-white text-foreground rounded-tl-none border border-primary/10"
                 )}>
-                  {!isMe && chatData?.type === 'group' && (
+                  {chatData?.type === 'group' && !isMe && (
                     <p className="text-[9px] font-bold opacity-70 mb-1">{msg.senderName}</p>
                   )}
                   {msg.text}
@@ -156,40 +160,45 @@ export function ChatWindow({ chatId }: { chatId: string }) {
         </div>
       </ScrollArea>
 
-      {/* Input */}
-      <div className="p-4 bg-white/80 backdrop-blur-md border-t shrink-0">
-        <div className="max-w-4xl mx-auto flex items-center gap-2">
-          <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-accent shrink-0">
-            <Paperclip className="w-5 h-5" />
-          </Button>
-          <div className="flex-1 relative min-w-0">
-            <Input 
-              placeholder="Введите сообщение..." 
-              className="pr-10 bg-background border-none rounded-full focus-visible:ring-primary shadow-inner h-11"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleSend();
-              }}
-            />
+      {canWrite ? (
+        <div className="p-4 bg-white/80 backdrop-blur-md border-t shrink-0">
+          <div className="max-w-4xl mx-auto flex items-center gap-2">
+            <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-accent shrink-0">
+              <Paperclip className="w-5 h-5" />
+            </Button>
+            <div className="flex-1 relative min-w-0">
+              <Input 
+                placeholder={chatData?.type === 'channel' ? "Опубликовать в канале..." : "Введите сообщение..."}
+                className="pr-10 bg-background border-none rounded-full focus-visible:ring-primary shadow-inner h-11"
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSend();
+                }}
+              />
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="absolute right-1 top-1/2 -translate-y-1/2 rounded-full text-muted-foreground hover:text-accent"
+              >
+                <Smile className="w-5 h-5" />
+              </Button>
+            </div>
             <Button 
-              variant="ghost" 
-              size="icon" 
-              className="absolute right-1 top-1/2 -translate-y-1/2 rounded-full text-muted-foreground hover:text-accent"
+              className="rounded-full bg-accent hover:bg-accent/90 shadow-md text-white px-4 h-11 shrink-0"
+              onClick={handleSend}
+              disabled={!message.trim()}
             >
-              <Smile className="w-5 h-5" />
+              <Send className="w-4 h-4" />
+              <span className="hidden sm:inline ml-2">{chatData?.type === 'channel' ? "Пост" : "Отправить"}</span>
             </Button>
           </div>
-          <Button 
-            className="rounded-full bg-accent hover:bg-accent/90 shadow-md text-white px-4 h-11 shrink-0"
-            onClick={handleSend}
-            disabled={!message.trim()}
-          >
-            <Send className="w-4 h-4" />
-            <span className="hidden sm:inline ml-2">Отправить</span>
-          </Button>
         </div>
-      </div>
+      ) : (
+        <div className="p-4 bg-sidebar/20 text-center border-t shrink-0">
+          <p className="text-xs text-muted-foreground">В этом канале могут писать только администраторы.</p>
+        </div>
+      )}
     </div>
   );
 }
