@@ -9,6 +9,9 @@ export async function generateStaticParams() {
   return [{ id: 'main' }];
 }
 
+/**
+ * dynamicParams = false запрещает генерацию путей в рантайме (что невозможно в APK).
+ */
 export const dynamicParams = false;
 
 export default async function IndividualChatPage({ params }: { params: Promise<{ id: string }> }) {
