@@ -1,9 +1,5 @@
-
 import ChannelSlugClient from "./channel-slug-client";
 
-/**
- * Серверный компонент для резолвинга ссылок каналов.
- */
 export async function generateStaticParams() {
   return [{ slug: 'welcome' }];
 }

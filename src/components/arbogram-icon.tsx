@@ -1,4 +1,3 @@
-
 "use client";
 
 import { cn } from "@/lib/utils";
@@ -9,19 +8,14 @@ interface ArbogramIconProps {
   className?: string;
 }
 
-/**
- * Фолбек-иконка (URL), если в Firestore ничего не задано.
- */
-const DEFAULT_ICON = "https://docs.google.com/uc?export=download&id=1KXNoBIvgzPrBLjJrqpq-QR6Tq7DphLpQ";
+const DEFAULT_ICON = "https://picsum.photos/seed/arbogram/200/200";
 
 export function ArbogramIcon({ className }: ArbogramIconProps) {
   const db = useFirestore();
   
-  // Читаем иконку из Firestore: коллекция config, документ appicon
   const iconRef = useMemoFirebase(() => (db ? doc(db, "config", "appicon") : null), [db]);
   const { data: iconData, loading } = useDoc(iconRef);
 
-  // Используем поле base64 из документа, если оно есть, иначе фолбек
   const displaySrc = iconData?.base64 || DEFAULT_ICON;
 
   return (
@@ -32,8 +26,7 @@ export function ArbogramIcon({ className }: ArbogramIconProps) {
         className="w-full h-full object-cover"
         loading="eager"
         onError={(e) => {
-          // Фолбек на случай битых данных
-          e.currentTarget.src = "https://picsum.photos/seed/arbogram/200/200";
+          e.currentTarget.src = DEFAULT_ICON;
         }}
       />
       {loading && !iconData && (

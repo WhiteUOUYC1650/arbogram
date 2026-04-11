@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -47,8 +46,8 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
   }, [avatarData]);
 
   React.useEffect(() => {
-    const isDark = document.documentElement.classList.contains("dark");
-    setIsDarkMode(isDark);
+    const isDark = typeof window !== 'undefined' && document.documentElement.classList.contains("dark");
+    setIsDarkMode(!!isDark);
   }, []);
 
   const toggleTheme = (checked: boolean) => {
@@ -100,12 +99,6 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      toast({ variant: "destructive", title: "Ошибка", description: "Пожалуйста, выберите изображение." });
-      return;
-    }
-
     try {
       const base64 = await compressImage(file);
       setPhotoURL(base64);
@@ -122,12 +115,6 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
 
   const handleSave = async () => {
     if (!db || !user || !userRef) return;
-    
-    if (username === "@" || username.length < 3) {
-      toast({ variant: "destructive", title: "Ошибка", description: "Юзернейм слишком короткий." });
-      return;
-    }
-
     setIsUpdating(true);
     try {
       if (username !== userData?.username) {
@@ -139,18 +126,11 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
           return;
         }
       }
-
       if (photoURL && photoURL.startsWith('data:image')) {
         await setDoc(doc(db, "avatars", user.uid), { base64: photoURL });
       }
-
-      await updateDoc(userRef, {
-        displayName,
-        username,
-        photoURL: user.uid
-      });
-
-      toast({ title: "Профиль обновлен", description: "Ваши данные успешно сохранены." });
+      await updateDoc(userRef, { displayName, username, photoURL: user.uid });
+      toast({ title: "Профиль обновлен" });
       setOpen(false);
     } catch (e: any) {
       toast({ variant: "destructive", title: "Ошибка", description: e.message });
@@ -161,96 +141,35 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {children}
-      </DialogTrigger>
+      <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="w-[95vw] sm:max-w-md rounded-3xl">
-        <DialogHeader>
-          <DialogTitle>Настройки профиля</DialogTitle>
-        </DialogHeader>
-        
+        <DialogHeader><DialogTitle>Настройки профиля</DialogTitle></DialogHeader>
         <div className="space-y-6 py-4">
           <div className="flex flex-col items-center gap-4">
             <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
               <Avatar className="w-24 h-24 border-4 border-accent/20">
-                <AvatarImage src={photoURL} />
-                <AvatarFallback className="text-2xl bg-accent/10 text-accent">
-                  {displayName[0] || <UserIcon />}
-                </AvatarFallback>
+                <AvatarImage src={photoURL} className="object-cover" />
+                <AvatarFallback className="text-2xl bg-accent/10 text-accent">{displayName[0] || <UserIcon />}</AvatarFallback>
               </Avatar>
               <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                 <Camera className="w-8 h-8 text-white" />
               </div>
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                className="hidden" 
-                accept="image/*"
-                onChange={handleFileChange}
-              />
+              <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
             </div>
-            <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-              <Upload className="w-3 h-3" /> Нажмите, чтобы загрузить фото
-            </p>
+            <p className="text-[10px] text-muted-foreground flex items-center gap-1"><Upload className="w-3 h-3" /> Нажмите для фото</p>
           </div>
-
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="displayName">Ваше имя</Label>
-              <Input 
-                id="displayName"
-                placeholder="Имя Фамилия" 
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                className="rounded-xl"
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="username">Юзернейм</Label>
-              <Input 
-                id="username"
-                placeholder="@username" 
-                value={username}
-                onChange={handleUsernameChange}
-                className="rounded-xl font-mono"
-              />
-            </div>
-
+            <div className="space-y-2"><Label>Ваше имя</Label><Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="rounded-xl" /></div>
+            <div className="space-y-2"><Label>Юзернейм</Label><Input value={username} onChange={handleUsernameChange} className="rounded-xl font-mono" /></div>
             <div className="flex items-center justify-between p-4 bg-sidebar/20 rounded-2xl border border-primary/10">
-              <div className="flex items-center gap-3">
-                {isDarkMode ? <Moon className="w-5 h-5 text-accent" /> : <Sun className="w-5 h-5 text-orange-400" />}
-                <div className="space-y-0.5">
-                  <p className="text-sm font-semibold">Темная тема</p>
-                  <p className="text-[10px] text-muted-foreground">Экономит заряд и бережет глаза</p>
-                </div>
-              </div>
-              <Switch 
-                checked={isDarkMode}
-                onCheckedChange={toggleTheme}
-              />
+              <div className="flex items-center gap-3">{isDarkMode ? <Moon className="w-5 h-5 text-accent" /> : <Sun className="w-5 h-5 text-orange-400" />}<p className="text-sm font-semibold">Темная тема</p></div>
+              <Switch checked={isDarkMode} onCheckedChange={toggleTheme} />
             </div>
           </div>
-
-          <Button 
-            className="w-full rounded-xl bg-accent h-12 text-white font-semibold shadow-lg shadow-accent/20" 
-            onClick={handleSave} 
-            disabled={isUpdating}
-          >
-            {isUpdating ? <Loader2 className="w-5 h-5 animate-spin" /> : (
-              <div className="flex items-center gap-2">
-                <Check className="w-5 h-5" />
-                <span>Сохранить изменения</span>
-              </div>
-            )}
-          </Button>
-
+          <Button className="w-full rounded-xl bg-accent h-12" onClick={handleSave} disabled={isUpdating}>{isUpdating ? <Loader2 className="w-5 h-5 animate-spin" /> : "Сохранить изменения"}</Button>
           <div className="flex flex-col items-center gap-1 pt-2">
-            <div className="flex items-center gap-1.5 text-muted-foreground">
-              <Info className="w-3 h-3" />
-              <span className="text-[10px] font-medium uppercase tracking-widest text-accent">Arbogram v0.1</span>
-            </div>
-            <p className="text-[8px] text-muted-foreground/60 italic">Сделано для APK с любовью</p>
+            <div className="flex items-center gap-1.5 text-muted-foreground"><Info className="w-3 h-3" /><span className="text-[10px] font-medium uppercase tracking-widest text-accent">Arbogram v0.1</span></div>
+            <p className="text-[8px] text-muted-foreground/60 italic">Сделано для APK</p>
           </div>
         </div>
       </DialogContent>
