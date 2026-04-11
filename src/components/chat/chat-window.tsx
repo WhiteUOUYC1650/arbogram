@@ -2,18 +2,24 @@
 "use client";
 
 import * as React from "react";
-import { Info, Send, Paperclip, Smile, Megaphone, X, Loader2, Image as ImageIcon } from "lucide-react";
+import { Info, Send, Paperclip, Smile, Megaphone, X, Loader2, Image as ImageIcon, MoreVertical, Trash2, Copy, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { useCollection, useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
-import { collection, query, orderBy, addDoc, doc, updateDoc } from "firebase/firestore";
+import { collection, query, orderBy, addDoc, doc, updateDoc, deleteDoc } from "firebase/firestore";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { UserAvatar } from "@/components/user-avatar";
 import { useToast } from "@/hooks/use-toast";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export function ChatWindow({ chatId }: { chatId: string }) {
   const [message, setMessage] = React.useState("");
@@ -53,8 +59,8 @@ export function ChatWindow({ chatId }: { chatId: string }) {
         img.src = event.target?.result as string;
         img.onload = () => {
           const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 800; // Немного больше чем для аватара
-          const MAX_HEIGHT = 800;
+          const MAX_WIDTH = 1200; 
+          const MAX_HEIGHT = 1200;
           let width = img.width;
           let height = img.height;
 
@@ -74,7 +80,7 @@ export function ChatWindow({ chatId }: { chatId: string }) {
           canvas.height = height;
           const ctx = canvas.getContext('2d');
           ctx?.drawImage(img, 0, 0, width, height);
-          resolve(canvas.toDataURL('image/jpeg', 0.6)); // Качество 0.6 для баланса
+          resolve(canvas.toDataURL('image/jpeg', 0.7));
         };
       };
       reader.onerror = error => reject(error);
@@ -132,6 +138,31 @@ export function ChatWindow({ chatId }: { chatId: string }) {
     } catch (err) {
       toast({ variant: "destructive", title: "Ошибка", description: "Не удалось загрузить фото." });
     }
+  };
+
+  const handleDeleteMessage = async (messageId: string) => {
+    if (!db) return;
+    try {
+      await deleteDoc(doc(db, "chats", chatId, "messages", messageId));
+      toast({ title: "Сообщение удалено" });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Ошибка", description: "Недостаточно прав для удаления." });
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({ title: "Скопировано в буфер обмена" });
+  };
+
+  const saveImage = (base64: string) => {
+    const link = document.createElement("a");
+    link.href = base64;
+    link.download = `arbogram_image_${Date.now()}.jpg`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast({ title: "Изображение сохранено" });
   };
 
   let chatName = chatData?.name || "Чат";
@@ -193,37 +224,97 @@ export function ChatWindow({ chatId }: { chatId: string }) {
           {messages?.map((msg) => {
             const isMe = msg.senderId === user?.uid;
             const alignLeft = chatData?.type === 'channel' || !isMe;
+            const isOwner = chatData?.ownerId === user?.uid;
+            const canDelete = isMe || isOwner;
             
             return (
               <div key={msg.id} className={cn(
-                "flex flex-col max-w-[85%] sm:max-w-[75%]",
+                "flex flex-col group/msg max-w-[85%] sm:max-w-[75%]",
                 alignLeft ? "mr-auto items-start" : "ml-auto items-end"
               )}>
-                <div className={cn(
-                  "p-1 rounded-2xl text-sm shadow-sm transition-all overflow-hidden",
-                  !alignLeft
-                    ? "bg-accent text-white rounded-tr-none" 
-                    : "bg-white text-foreground rounded-tl-none border border-primary/10"
-                )}>
-                  {chatData?.type === 'group' && !isMe && (
-                    <div className="flex items-center gap-2 mb-1 px-3 pt-2">
-                      <UserAvatar userId={msg.senderId} fallback={msg.senderName} className="w-4 h-4 shrink-0" />
-                      <p className="text-[9px] font-bold opacity-70">{msg.senderName}</p>
-                    </div>
+                <div className="flex items-start gap-1 w-full">
+                  {!alignLeft && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="w-6 h-6 rounded-full opacity-0 group-hover/msg:opacity-100 transition-opacity">
+                          <MoreVertical className="w-3 h-3 text-muted-foreground" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="rounded-xl">
+                        {msg.text && (
+                          <DropdownMenuItem onClick={() => copyToClipboard(msg.text!)} className="gap-2 cursor-pointer">
+                            <Copy className="w-4 h-4" /> <span>Копировать</span>
+                          </DropdownMenuItem>
+                        )}
+                        {msg.imageUrl && (
+                          <DropdownMenuItem onClick={() => saveImage(msg.imageUrl!)} className="gap-2 cursor-pointer">
+                            <Download className="w-4 h-4" /> <span>Сохранить</span>
+                          </DropdownMenuItem>
+                        )}
+                        {canDelete && (
+                          <DropdownMenuItem onClick={() => handleDeleteMessage(msg.id)} className="gap-2 cursor-pointer text-destructive focus:text-destructive">
+                            <Trash2 className="w-4 h-4" /> <span>Удалить</span>
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   )}
-                  {msg.imageUrl && (
-                    <img 
-                      src={msg.imageUrl} 
-                      alt="Shared photo" 
-                      className="w-full max-h-[300px] object-cover rounded-xl"
-                    />
-                  )}
-                  {msg.text && (
-                    <div className={cn("px-3 py-2", msg.imageUrl && "pt-1")}>
-                      {msg.text}
-                    </div>
+                  
+                  <div className={cn(
+                    "p-1 rounded-2xl text-sm shadow-sm transition-all overflow-hidden flex-1",
+                    !alignLeft
+                      ? "bg-accent text-white rounded-tr-none" 
+                      : "bg-white text-foreground rounded-tl-none border border-primary/10"
+                  )}>
+                    {chatData?.type === 'group' && !isMe && (
+                      <div className="flex items-center gap-2 mb-1 px-3 pt-2">
+                        <UserAvatar userId={msg.senderId} fallback={msg.senderName} className="w-4 h-4 shrink-0" />
+                        <p className="text-[9px] font-bold opacity-70">{msg.senderName}</p>
+                      </div>
+                    )}
+                    {msg.imageUrl && (
+                      <img 
+                        src={msg.imageUrl} 
+                        alt="Shared photo" 
+                        className="w-full max-h-[300px] object-cover rounded-xl cursor-pointer"
+                        onClick={() => saveImage(msg.imageUrl!)}
+                      />
+                    )}
+                    {msg.text && (
+                      <div className={cn("px-3 py-2", msg.imageUrl && "pt-1")}>
+                        {msg.text}
+                      </div>
+                    )}
+                  </div>
+
+                  {alignLeft && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="w-6 h-6 rounded-full opacity-0 group-hover/msg:opacity-100 transition-opacity">
+                          <MoreVertical className="w-3 h-3 text-muted-foreground" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="rounded-xl">
+                        {msg.text && (
+                          <DropdownMenuItem onClick={() => copyToClipboard(msg.text!)} className="gap-2 cursor-pointer">
+                            <Copy className="w-4 h-4" /> <span>Копировать</span>
+                          </DropdownMenuItem>
+                        )}
+                        {msg.imageUrl && (
+                          <DropdownMenuItem onClick={() => saveImage(msg.imageUrl!)} className="gap-2 cursor-pointer">
+                            <Download className="w-4 h-4" /> <span>Сохранить</span>
+                          </DropdownMenuItem>
+                        )}
+                        {canDelete && (
+                          <DropdownMenuItem onClick={() => handleDeleteMessage(msg.id)} className="gap-2 cursor-pointer text-destructive focus:text-destructive">
+                            <Trash2 className="w-4 h-4" /> <span>Удалить</span>
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   )}
                 </div>
+                
                 <span className="text-[10px] text-muted-foreground mt-1 px-1">
                   {new Date(msg.timestamp).toLocaleString('ru-RU', { 
                     day: '2-digit', 
@@ -294,3 +385,4 @@ export function ChatWindow({ chatId }: { chatId: string }) {
     </div>
   );
 }
+
