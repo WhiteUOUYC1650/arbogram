@@ -49,7 +49,7 @@
     }
   },
   "auth": {
-    "providers": ["password", "google.com", "telegram"]
+    "providers": ["password", "google.com"]
   },
   "firestore": {
     "/users/{userId}": { "schema": "User", "description": "Профили пользователей" },

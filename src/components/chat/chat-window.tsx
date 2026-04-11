@@ -110,7 +110,7 @@ export function ChatWindow({ chatId }: { chatId: string }) {
             {chatAvatar && <AvatarImage src={chatAvatar} />}
             <AvatarFallback>{chatName[0]}</AvatarFallback>
           </Avatar>
-          <div>
+          <div className="min-w-0">
             <h2 className="font-semibold text-sm leading-tight truncate max-w-[150px] sm:max-w-none">{chatName}</h2>
             <p className="text-[10px] text-accent font-medium">{subText}</p>
           </div>

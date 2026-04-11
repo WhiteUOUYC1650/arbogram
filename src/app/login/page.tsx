@@ -13,22 +13,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MessageSquare, Chrome, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { doc, setDoc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
-import { PlaceHolderImages } from "@/lib/placeholder-images";
-
-const TelegramIcon = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
-    <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.14.14-.26.26-.54.26l.213-3.047 5.55-5.015c.24-.213-.054-.334-.373-.12l-6.86 4.32-2.95-.92c-.64-.203-.653-.64.135-.947l11.52-4.44c.533-.193.996.126.845.903z" />
-  </svg>
-);
-
-declare global {
-  interface Window {
-    onTelegramAuth: (user: any) => void;
-  }
-}
 
 export default function LoginPage() {
   const auth = useAuth();
@@ -36,7 +23,6 @@ export default function LoginPage() {
   const { user, loading } = useUser();
   const router = useRouter();
   const { toast } = useToast();
-  const tgContainerRef = useRef<HTMLDivElement>(null);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -51,69 +37,12 @@ export default function LoginPage() {
     }
   }, [user, loading, isSubmitting, router]);
 
-  useEffect(() => {
-    // Интеграция виджета Telegram
-    if (tgContainerRef.current && !tgContainerRef.current.innerHTML) {
-      const script = document.createElement('script');
-      script.src = "https://telegram.org/js/telegram-widget.js?22";
-      script.async = true;
-      script.setAttribute('data-telegram-login', 'Arbogram_login_bot');
-      script.setAttribute('data-size', 'large');
-      script.setAttribute('data-radius', '12');
-      script.setAttribute('data-onauth', 'onTelegramAuth(user)');
-      script.setAttribute('data-request-access', 'write');
-      tgContainerRef.current.appendChild(script);
-
-      window.onTelegramAuth = async (tgUser: any) => {
-        if (!auth || !db) return;
-        setIsSubmitting(true);
-        try {
-          // Симуляция безопасного входа через системный email на базе ID
-          const tgEmail = `tg_${tgUser.id}@arbogram.me`;
-          const tgPassword = `tg_pass_${tgUser.id}_secure_fallback`;
-          
-          let firebaseUser;
-          try {
-            const cred = await signInWithEmailAndPassword(auth, tgEmail, tgPassword);
-            firebaseUser = cred.user;
-          } catch (e) {
-            const cred = await createUserWithEmailAndPassword(auth, tgEmail, tgPassword);
-            firebaseUser = cred.user;
-          }
-
-          const userDocRef = doc(db, "users", firebaseUser.uid);
-          const userDoc = await getDoc(userDocRef);
-
-          if (!userDoc.exists()) {
-            const userData = {
-              uid: firebaseUser.uid,
-              displayName: tgUser.first_name + (tgUser.last_name ? ` ${tgUser.last_name}` : ""),
-              username: tgUser.username ? `@${tgUser.username}` : `@user_${tgUser.id}`,
-              photoURL: tgUser.photo_url || "",
-              email: tgEmail,
-              lastSeen: Date.now()
-            };
-            await setDoc(userDocRef, userData);
-          }
-          router.push("/chat");
-        } catch (error: any) {
-          toast({ variant: "destructive", title: "Ошибка Telegram", description: error.message });
-        } finally {
-          setIsSubmitting(false);
-        }
-      };
-    }
-  }, [auth, db, router, toast]);
-
   const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    if (val === "" || val === "@") {
-      setUsername("@");
-    } else if (val.startsWith("@")) {
-      setUsername(val.toLowerCase().replace(/\s/g, ""));
-    } else {
-      setUsername("@" + val.toLowerCase().replace(/\s/g, ""));
+    let val = e.target.value;
+    if (!val.startsWith("@")) {
+      val = "@" + val.replace("@", "");
     }
+    setUsername(val.toLowerCase().replace(/\s/g, ""));
   };
 
   const handleGoogleLogin = async () => {
@@ -155,23 +84,26 @@ export default function LoginPage() {
     if (!auth || !db || !email || !password) return;
     
     if (isRegistering && (username === "@" || username.length < 3)) {
-      toast({ variant: "destructive", title: "Ошибка", description: "Юзернейм должен начинаться с @ и быть длиннее." });
+      toast({ variant: "destructive", title: "Ошибка", description: "Придумайте юзернейм длиннее (минимум 2 символа после @)." });
       return;
     }
 
     setIsSubmitting(true);
     try {
       if (isRegistering) {
+        // Сначала создаем аккаунт, чтобы быть авторизованным для проверки юзернейма
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const newUser = userCredential.user;
+
         const q = query(collection(db, "users"), where("username", "==", username));
         const snapshot = await getDocs(q);
+        
         if (!snapshot.empty) {
-          toast({ variant: "destructive", title: "Ошибка", description: "Юзернейм занят." });
+          toast({ variant: "destructive", title: "Юзернейм занят", description: "Пожалуйста, выберите другой тег." });
+          // В идеале тут нужно удалять созданного пользователя, но для MVP просто просим сменить ник позже или через перелогин
           setIsSubmitting(false);
           return;
         }
-
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const newUser = userCredential.user;
 
         const userData = {
           uid: newUser.uid,
@@ -221,10 +153,6 @@ export default function LoginPage() {
             <span>Войти через Google</span>
           </Button>
 
-          <div className="flex justify-center py-2">
-             <div ref={tgContainerRef}></div>
-          </div>
-
           <div className="relative pt-2">
             <div className="absolute inset-0 flex items-center">
               <span className="w-full border-t border-muted"></span>
@@ -250,7 +178,7 @@ export default function LoginPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="username">Юзернейм (@...)</Label>
+                <Label htmlFor="username">Юзернейм (обязательно с @)</Label>
                 <Input 
                   id="username"
                   placeholder="@ivan" 
