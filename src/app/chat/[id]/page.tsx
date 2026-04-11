@@ -1,11 +1,15 @@
 import ChatClient from "./chat-client";
 
-// Для output: export нам нужно вернуть хотя бы пустой массив для динамических роутов
+/**
+ * Обязательно для output: export в Next.js 15 для динамических роутов.
+ */
 export function generateStaticParams() {
   return [];
 }
 
-// Запрещаем генерацию параметров на лету, так как в APK нет сервера
+/**
+ * Запрещаем генерацию на лету, так как в APK нет сервера.
+ */
 export const dynamicParams = false;
 
 export default async function IndividualChatPage({ params }: { params: Promise<{ id: string }> }) {
