@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -46,7 +47,6 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
   }, [avatarData]);
 
   React.useEffect(() => {
-    // Инициализация темы из localStorage или системы
     const storedTheme = localStorage.getItem("theme");
     const isDark = storedTheme === "dark" || (!storedTheme && window.matchMedia("(prefers-color-scheme: dark)").matches);
     setIsDarkMode(isDark);

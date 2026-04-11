@@ -11,10 +11,16 @@ export function FirebaseErrorListener() {
 
   useEffect(() => {
     const handlePermissionError = (error: FirestorePermissionError) => {
+      // Выводим ошибку в консоль, чтобы пользователь мог кликнуть по ссылке для создания индекса
+      console.error("[Arbogram Firestore Error]:", error);
+      if (error.context) {
+        console.error("Context:", error.context);
+      }
+
       toast({
         variant: 'destructive',
-        title: 'Ошибка доступа или базы данных',
-        description: `Действие отклонено. Убедитесь, что Firestore создан в консоли и правила разрешают запись. Подробности в консоли браузера.`,
+        title: 'Ошибка базы данных',
+        description: `Действие отклонено. Если требуется индекс, ссылка выведена в консоль (F12).`,
       });
     };
 

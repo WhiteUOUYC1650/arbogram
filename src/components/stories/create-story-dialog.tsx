@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -8,6 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useFirestore, useUser } from "@/firebase";
 import { collection, addDoc, query, where, orderBy, getDocs, deleteDoc, doc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
+import { errorEmitter } from "@/firebase/error-emitter";
+import { FirestorePermissionError } from "@/firebase/errors";
 
 export function CreateStoryDialog({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = React.useState(false);
@@ -77,6 +80,7 @@ export function CreateStoryDialog({ children }: { children: React.ReactNode }) {
     
     setIsCreating(true);
     try {
+      // Этот запрос может потребовать индекс
       const q = query(
         collection(db, "stories"),
         where("userId", "==", user.uid),
@@ -103,7 +107,14 @@ export function CreateStoryDialog({ children }: { children: React.ReactNode }) {
       resetState();
       toast({ title: "История опубликована!", description: "Ваши друзья увидят её в ленте." });
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Ошибка", description: e.message });
+      console.error("Story creation error:", e);
+      // Прокидываем ошибку в слушатель, чтобы увидеть ссылку в консоли
+      const permissionError = new FirestorePermissionError({
+        path: "stories",
+        operation: "create"
+      });
+      (permissionError as any).originalError = e;
+      errorEmitter.emit('permission-error', permissionError);
     } finally {
       setIsCreating(false);
     }

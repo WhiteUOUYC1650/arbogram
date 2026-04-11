@@ -34,12 +34,16 @@ export function useCollection<T = DocumentData>(queryRef: Query<T> | null) {
         setError(null);
       },
       (err) => {
+        // Выводим ошибку в консоль для дебага индексов
         console.error("Firestore Collection Error:", err);
-        if (err.code === 'permission-denied') {
+        
+        if (err.code === 'permission-denied' || err.code === 'failed-precondition') {
           const permissionError = new FirestorePermissionError({
             path: 'collection_query',
             operation: 'list',
           });
+          // Прокидываем оригинальную ошибку для доступа к ссылке индекса
+          (permissionError as any).originalError = err;
           errorEmitter.emit('permission-error', permissionError);
         }
         setError(err);
