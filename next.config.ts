@@ -1,10 +1,9 @@
-
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
   output: 'export',
   distDir: 'out',
-  trailingSlash: true, // Важно для Capacitor/APK, чтобы роутинг работал корректно
+  trailingSlash: true,
   typescript: {
     ignoreBuildErrors: true,
   },
