@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import Link from "next/navigation";
+import Link from "next/link";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useCollection, useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
 import { collection, query, orderBy, addDoc, doc, updateDoc } from "firebase/firestore";
@@ -79,7 +79,7 @@ export function ChatWindow({ chatId }: { chatId: string }) {
   let subText = "В сети";
 
   if (chatData?.type === 'individual' && user) {
-    const otherId = chatData.participants.find((p: string) => p !== user.uid);
+    const otherId = chatData.participants?.find((p: string) => p !== user.uid);
     if (otherId && chatData.metadata?.[otherId]) {
       chatName = chatData.metadata[otherId].displayName;
       chatAvatar = chatData.metadata[otherId].photoURL;

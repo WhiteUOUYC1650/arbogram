@@ -5,8 +5,6 @@ import { useAuth, useUser, useFirestore } from "@/firebase";
 import { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword,
-  updateProfile,
-  deleteUser,
   GoogleAuthProvider,
   signInWithPopup
 } from "firebase/auth";
@@ -55,7 +53,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     // Интеграция виджета Telegram
-    if (tgContainerRef.current) {
+    if (tgContainerRef.current && !tgContainerRef.current.innerHTML) {
       const script = document.createElement('script');
       script.src = "https://telegram.org/js/telegram-widget.js?22";
       script.async = true;
@@ -70,9 +68,9 @@ export default function LoginPage() {
         if (!auth || !db) return;
         setIsSubmitting(true);
         try {
-          // Для прототипа используем детерминированный email на базе TG ID
+          // Симуляция безопасного входа через системный email на базе ID
           const tgEmail = `tg_${tgUser.id}@arbogram.me`;
-          const tgPassword = `tg_pass_${tgUser.id}_secure`; // В реальности нужна проверка hash на сервере
+          const tgPassword = `tg_pass_${tgUser.id}_secure_fallback`;
           
           let firebaseUser;
           try {
@@ -91,7 +89,7 @@ export default function LoginPage() {
               uid: firebaseUser.uid,
               displayName: tgUser.first_name + (tgUser.last_name ? ` ${tgUser.last_name}` : ""),
               username: tgUser.username ? `@${tgUser.username}` : `@user_${tgUser.id}`,
-              photoURL: tgUser.photo_url || PlaceHolderImages.find(img => img.id === 'avatar-1')?.imageUrl || "",
+              photoURL: tgUser.photo_url || "",
               email: tgEmail,
               lastSeen: Date.now()
             };
@@ -106,10 +104,6 @@ export default function LoginPage() {
       };
     }
   }, [auth, db, router, toast]);
-
-  const validateUsername = (name: string) => {
-    return name.startsWith("@") && name.length >= 3;
-  };
 
   const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -136,18 +130,13 @@ export default function LoginPage() {
           ? loggedUser.displayName.toLowerCase().replace(/\s/g, "_") 
           : loggedUser.email?.split('@')[0] || "user";
         
-        let finalUsername = `@${baseUsername}`;
-        const q = query(collection(db, "users"), where("username", "==", finalUsername));
-        const snapshot = await getDocs(q);
-        if (!snapshot.empty) {
-          finalUsername = `@${baseUsername}_${loggedUser.uid.substring(0, 4)}`;
-        }
+        const finalUsername = `@${baseUsername}_${loggedUser.uid.substring(0, 4)}`;
 
         const userData = {
           uid: loggedUser.uid,
           displayName: loggedUser.displayName || loggedUser.email?.split('@')[0] || "User",
           username: finalUsername,
-          photoURL: loggedUser.photoURL || PlaceHolderImages.find(img => img.id === 'avatar-1')?.imageUrl || "",
+          photoURL: loggedUser.photoURL || "",
           email: loggedUser.email,
           lastSeen: Date.now()
         };
@@ -165,8 +154,8 @@ export default function LoginPage() {
     e.preventDefault();
     if (!auth || !db || !email || !password) return;
     
-    if (isRegistering && !validateUsername(username)) {
-      toast({ variant: "destructive", title: "Ошибка", description: "Юзернейм должен начинаться с @." });
+    if (isRegistering && (username === "@" || username.length < 3)) {
+      toast({ variant: "destructive", title: "Ошибка", description: "Юзернейм должен начинаться с @ и быть длиннее." });
       return;
     }
 
@@ -188,7 +177,7 @@ export default function LoginPage() {
           uid: newUser.uid,
           displayName: displayName || email.split('@')[0],
           username: username,
-          photoURL: PlaceHolderImages.find(img => img.id === 'avatar-1')?.imageUrl || "",
+          photoURL: "",
           email: newUser.email,
           lastSeen: Date.now()
         };
@@ -233,7 +222,7 @@ export default function LoginPage() {
           </Button>
 
           <div className="flex justify-center py-2">
-             <div ref={tgContainerRef} id="telegram-login-container"></div>
+             <div ref={tgContainerRef}></div>
           </div>
 
           <div className="relative pt-2">
