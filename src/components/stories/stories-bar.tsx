@@ -8,7 +8,7 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { collection, query, orderBy, where } from "firebase/firestore";
 import { CreateStoryDialog } from "./create-story-dialog";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTrigger, DialogTitle, DialogHeader } from "@/components/ui/dialog";
 
 export function StoriesBar() {
   const db = useFirestore();
@@ -80,6 +80,10 @@ function StoryViewer({ user }: { user: any }) {
         </div>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md p-0 overflow-hidden bg-black rounded-3xl border-none h-[80vh] flex flex-col items-center justify-center">
+        <DialogHeader className="sr-only">
+          <DialogTitle>История от {user.userName}</DialogTitle>
+        </DialogHeader>
+        
         <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
           <Avatar className="w-8 h-8 border border-white/20">
             <AvatarImage src={user.userPhoto} />
