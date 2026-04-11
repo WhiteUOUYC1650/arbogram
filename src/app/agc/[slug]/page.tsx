@@ -1,12 +1,9 @@
-import ChannelSlugClient from "./channel-slug-client";
 
-export async function generateStaticParams() {
-  return [{ slug: 'welcome' }];
-}
+import { redirect } from "next/navigation";
 
-export const dynamicParams = false;
-
-export default async function ChannelSlugPage({ params }: { params: Promise<{ slug: string }> }) {
-  const resolvedParams = await params;
-  return <ChannelSlugClient slug={resolvedParams.slug} />;
+/**
+ * Перенаправляем на главную чата.
+ */
+export default function RedirectToChatSlug() {
+  redirect("/chat");
 }

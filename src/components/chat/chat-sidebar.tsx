@@ -7,8 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { useCollection, useFirestore, useAuth, useUser, useMemoFirebase } from "@/firebase";
 import { collection, query, where, orderBy } from "firebase/firestore";
 import { signOut } from "firebase/auth";
@@ -18,8 +16,12 @@ import { SettingsDialog } from "@/components/settings/settings-dialog";
 import { UserAvatar } from "@/components/user-avatar";
 import { ArbogramIcon } from "@/components/arbogram-icon";
 
-export function ChatSidebar() {
-  const pathname = usePathname();
+interface ChatSidebarProps {
+  activeChatId?: string;
+  onChatSelect: (id: string) => void;
+}
+
+export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
   const [search, setSearch] = React.useState("");
   const db = useFirestore();
   const auth = useAuth();
@@ -47,19 +49,17 @@ export function ChatSidebar() {
     <div className="flex flex-col h-full bg-sidebar/30">
       <div className="p-4 pb-2 space-y-4">
         <div className="flex items-center justify-between">
-          <Link href="/chat" className="hover:opacity-80 transition-opacity">
-            <h1 className="text-2xl font-bold font-headline text-accent flex items-center gap-2">
-              <ArbogramIcon className="w-10 h-10" />
-              Arbogram
-            </h1>
-          </Link>
+          <div className="flex items-center gap-2">
+            <ArbogramIcon className="w-10 h-10" />
+            <h1 className="text-2xl font-bold font-headline text-accent hidden sm:block">Arbogram</h1>
+          </div>
           <div className="flex gap-1">
             <SettingsDialog>
               <Button variant="ghost" size="icon" className="rounded-full">
                 <SettingsIcon className="w-5 h-5 text-muted-foreground" />
               </Button>
             </SettingsDialog>
-            <CreateChatDialog>
+            <CreateChatDialog onChatCreated={onChatSelect}>
               <Button variant="ghost" size="icon" className="rounded-full">
                 <Plus className="w-5 h-5 text-accent" />
               </Button>
@@ -86,7 +86,7 @@ export function ChatSidebar() {
       <ScrollArea className="flex-1">
         <div className="px-2 pb-4 space-y-1">
           {filteredChats.map((chat) => {
-            const isActive = pathname === `/chat/${chat.id}`;
+            const isActive = activeChatId === chat.id;
             let displayName = chat.name || "Группа";
             let targetId = chat.id; 
 
@@ -101,35 +101,35 @@ export function ChatSidebar() {
             const Icon = chat.type === "group" ? Users : chat.type === "channel" ? Megaphone : MessageSquare;
             
             return (
-              <Link key={chat.id} href={`/chat/${chat.id}`}>
-                <div className={cn(
-                  "flex items-center gap-3 p-3 rounded-2xl transition-all cursor-pointer hover:bg-white/40",
-                  isActive && "bg-white shadow-sm ring-1 ring-primary/10"
-                )}>
-                  <UserAvatar 
-                    userId={targetId} 
-                    fallback={displayName} 
-                    className="w-12 h-12 border-2 border-primary/20 shrink-0" 
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <p className="font-semibold text-sm truncate text-foreground">{displayName}</p>
-                        {chat.isPublic && <Globe className="w-3 h-3 text-accent shrink-0" />}
-                      </div>
-                      <span className="text-[10px] text-muted-foreground shrink-0 ml-2">
-                        {chat.lastMessageTime ? new Date(chat.lastMessageTime).toLocaleString('ru-RU', { 
-                          day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' 
-                        }) : ""}
-                      </span>
+              <div 
+                key={chat.id} 
+                onClick={() => onChatSelect(chat.id)}
+                className={cn(
+                  "flex items-center gap-3 p-3 rounded-2xl transition-all cursor-pointer hover:bg-white/40 dark:hover:bg-black/20",
+                  isActive && "bg-white dark:bg-white/10 shadow-sm ring-1 ring-primary/10"
+                )}
+              >
+                <UserAvatar 
+                  userId={targetId} 
+                  fallback={displayName} 
+                  className="w-12 h-12 border-2 border-primary/20 shrink-0" 
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <p className="font-semibold text-sm truncate text-foreground">{displayName}</p>
+                      {chat.isPublic && <Globe className="w-3 h-3 text-accent shrink-0" />}
                     </div>
-                    <div className="flex items-center gap-1">
-                      <Icon className="w-3 h-3 text-muted-foreground" />
-                      <p className="text-xs text-muted-foreground truncate">{chat.lastMessage}</p>
-                    </div>
+                    <span className="text-[10px] text-muted-foreground shrink-0 ml-2">
+                      {chat.lastMessageTime ? new Date(chat.lastMessageTime).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : ""}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Icon className="w-3 h-3 text-muted-foreground" />
+                    <p className="text-xs text-muted-foreground truncate">{chat.lastMessage || "Нет сообщений"}</p>
                   </div>
                 </div>
-              </Link>
+              </div>
             );
           })}
         </div>

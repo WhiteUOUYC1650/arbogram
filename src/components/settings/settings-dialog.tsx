@@ -1,7 +1,8 @@
+
 "use client";
 
 import * as React from "react";
-import { Settings, Loader2, Camera, Moon, Sun, Check, User as UserIcon, Upload, Info } from "lucide-react";
+import { Settings, Loader2, Camera, Moon, Sun, User as UserIcon, Upload, Info } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -46,16 +47,21 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
   }, [avatarData]);
 
   React.useEffect(() => {
-    const isDark = typeof window !== 'undefined' && document.documentElement.classList.contains("dark");
-    setIsDarkMode(!!isDark);
+    // Инициализация темы из localStorage или системы
+    const storedTheme = localStorage.getItem("theme");
+    const isDark = storedTheme === "dark" || (!storedTheme && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    setIsDarkMode(isDark);
+    if (isDark) document.documentElement.classList.add("dark");
   }, []);
 
   const toggleTheme = (checked: boolean) => {
     setIsDarkMode(checked);
     if (checked) {
       document.documentElement.classList.add("dark");
+      localStorage.setItem("theme", "dark");
     } else {
       document.documentElement.classList.remove("dark");
+      localStorage.setItem("theme", "light");
     }
   };
 
@@ -72,7 +78,6 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
           const MAX_HEIGHT = 400;
           let width = img.width;
           let height = img.height;
-
           if (width > height) {
             if (width > MAX_WIDTH) {
               height *= MAX_WIDTH / width;
@@ -84,7 +89,6 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
               height = MAX_HEIGHT;
             }
           }
-
           canvas.width = width;
           canvas.height = height;
           const ctx = canvas.getContext('2d');
@@ -105,12 +109,6 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
     } catch (err) {
       toast({ variant: "destructive", title: "Ошибка", description: "Не удалось обработать изображение." });
     }
-  };
-
-  const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let val = e.target.value;
-    if (!val.startsWith("@")) val = "@" + val.replace("@", "");
-    setUsername(val.toLowerCase().replace(/\s/g, ""));
   };
 
   const handleSave = async () => {
@@ -160,16 +158,23 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
           </div>
           <div className="space-y-4">
             <div className="space-y-2"><Label>Ваше имя</Label><Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="rounded-xl" /></div>
-            <div className="space-y-2"><Label>Юзернейм</Label><Input value={username} onChange={handleUsernameChange} className="rounded-xl font-mono" /></div>
+            <div className="space-y-2"><Label>Юзернейм</Label><Input value={username} onChange={(e) => setUsername(e.target.value)} className="rounded-xl font-mono" /></div>
             <div className="flex items-center justify-between p-4 bg-sidebar/20 rounded-2xl border border-primary/10">
-              <div className="flex items-center gap-3">{isDarkMode ? <Moon className="w-5 h-5 text-accent" /> : <Sun className="w-5 h-5 text-orange-400" />}<p className="text-sm font-semibold">Темная тема</p></div>
+              <div className="flex items-center gap-3">
+                {isDarkMode ? <Moon className="w-5 h-5 text-accent" /> : <Sun className="w-5 h-5 text-orange-400" />}
+                <p className="text-sm font-semibold">Темная тема</p>
+              </div>
               <Switch checked={isDarkMode} onCheckedChange={toggleTheme} />
             </div>
           </div>
-          <Button className="w-full rounded-xl bg-accent h-12" onClick={handleSave} disabled={isUpdating}>{isUpdating ? <Loader2 className="w-5 h-5 animate-spin" /> : "Сохранить изменения"}</Button>
+          <Button className="w-full rounded-xl bg-accent h-12 text-white font-bold" onClick={handleSave} disabled={isUpdating}>
+            {isUpdating ? <Loader2 className="w-5 h-5 animate-spin" /> : "Сохранить изменения"}
+          </Button>
           <div className="flex flex-col items-center gap-1 pt-2">
-            <div className="flex items-center gap-1.5 text-muted-foreground"><Info className="w-3 h-3" /><span className="text-[10px] font-medium uppercase tracking-widest text-accent">Arbogram v0.1</span></div>
-            <p className="text-[8px] text-muted-foreground/60 italic">Сделано для APK</p>
+            <div className="flex items-center gap-1.5 text-muted-foreground">
+              <Info className="w-3 h-3" />
+              <span className="text-[10px] font-medium uppercase tracking-widest text-accent">Arbogram v0.1</span>
+            </div>
           </div>
         </div>
       </DialogContent>

@@ -1,7 +1,11 @@
 
-import { ChatSidebar } from "@/components/chat/chat-sidebar";
 import { AuthGuard } from "@/components/auth-guard";
 
+/**
+ * Упрощенный лайаут. 
+ * Вся навигация и структура теперь живет внутри src/app/chat/page.tsx,
+ * чтобы избежать проблем с динамическими роутами в APK.
+ */
 export default function ChatLayout({
   children,
 }: {
@@ -9,13 +13,8 @@ export default function ChatLayout({
 }) {
   return (
     <AuthGuard>
-      <div className="flex h-[100dvh] overflow-hidden bg-background">
-        <div className="w-80 flex-shrink-0 hidden md:block border-r bg-sidebar/50 backdrop-blur-sm">
-          <ChatSidebar />
-        </div>
-        <main className="flex-1 relative h-full overflow-hidden">
-          {children}
-        </main>
+      <div className="h-[100dvh] w-full overflow-hidden bg-background">
+        {children}
       </div>
     </AuthGuard>
   );

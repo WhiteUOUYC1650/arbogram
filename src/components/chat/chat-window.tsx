@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -6,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { useRouter } from "next/navigation";
 import { useCollection, useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
 import { collection, query, orderBy, addDoc, doc, updateDoc, deleteDoc } from "firebase/firestore";
 import { errorEmitter } from "@/firebase/error-emitter";
@@ -34,12 +34,16 @@ import {
 
 const COMMON_EMOJIS = ["😀", "😂", "🥰", "😍", "😎", "🤔", "😊", "👍", "🔥", "❤️", "✨", "🎉", "🙌", "😭", "😮", "🙏", "🚀", "🍕", "☀️", "🌚"];
 
-export function ChatWindow({ chatId }: { chatId: string }) {
+interface ChatWindowProps {
+  chatId: string;
+  onBack?: () => void;
+}
+
+export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
   const [message, setMessage] = React.useState("");
   const [isSending, setIsSending] = React.useState(false);
   const db = useFirestore();
   const { user } = useUser();
-  const router = useRouter();
   const { toast } = useToast();
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -194,12 +198,7 @@ export function ChatWindow({ chatId }: { chatId: string }) {
     }
   } else if (chatData?.type === 'group') {
     const count = chatData.participants?.length || 0;
-    const getRussianMemberSuffix = (c: number) => {
-      if (c % 10 === 1 && c % 100 !== 11) return "участник";
-      if ([2, 3, 4].includes(c % 10) && ![12, 13, 14].includes(c % 100)) return "участника";
-      return "участников";
-    };
-    subText = `${count} ${getRussianMemberSuffix(count)}`;
+    subText = `${count} участников`;
   } else if (chatData?.type === 'channel') {
     subText = "Канал";
   }
@@ -207,17 +206,19 @@ export function ChatWindow({ chatId }: { chatId: string }) {
   const canWrite = chatData?.type !== 'channel' || chatData?.ownerId === user?.uid;
 
   return (
-    <div className="flex flex-col h-full bg-background overflow-hidden">
-      <div className="flex items-center justify-between p-4 border-b bg-white/80 backdrop-blur-md z-10 shrink-0">
+    <div className="flex flex-col h-full bg-background overflow-hidden animate-in slide-in-from-right duration-300">
+      <div className="flex items-center justify-between p-4 border-b bg-white/80 dark:bg-black/40 backdrop-blur-md z-10 shrink-0">
         <div className="flex items-center gap-3">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="rounded-full text-muted-foreground hover:text-destructive transition-colors shrink-0"
-            onClick={() => router.push('/chat')}
-          >
-            <X className="w-5 h-5" />
-          </Button>
+          {onBack && (
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="rounded-full text-muted-foreground hover:text-destructive transition-colors shrink-0"
+              onClick={onBack}
+            >
+              <X className="w-5 h-5" />
+            </Button>
+          )}
           
           <UserAvatar userId={avatarTargetId} fallback={chatName} className="w-10 h-10 border-2 border-primary/20 shrink-0" />
           
@@ -238,7 +239,7 @@ export function ChatWindow({ chatId }: { chatId: string }) {
             </DialogTrigger>
             <DialogContent className="w-[95vw] sm:max-w-md rounded-3xl">
               <DialogHeader>
-                <DialogTitle>Информация о {chatData?.type === 'individual' ? 'собеседнике' : 'чате'}</DialogTitle>
+                <DialogTitle>Информация о чате</DialogTitle>
               </DialogHeader>
               <div className="flex flex-col items-center gap-6 py-4">
                 <UserAvatar userId={avatarTargetId} fallback={chatName} className="w-24 h-24 border-4 border-accent/20" />
@@ -248,7 +249,6 @@ export function ChatWindow({ chatId }: { chatId: string }) {
                     {chatData?.type === 'individual' ? 'Личный чат' : chatData?.type === 'group' ? 'Групповой чат' : 'Канал'}
                   </p>
                 </div>
-                
                 <div className="w-full space-y-3">
                   <div className="flex items-center justify-between p-4 bg-sidebar/20 rounded-2xl border border-primary/10">
                     <div className="flex items-center gap-3 text-sm font-medium">
@@ -261,7 +261,6 @@ export function ChatWindow({ chatId }: { chatId: string }) {
                         : 'Недавно'}
                     </span>
                   </div>
-
                   {chatData?.type !== 'individual' && (
                     <div className="flex items-center justify-between p-4 bg-sidebar/20 rounded-2xl border border-primary/10">
                       <div className="flex items-center gap-3 text-sm font-medium">
@@ -269,28 +268,6 @@ export function ChatWindow({ chatId }: { chatId: string }) {
                         <span>Участников</span>
                       </div>
                       <span className="text-xs text-muted-foreground">{chatData?.participants?.length || 0}</span>
-                    </div>
-                  )}
-
-                  {chatData?.ownerId && (
-                    <div className="flex items-center justify-between p-4 bg-sidebar/20 rounded-2xl border border-primary/10">
-                      <div className="flex items-center gap-3 text-sm font-medium">
-                        <ShieldCheck className="w-4 h-4 text-accent" />
-                        <span>Админ</span>
-                      </div>
-                      <span className="text-xs text-muted-foreground">
-                        {chatData.ownerId === user?.uid ? 'Вы' : 'Другой'}
-                      </span>
-                    </div>
-                  )}
-
-                  {chatData?.slug && (
-                    <div className="flex items-center justify-between p-4 bg-sidebar/20 rounded-2xl border border-primary/10">
-                      <div className="flex items-center gap-3 text-sm font-medium">
-                        <ImageIcon className="w-4 h-4 text-accent" />
-                        <span>Ссылка</span>
-                      </div>
-                      <span className="text-xs text-accent font-mono truncate max-w-[150px]">agc/{chatData.slug}</span>
                     </div>
                   )}
                 </div>
@@ -305,8 +282,6 @@ export function ChatWindow({ chatId }: { chatId: string }) {
           {messages?.map((msg) => {
             const isMe = msg.senderId === user?.uid;
             const alignLeft = chatData?.type === 'channel' || !isMe;
-            const isOwner = chatData?.ownerId === user?.uid;
-            const canDelete = isMe || isOwner;
             
             return (
               <div key={msg.id} className={cn(
@@ -314,38 +289,11 @@ export function ChatWindow({ chatId }: { chatId: string }) {
                 alignLeft ? "mr-auto items-start" : "ml-auto items-end"
               )}>
                 <div className="flex items-start gap-1 w-full">
-                  {!alignLeft && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="w-6 h-6 rounded-full opacity-0 group-hover/msg:opacity-100 transition-opacity">
-                          <MoreVertical className="w-3 h-3 text-muted-foreground" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="rounded-xl">
-                        {msg.text && (
-                          <DropdownMenuItem onClick={() => copyToClipboard(msg.text!)} className="gap-2 cursor-pointer">
-                            <Copy className="w-4 h-4" /> <span>Копировать</span>
-                          </DropdownMenuItem>
-                        )}
-                        {msg.imageUrl && (
-                          <DropdownMenuItem onClick={() => saveImage(msg.imageUrl!)} className="gap-2 cursor-pointer">
-                            <Download className="w-4 h-4" /> <span>Сохранить</span>
-                          </DropdownMenuItem>
-                        )}
-                        {canDelete && (
-                          <DropdownMenuItem onClick={() => handleDeleteMessage(msg.id)} className="gap-2 cursor-pointer text-destructive focus:text-destructive">
-                            <Trash2 className="w-4 h-4" /> <span>Удалить</span>
-                          </DropdownMenuItem>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
-                  
                   <div className={cn(
                     "p-1 rounded-2xl text-sm shadow-sm transition-all overflow-hidden flex-1",
                     !alignLeft
                       ? "bg-accent text-white rounded-tr-none" 
-                      : "bg-white text-foreground rounded-tl-none border border-primary/10"
+                      : "bg-white dark:bg-zinc-800 text-foreground rounded-tl-none border border-primary/10"
                   )}>
                     {chatData?.type === 'group' && !isMe && (
                       <div className="flex items-center gap-2 mb-1 px-3 pt-2">
@@ -356,7 +304,7 @@ export function ChatWindow({ chatId }: { chatId: string }) {
                     {msg.imageUrl && (
                       <img 
                         src={msg.imageUrl} 
-                        alt="Shared photo" 
+                        alt="Shared" 
                         className="w-full max-h-[300px] object-cover rounded-xl"
                       />
                     )}
@@ -366,43 +314,29 @@ export function ChatWindow({ chatId }: { chatId: string }) {
                       </div>
                     )}
                   </div>
-
-                  {alignLeft && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="w-6 h-6 rounded-full opacity-0 group-hover/msg:opacity-100 transition-opacity">
-                          <MoreVertical className="w-3 h-3 text-muted-foreground" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start" className="rounded-xl">
-                        {msg.text && (
-                          <DropdownMenuItem onClick={() => copyToClipboard(msg.text!)} className="gap-2 cursor-pointer">
-                            <Copy className="w-4 h-4" /> <span>Копировать</span>
-                          </DropdownMenuItem>
-                        )}
-                        {msg.imageUrl && (
-                          <DropdownMenuItem onClick={() => saveImage(msg.imageUrl!)} className="gap-2 cursor-pointer">
-                            <Download className="w-4 h-4" /> <span>Сохранить</span>
-                          </DropdownMenuItem>
-                        )}
-                        {canDelete && (
-                          <DropdownMenuItem onClick={() => handleDeleteMessage(msg.id)} className="gap-2 cursor-pointer text-destructive focus:text-destructive">
-                            <Trash2 className="w-4 h-4" /> <span>Удалить</span>
-                          </DropdownMenuItem>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
+                  
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="w-6 h-6 rounded-full opacity-0 group-hover/msg:opacity-100 transition-opacity">
+                        <MoreVertical className="w-3 h-3 text-muted-foreground" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align={alignLeft ? "start" : "end"} className="rounded-xl">
+                      {msg.text && (
+                        <DropdownMenuItem onClick={() => copyToClipboard(msg.text!)} className="gap-2 cursor-pointer">
+                          <Copy className="w-4 h-4" /> <span>Копировать</span>
+                        </DropdownMenuItem>
+                      )}
+                      {(isMe || chatData?.ownerId === user?.uid) && (
+                        <DropdownMenuItem onClick={() => handleDeleteMessage(msg.id)} className="gap-2 cursor-pointer text-destructive focus:text-destructive">
+                          <Trash2 className="w-4 h-4" /> <span>Удалить</span>
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
-                
                 <span className="text-[10px] text-muted-foreground mt-1 px-1">
-                  {new Date(msg.timestamp).toLocaleString('ru-RU', { 
-                    day: '2-digit', 
-                    month: '2-digit', 
-                    year: 'numeric', 
-                    hour: '2-digit', 
-                    minute: '2-digit' 
-                  })}
+                  {new Date(msg.timestamp).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
                 </span>
               </div>
             );
@@ -412,7 +346,7 @@ export function ChatWindow({ chatId }: { chatId: string }) {
       </ScrollArea>
 
       {canWrite ? (
-        <div className="p-4 bg-white/80 backdrop-blur-md border-t shrink-0">
+        <div className="p-4 bg-white/80 dark:bg-black/40 backdrop-blur-md border-t shrink-0">
           <div className="max-w-4xl mx-auto flex items-center gap-2">
             <input 
               type="file" 
@@ -431,7 +365,7 @@ export function ChatWindow({ chatId }: { chatId: string }) {
             </Button>
             <div className="flex-1 relative min-w-0">
               <Input 
-                placeholder={chatData?.type === 'channel' ? "Опубликовать в канале..." : "Введите сообщение..."}
+                placeholder="Сообщение..."
                 className="pr-10 bg-background border-none rounded-full focus-visible:ring-primary shadow-inner h-11"
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
@@ -454,7 +388,7 @@ export function ChatWindow({ chatId }: { chatId: string }) {
                     <button 
                       key={emoji} 
                       onClick={() => addEmoji(emoji)}
-                      className="text-xl hover:bg-sidebar/50 p-1 rounded-lg transition-colors text-center"
+                      className="text-xl hover:bg-sidebar/50 p-1 rounded-lg transition-colors"
                     >
                       {emoji}
                     </button>
@@ -468,13 +402,12 @@ export function ChatWindow({ chatId }: { chatId: string }) {
               disabled={(!message.trim()) || isSending}
             >
               {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              <span className="hidden sm:inline ml-2">{chatData?.type === 'channel' ? "Пост" : "Отправить"}</span>
             </Button>
           </div>
         </div>
       ) : (
         <div className="p-4 bg-sidebar/20 text-center border-t shrink-0">
-          <p className="text-xs text-muted-foreground">В этом канале могут писать только администраторы.</p>
+          <p className="text-xs text-muted-foreground">Только администраторы могут писать здесь.</p>
         </div>
       )}
     </div>
