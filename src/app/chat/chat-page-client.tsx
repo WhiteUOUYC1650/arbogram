@@ -9,8 +9,8 @@ import { ArbogramIcon } from "@/components/arbogram-icon";
 import { cn } from "@/lib/utils";
 
 /**
- * Клиентская часть главной страницы мессенджера.
- * Теперь это основной интерфейс, который открывается по адресу /.
+ * Основной интерфейс мессенджера (SPA).
+ * Работает без смены URL, что гарантирует стабильность в APK.
  */
 export default function ChatPageClient() {
   const [activeChatId, setActiveChatId] = React.useState<string | null>(null);
@@ -52,22 +52,6 @@ export default function ChatPageClient() {
               <p className="text-muted-foreground max-w-sm">
                 Выберите чат, чтобы начать общение. Версия v0.1
               </p>
-            </div>
-            <div className="grid grid-cols-2 gap-4 w-full max-w-md mt-8 text-left">
-              <div className="p-4 rounded-2xl bg-white/40 dark:bg-black/20 border border-primary/10 space-y-2">
-                <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center">
-                  <span className="text-xs font-bold text-accent">Б</span>
-                </div>
-                <p className="text-sm font-semibold">Быстро</p>
-                <p className="text-[10px] text-muted-foreground">Мгновенная доставка сообщений.</p>
-              </div>
-              <div className="p-4 rounded-2xl bg-white/40 dark:bg-black/20 border border-primary/10 space-y-2">
-                <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center">
-                  <span className="text-xs font-bold text-accent">Н</span>
-                </div>
-                <p className="text-sm font-semibold">Надежно</p>
-                <p className="text-[10px] text-muted-foreground">Ваши данные под защитой.</p>
-              </div>
             </div>
           </div>
         )}

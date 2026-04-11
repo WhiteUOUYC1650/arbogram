@@ -2,8 +2,8 @@
 import { redirect } from "next/navigation";
 
 /**
- * Перенаправляем на главную чата.
+ * Перенаправляем на главную.
  */
-export default function RedirectToChatSlug() {
-  redirect("/chat");
+export default function RedirectToRoot() {
+  redirect("/");
 }
