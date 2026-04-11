@@ -1,0 +1,17 @@
+{
+  "name": "Arbogram Messenger",
+  "short_name": "Arbogram",
+  "description": "Настоящий мессенджер на Firebase",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f1f6f2",
+  "theme_color": "#8ed1a1",
+  "icons": [
+    {
+      "src": "https://docs.google.com/uc?export=download&id=1KXNoBIvgzPrBLjJrqpq-QR6Tq7DphLpQ",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
