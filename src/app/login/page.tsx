@@ -32,7 +32,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (user && !loading && !isSubmitting) {
-      router.push("/chat");
+      router.push("/");
     }
   }, [user, loading, isSubmitting, router]);
 
@@ -78,10 +78,10 @@ export default function LoginPage() {
         };
 
         await setDoc(doc(db, "users", newUser.uid), userData);
-        router.push("/chat");
+        router.push("/");
       } else {
         await signInWithEmailAndPassword(auth, email, password);
-        router.push("/chat");
+        router.push("/");
       }
     } catch (error: any) {
       toast({ variant: "destructive", title: "Ошибка", description: error.message });

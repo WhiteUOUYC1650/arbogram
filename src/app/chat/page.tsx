@@ -1,10 +1,10 @@
 
-import ChatPageClient from "./chat-page-client";
+import { redirect } from "next/navigation";
 
 /**
- * Серверная часть главной страницы чата.
- * Просто возвращает клиентский компонент для обеспечения чистоты структуры.
+ * Теперь чаты живут на главной странице (/).
+ * Перенаправляем любого, кто попадет сюда по старой ссылке.
  */
-export default function ChatPage() {
-  return <ChatPageClient />;
+export default function ChatPageRedirect() {
+  redirect("/");
 }

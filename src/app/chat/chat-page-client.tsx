@@ -9,8 +9,8 @@ import { ArbogramIcon } from "@/components/arbogram-icon";
 import { cn } from "@/lib/utils";
 
 /**
- * Клиентская часть главной страницы чата.
- * Содержит всю логику управления состоянием и отображения.
+ * Клиентская часть главной страницы мессенджера.
+ * Теперь это основной интерфейс, который открывается по адресу /.
  */
 export default function ChatPageClient() {
   const [activeChatId, setActiveChatId] = React.useState<string | null>(null);

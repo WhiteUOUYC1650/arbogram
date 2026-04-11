@@ -32,7 +32,9 @@ export default function ChannelSlugClient({ slug }: { slug: string }) {
         const snap = await getDocs(q);
         
         if (!snap.empty) {
-          router.replace(`/chat/${snap.docs[0].id}`);
+          // Вместо перехода на /chat/id, мы пока просто переходим на главную.
+          // В идеале здесь нужно прокидывать состояние активного чата.
+          router.replace("/");
         } else {
           setError(true);
           setLoading(false);
@@ -69,7 +71,7 @@ export default function ChannelSlugClient({ slug }: { slug: string }) {
           </p>
         </div>
         <Button asChild className="rounded-xl bg-accent">
-          <Link href="/chat">Вернуться в Arbogram</Link>
+          <Link href="/">Вернуться в Arbogram</Link>
         </Button>
       </div>
     );
