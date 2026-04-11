@@ -2,13 +2,14 @@
 "use client";
 
 import * as React from "react";
-import { Info, Send, Paperclip, Smile, ChevronLeft, Megaphone } from "lucide-react";
+import { Info, Send, Paperclip, Smile, ChevronLeft, Megaphone, X } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useCollection, useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
 import { collection, query, orderBy, addDoc, doc, updateDoc } from "firebase/firestore";
@@ -20,6 +21,7 @@ export function ChatWindow({ chatId }: { chatId: string }) {
   const isMobile = useIsMobile();
   const db = useFirestore();
   const { user } = useUser();
+  const router = useRouter();
 
   const chatRef = useMemoFirebase(() => db ? doc(db, "chats", chatId) : null, [db, chatId]);
   const { data: chatData } = useDoc(chatRef);
@@ -123,6 +125,14 @@ export function ChatWindow({ chatId }: { chatId: string }) {
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-accent">
             <Info className="w-5 h-5" />
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="rounded-full text-muted-foreground hover:text-destructive transition-colors"
+            onClick={() => router.push('/chat')}
+          >
+            <X className="w-5 h-5" />
           </Button>
         </div>
       </div>
