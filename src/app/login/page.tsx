@@ -4,17 +4,15 @@
 import { useAuth, useUser, useFirestore } from "@/firebase";
 import { 
   signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword,
-  GoogleAuthProvider,
-  signInWithPopup
+  createUserWithEmailAndPassword
 } from "firebase/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Chrome, Loader2, Mail, Lock, User as UserIcon } from "lucide-react";
+import { Loader2, Mail, Lock, User as UserIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { doc, setDoc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { doc, setDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { ArbogramIcon } from "@/components/arbogram-icon";
 
@@ -44,47 +42,6 @@ export default function LoginPage() {
       val = "@" + val.replace("@", "");
     }
     setUsername(val.toLowerCase().replace(/\s/g, ""));
-  };
-
-  const handleGoogleLogin = async () => {
-    if (!auth || !db) return;
-    setIsSubmitting(true);
-    try {
-      const provider = new GoogleAuthProvider();
-      // Вынуждаем выбор аккаунта, чтобы всегда открывалось диалоговое окно
-      provider.setCustomParameters({
-        prompt: 'select_account'
-      });
-      
-      const result = await signInWithPopup(auth, provider);
-      const loggedUser = result.user;
-
-      const userDoc = await getDoc(doc(db, "users", loggedUser.uid));
-      if (!userDoc.exists()) {
-        const baseUsername = loggedUser.displayName 
-          ? loggedUser.displayName.toLowerCase().replace(/\s/g, "_") 
-          : loggedUser.email?.split('@')[0] || "user";
-        
-        const finalUsername = `@${baseUsername}_${loggedUser.uid.substring(0, 4)}`;
-
-        const userData = {
-          uid: loggedUser.uid,
-          displayName: loggedUser.displayName || loggedUser.email?.split('@')[0] || "User",
-          username: finalUsername,
-          photoURL: loggedUser.photoURL || "",
-          email: loggedUser.email,
-          lastSeen: Date.now()
-        };
-        await setDoc(doc(db, "users", loggedUser.uid), userData);
-      }
-      router.push("/chat");
-    } catch (error: any) {
-      if (error.code !== 'auth/popup-closed-by-user') {
-        toast({ variant: "destructive", title: "Ошибка входа", description: "Не удалось открыть диалоговое окно Google." });
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -149,25 +106,6 @@ export default function LoginPage() {
         </div>
 
         <div className="bg-card p-8 rounded-[2rem] shadow-2xl border border-primary/5 space-y-6">
-          <Button 
-            variant="outline" 
-            className="w-full h-14 rounded-2xl border-primary/20 hover:bg-primary/5 flex items-center justify-center gap-3 text-base font-medium transition-all active:scale-95"
-            onClick={handleGoogleLogin}
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Chrome className="w-6 h-6 text-[#4285F4]" />}
-            <span>Войти через Google</span>
-          </Button>
-
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-muted"></span>
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-4 text-muted-foreground font-semibold tracking-wider">ИЛИ</span>
-            </div>
-          </div>
-
           <form onSubmit={handleSubmit} className="space-y-4">
             {isRegistering && (
               <div className="space-y-4 animate-in slide-in-from-top-4 duration-300">
