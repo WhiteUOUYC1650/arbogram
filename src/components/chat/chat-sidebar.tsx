@@ -3,7 +3,6 @@
 
 import * as React from "react";
 import { Search, Plus, MessageSquare, Users, LogOut, Megaphone, Globe, Settings as SettingsIcon } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -16,6 +15,7 @@ import { signOut } from "firebase/auth";
 import { CreateChatDialog } from "./create-chat-dialog";
 import { StoriesBar } from "@/components/stories/stories-bar";
 import { SettingsDialog } from "@/components/settings/settings-dialog";
+import { UserAvatar } from "@/components/user-avatar";
 
 export function ChatSidebar() {
   const pathname = usePathname();
@@ -89,13 +89,13 @@ export function ChatSidebar() {
           {filteredChats.map((chat) => {
             const isActive = pathname === `/chat/${chat.id}`;
             let displayName = chat.name || "Группа";
-            let displayAvatar = chat.photoURL;
+            let targetId = chat.id; // Для групп/каналов
 
             if (chat.type === 'individual' && user) {
               const otherId = chat.participants.find(p => p !== user.uid);
               if (otherId && chat.metadata?.[otherId]) {
                 displayName = chat.metadata[otherId].displayName;
-                displayAvatar = chat.metadata[otherId].photoURL;
+                targetId = otherId;
               }
             }
             
@@ -107,10 +107,11 @@ export function ChatSidebar() {
                   "flex items-center gap-3 p-3 rounded-2xl transition-all cursor-pointer hover:bg-white/40",
                   isActive && "bg-white shadow-sm ring-1 ring-primary/10"
                 )}>
-                  <Avatar className="w-12 h-12 border-2 border-primary/20">
-                    {displayAvatar && <AvatarImage src={displayAvatar} />}
-                    <AvatarFallback>{displayName[0]}</AvatarFallback>
-                  </Avatar>
+                  <UserAvatar 
+                    userId={targetId} 
+                    fallback={displayName} 
+                    className="w-12 h-12 border-2 border-primary/20" 
+                  />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5 min-w-0">

@@ -2,23 +2,20 @@
 "use client";
 
 import * as React from "react";
-import { Info, Send, Paperclip, Smile, ChevronLeft, Megaphone, X } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Info, Send, Paperclip, Smile, Megaphone, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { useCollection, useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
 import { collection, query, orderBy, addDoc, doc, updateDoc } from "firebase/firestore";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
+import { UserAvatar } from "@/components/user-avatar";
 
 export function ChatWindow({ chatId }: { chatId: string }) {
   const [message, setMessage] = React.useState("");
-  const isMobile = useIsMobile();
   const db = useFirestore();
   const { user } = useUser();
   const router = useRouter();
@@ -76,14 +73,14 @@ export function ChatWindow({ chatId }: { chatId: string }) {
   };
 
   let chatName = chatData?.name || "Чат";
-  let chatAvatar = chatData?.photoURL;
+  let targetId = chatId;
   let subText = "В сети";
 
   if (chatData?.type === 'individual' && user) {
     const otherId = chatData.participants?.find((p: string) => p !== user.uid);
     if (otherId && chatData.metadata?.[otherId]) {
       chatName = chatData.metadata[otherId].displayName;
-      chatAvatar = chatData.metadata[otherId].photoURL;
+      targetId = otherId;
     }
   } else if (chatData?.type === 'group') {
     const count = chatData.participants?.length || 0;
@@ -112,10 +109,8 @@ export function ChatWindow({ chatId }: { chatId: string }) {
             <X className="w-5 h-5" />
           </Button>
           
-          <Avatar className="w-10 h-10 border-2 border-primary/20">
-            {chatAvatar && <AvatarImage src={chatAvatar} />}
-            <AvatarFallback>{chatName[0]}</AvatarFallback>
-          </Avatar>
+          <UserAvatar userId={targetId} fallback={chatName} className="w-10 h-10 border-2 border-primary/20" />
+          
           <div className="min-w-0">
             <h2 className="font-semibold text-sm leading-tight truncate max-w-[150px] sm:max-w-none flex items-center gap-1">
               {chatName}
@@ -149,7 +144,10 @@ export function ChatWindow({ chatId }: { chatId: string }) {
                     : "bg-white text-foreground rounded-tl-none border border-primary/10"
                 )}>
                   {chatData?.type === 'group' && !isMe && (
-                    <p className="text-[9px] font-bold opacity-70 mb-1">{msg.senderName}</p>
+                    <div className="flex items-center gap-2 mb-1">
+                      <UserAvatar userId={msg.senderId} fallback={msg.senderName} className="w-4 h-4" />
+                      <p className="text-[9px] font-bold opacity-70">{msg.senderName}</p>
+                    </div>
                   )}
                   {msg.text}
                 </div>

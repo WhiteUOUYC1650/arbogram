@@ -2,16 +2,15 @@
 "use client";
 
 import * as React from "react";
-import { Settings, Loader2, Camera, Moon, Sun, Check, User as UserIcon } from "lucide-react";
+import { Settings, Loader2, Camera, Moon, Sun, Check, User as UserIcon, Upload } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useFirestore, useUser, useDoc } from "@/firebase";
-import { doc, updateDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
+import { doc, updateDoc, collection, query, where, getDocs, setDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
-import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { Switch } from "@/components/ui/switch";
 
 export function SettingsDialog({ children }: { children: React.ReactNode }) {
@@ -26,17 +25,26 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
   const userRef = React.useMemo(() => (db && user ? doc(db, "users", user.uid) : null), [db, user]);
   const { data: userData } = useDoc(userRef);
 
+  const avatarRef = useMemoFirebase(() => (db && user ? doc(db, "avatars", user.uid) : null), [db, user?.uid]);
+  const { data: avatarData } = useDoc(avatarRef);
+
   const [displayName, setDisplayName] = React.useState("");
   const [username, setUsername] = React.useState("");
   const [photoURL, setPhotoURL] = React.useState("");
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     if (userData) {
       setDisplayName(userData.displayName || "");
       setUsername(userData.username || "@");
-      setPhotoURL(userData.photoURL || "");
     }
   }, [userData]);
+
+  React.useEffect(() => {
+    if (avatarData?.base64) {
+      setPhotoURL(avatarData.base64);
+    }
+  }, [avatarData]);
 
   React.useEffect(() => {
     const isDark = document.documentElement.classList.contains("dark");
@@ -49,6 +57,61 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
       document.documentElement.classList.add("dark");
     } else {
       document.documentElement.classList.remove("dark");
+    }
+  };
+
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 400;
+          const MAX_HEIGHT = 400;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+          // Сжимаем до 0.7 качества для экономии места
+          resolve(canvas.toDataURL('image/jpeg', 0.7));
+        };
+      };
+      reader.onerror = error => reject(error);
+    });
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast({ variant: "destructive", title: "Ошибка", description: "Пожалуйста, выберите изображение." });
+      return;
+    }
+
+    try {
+      const base64 = await compressImage(file);
+      setPhotoURL(base64);
+    } catch (err) {
+      toast({ variant: "destructive", title: "Ошибка", description: "Не удалось обработать изображение." });
     }
   };
 
@@ -68,7 +131,7 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
 
     setIsUpdating(true);
     try {
-      // Проверка уникальности юзернейма, если он изменился
+      // Проверка уникальности юзернейма
       if (username !== userData?.username) {
         const q = query(collection(db, "users"), where("username", "==", username));
         const snap = await getDocs(q);
@@ -79,10 +142,15 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
         }
       }
 
+      // Сохраняем аватар в отдельную коллекцию
+      if (photoURL && photoURL.startsWith('data:image')) {
+        await setDoc(doc(db, "avatars", user.uid), { base64: photoURL });
+      }
+
       await updateDoc(userRef, {
         displayName,
         username,
-        photoURL
+        photoURL: user.uid // Используем UID как ссылку на аватар в отдельной коллекции
       });
 
       toast({ title: "Профиль обновлен", description: "Ваши данные успешно сохранены." });
@@ -92,13 +160,6 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
     } finally {
       setIsUpdating(false);
     }
-  };
-
-  const changeAvatar = () => {
-    const randomAvatar = PlaceHolderImages.filter(img => img.id.startsWith('avatar-'))[
-      Math.floor(Math.random() * 3)
-    ];
-    setPhotoURL(randomAvatar.imageUrl);
   };
 
   return (
@@ -113,7 +174,7 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
         
         <div className="space-y-6 py-4">
           <div className="flex flex-col items-center gap-4">
-            <div className="relative group cursor-pointer" onClick={changeAvatar}>
+            <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
               <Avatar className="w-24 h-24 border-4 border-accent/20">
                 <AvatarImage src={photoURL} />
                 <AvatarFallback className="text-2xl bg-accent/10 text-accent">
@@ -123,8 +184,17 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
               <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                 <Camera className="w-8 h-8 text-white" />
               </div>
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                className="hidden" 
+                accept="image/*"
+                onChange={handleFileChange}
+              />
             </div>
-            <p className="text-[10px] text-muted-foreground">Нажмите, чтобы сменить аватар</p>
+            <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+              <Upload className="w-3 h-3" /> Нажмите, чтобы загрузить фото
+            </p>
           </div>
 
           <div className="space-y-4">

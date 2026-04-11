@@ -9,11 +9,20 @@
         "uid": { "type": "string" },
         "displayName": { "type": "string" },
         "username": { "type": "string", "description": "Уникальный тег пользователя, начинается с @" },
-        "photoURL": { "type": "string" },
+        "photoURL": { "type": "string", "description": "URL или ID аватара" },
         "email": { "type": "string", "format": "email" },
         "lastSeen": { "type": "number" }
       },
       "required": ["uid", "email", "username"]
+    },
+    "Avatar": {
+      "title": "Avatar",
+      "description": "Хранилище Base64 данных аватара",
+      "type": "object",
+      "properties": {
+        "base64": { "type": "string", "description": "Сжатые данные изображения в Base64" }
+      },
+      "required": ["base64"]
     },
     "Chat": {
       "title": "Chat",
@@ -69,6 +78,7 @@
   },
   "firestore": {
     "/users/{userId}": { "schema": "User", "description": "Профили пользователей" },
+    "/avatars/{userId}": { "schema": "Avatar", "description": "Base64 данные аватарок" },
     "/chats/{chatId}": { "schema": "Chat", "description": "Список чатов" },
     "/chats/{chatId}/messages/{messageId}": { "schema": "Message", "description": "Сообщения в чате" },
     "/stories/{storyId}": { "schema": "Story", "description": "Истории пользователей" }
