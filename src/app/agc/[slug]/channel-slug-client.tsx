@@ -8,6 +8,9 @@ import { Loader2, MessageSquareOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
+/**
+ * Клиентская логика поиска канала по слагу.
+ */
 export default function ChannelSlugClient({ slug }: { slug: string }) {
   const db = useFirestore();
   const router = useRouter();

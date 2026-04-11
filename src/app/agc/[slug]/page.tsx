@@ -1,17 +1,13 @@
 import ChannelSlugClient from "./channel-slug-client";
 
 /**
- * Серверный компонент для генерации статических путей.
- * Не содержит "use client", чтобы не конфликтовать с generateStaticParams.
+ * Серверный компонент для резолвинга ссылок каналов.
  */
 export async function generateStaticParams() {
-  // Возвращаем хотя бы один путь-заглушку, чтобы Next.js разрешил статический экспорт
+  // Заглушка для статического экспорта
   return [{ slug: 'welcome' }];
 }
 
-/**
- * dynamicParams = false запрещает генерацию путей в рантайме (что невозможно в APK).
- */
 export const dynamicParams = false;
 
 export default async function ChannelSlugPage({ params }: { params: Promise<{ slug: string }> }) {

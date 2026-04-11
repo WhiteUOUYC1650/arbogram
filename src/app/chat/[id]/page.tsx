@@ -5,12 +5,13 @@ import ChatClient from "./chat-client";
  * generateStaticParams необходим для корректного output: export.
  */
 export async function generateStaticParams() {
-  // Заглушка для статического экспорта. Для APK это критично.
+  // Для APK нам нужно сгенерировать хотя бы один путь при билде.
+  // В рантайме Capacitor будет открывать страницы динамически.
   return [{ id: 'main' }];
 }
 
 /**
- * dynamicParams = false запрещает генерацию путей в рантайме (что невозможно в APK).
+ * dynamicParams = false запрещает генерацию путей в рантайме (что невозможно в APK через output: export).
  */
 export const dynamicParams = false;
 
