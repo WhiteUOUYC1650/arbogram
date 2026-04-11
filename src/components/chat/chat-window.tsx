@@ -103,13 +103,15 @@ export function ChatWindow({ chatId }: { chatId: string }) {
     <div className="flex flex-col h-full bg-background overflow-hidden">
       <div className="flex items-center justify-between p-4 border-b bg-white/80 backdrop-blur-md z-10 shrink-0">
         <div className="flex items-center gap-3">
-          {isMobile && (
-            <Button variant="ghost" size="icon" asChild className="mr-1">
-              <Link href="/chat">
-                <ChevronLeft className="w-6 h-6 text-accent" />
-              </Link>
-            </Button>
-          )}
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="rounded-full text-muted-foreground hover:text-destructive transition-colors shrink-0"
+            onClick={() => router.push('/chat')}
+          >
+            <X className="w-5 h-5" />
+          </Button>
+          
           <Avatar className="w-10 h-10 border-2 border-primary/20">
             {chatAvatar && <AvatarImage src={chatAvatar} />}
             <AvatarFallback>{chatName[0]}</AvatarFallback>
@@ -125,14 +127,6 @@ export function ChatWindow({ chatId }: { chatId: string }) {
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-accent">
             <Info className="w-5 h-5" />
-          </Button>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="rounded-full text-muted-foreground hover:text-destructive transition-colors"
-            onClick={() => router.push('/chat')}
-          >
-            <X className="w-5 h-5" />
           </Button>
         </div>
       </div>
