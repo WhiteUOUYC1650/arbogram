@@ -35,30 +35,31 @@
     --sidebar-ring: 142 60% 45%;
   }
   .dark {
-    --background: 132 20% 6%;
-    --foreground: 132 10% 98%;
-    --card: 132 20% 10%;
-    --card-foreground: 132 10% 98%;
-    --popover: 132 20% 10%;
-    --popover-foreground: 132 10% 98%;
-    --primary: 141 38% 45%;
+    /* Глубокий графитовый фон */
+    --background: 220 15% 8%;
+    --foreground: 210 20% 98%;
+    --card: 220 15% 12%;
+    --card-foreground: 210 20% 98%;
+    --popover: 220 15% 12%;
+    --popover-foreground: 210 20% 98%;
+    --primary: 142 60% 45%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 132 20% 12%;
-    --secondary-foreground: 132 10% 98%;
-    --muted: 132 10% 12%;
-    --muted-foreground: 132 10% 55%;
+    --secondary: 220 15% 15%;
+    --secondary-foreground: 210 20% 98%;
+    --muted: 220 15% 15%;
+    --muted-foreground: 210 10% 60%;
     --accent: 142 60% 50%;
     --accent-foreground: 0 0% 100%;
-    --destructive: 0 62.8% 30.6%;
+    --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 132 15% 18%;
-    --input: 132 15% 18%;
+    --border: 220 15% 20%;
+    --input: 220 15% 20%;
     --ring: 142 60% 50%;
     
-    --sidebar-background: 132 20% 4%;
-    --sidebar-foreground: 132 10% 92%;
-    --sidebar-accent: 132 20% 10%;
-    --sidebar-border: 132 15% 12%;
+    --sidebar-background: 220 15% 6%;
+    --sidebar-foreground: 210 10% 90%;
+    --sidebar-accent: 220 15% 12%;
+    --sidebar-border: 220 15% 15%;
   }
 }
 

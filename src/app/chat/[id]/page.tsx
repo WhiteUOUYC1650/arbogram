@@ -2,8 +2,14 @@
 import { redirect } from "next/navigation";
 
 /**
- * Перенаправляем на главную. 
- * Динамические роуты [id] удалены для стабильности APK.
+ * Генерируем пустой список параметров для статического экспорта.
+ */
+export function generateStaticParams() {
+  return [];
+}
+
+/**
+ * Перенаправляем на главную.
  */
 export default function RedirectToRoot() {
   redirect("/");
