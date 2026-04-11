@@ -1,4 +1,3 @@
-
 "use client";
 
 import { cn } from "@/lib/utils";
@@ -15,7 +14,7 @@ interface ArbogramIconProps {
  * Про Google Диск: чтобы ссылка работала как прямая картинка, используйте формат:
  * https://docs.google.com/uc?export=download&id=ID_ВАШЕГО_ФАЙЛА
  */
-const ICON_URL = "https://picsum.photos/seed/arbogram/200/200"; // <--- ВСТАВЬТЕ ССЫЛКУ СЮДА
+const ICON_URL = "https://docs.google.com/uc?export=download&id=1KXNoBIvgzPrBLjJrqpq-QR6Tq7DphLpQ";
 
 export function ArbogramIcon({ className }: ArbogramIconProps) {
   return (
