@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { Phone, Info, Send, Paperclip, Smile, ChevronLeft, Megaphone } from "lucide-react";
+import { Info, Send, Paperclip, Smile, ChevronLeft, Megaphone } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -131,7 +131,6 @@ export function ChatWindow({ chatId }: { chatId: string }) {
         <div className="p-4 flex flex-col gap-4 max-w-4xl mx-auto">
           {messages?.map((msg) => {
             const isMe = msg.senderId === user?.uid;
-            // В каналах ВСЕ сообщения слева
             const alignLeft = chatData?.type === 'channel' || !isMe;
             
             return (
@@ -151,7 +150,13 @@ export function ChatWindow({ chatId }: { chatId: string }) {
                   {msg.text}
                 </div>
                 <span className="text-[10px] text-muted-foreground mt-1 px-1">
-                  {new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                  {new Date(msg.timestamp).toLocaleString('ru-RU', { 
+                    day: '2-digit', 
+                    month: '2-digit', 
+                    year: 'numeric', 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                  })}
                 </span>
               </div>
             );

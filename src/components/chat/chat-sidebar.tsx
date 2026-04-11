@@ -108,8 +108,14 @@ export function ChatSidebar() {
                         <p className="font-semibold text-sm truncate text-foreground">{displayName}</p>
                         {chat.isPublic && <Globe className="w-3 h-3 text-accent shrink-0" />}
                       </div>
-                      <span className="text-[10px] text-muted-foreground">
-                        {chat.lastMessageTime ? new Date(chat.lastMessageTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ""}
+                      <span className="text-[10px] text-muted-foreground shrink-0 ml-2">
+                        {chat.lastMessageTime ? new Date(chat.lastMessageTime).toLocaleString('ru-RU', { 
+                          day: '2-digit', 
+                          month: '2-digit', 
+                          year: 'numeric', 
+                          hour: '2-digit', 
+                          minute: '2-digit' 
+                        }) : ""}
                       </span>
                     </div>
                     <div className="flex items-center gap-1">
