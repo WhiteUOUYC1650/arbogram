@@ -13,7 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { MessageSquare, Chrome, Send } from "lucide-react";
+import { MessageSquare, Chrome } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { doc, setDoc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
@@ -85,11 +85,13 @@ export default function LoginPage() {
           finalUsername = `@${baseUsername}_${loggedUser.uid.substring(0, 4)}`;
         }
 
+        const avatar = PlaceHolderImages.find(img => img.id === 'avatar-1')?.imageUrl || "";
+
         const userData = {
           uid: loggedUser.uid,
           displayName: loggedUser.displayName || loggedUser.email?.split('@')[0] || "User",
           username: finalUsername,
-          photoURL: loggedUser.photoURL || PlaceHolderImages.find(img => img.id.startsWith('avatar'))?.imageUrl || "",
+          photoURL: loggedUser.photoURL || avatar,
           email: loggedUser.email,
           lastSeen: Date.now()
         };
@@ -111,14 +113,14 @@ export default function LoginPage() {
 
   const handleTelegramLogin = async () => {
     setIsSubmitting(true);
-    try {
-      toast({
-        title: "Telegram Login (Mock)",
-        description: "Для работы этой функции требуется серверная верификация Telegram Hash и Bot Token. В прототипе кнопка носит демонстрационный характер.",
-      });
-    } finally {
+    // Это симуляция, так как настоящий TG Login требует серверной проверки хеша
+    toast({
+      title: "Telegram Login (Mock)",
+      description: "Для работы этой функции нужно подключить бота. В прототипе мы имитируем процесс.",
+    });
+    setTimeout(() => {
       setIsSubmitting(false);
-    }
+    }, 1000);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -153,13 +155,13 @@ export default function LoginPage() {
             await updateProfile(newUser, { displayName });
           }
 
-          const randomAvatar = PlaceHolderImages.find(img => img.id.startsWith('avatar'))?.imageUrl || "";
+          const defaultAvatar = PlaceHolderImages.find(img => img.id === 'avatar-1')?.imageUrl || "";
 
           const userData = {
             uid: newUser.uid,
             displayName: displayName || email.split('@')[0],
             username: username,
-            photoURL: randomAvatar,
+            photoURL: defaultAvatar,
             email: newUser.email,
             lastSeen: Date.now()
           };

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import Link from "next/link";
+import Link from "next/navigation";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useCollection, useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
 import { collection, query, orderBy, addDoc, doc, updateDoc } from "firebase/firestore";
@@ -73,21 +73,25 @@ export function ChatWindow({ chatId }: { chatId: string }) {
     }
   };
 
-  // Логика отображения имени чата в заголовке
-  let chatName = chatData?.name || "Загрузка...";
+  // Логика отображения имени чата и участников
+  let chatName = chatData?.name || "Чат";
   let chatAvatar = chatData?.photoURL;
-  let statusText = "В сети";
+  let subText = "В сети";
 
   if (chatData?.type === 'individual' && user) {
-    const otherId = chatData.participants.find(p => p !== user.uid);
+    const otherId = chatData.participants.find((p: string) => p !== user.uid);
     if (otherId && chatData.metadata?.[otherId]) {
       chatName = chatData.metadata[otherId].displayName;
       chatAvatar = chatData.metadata[otherId].photoURL;
     }
   } else if (chatData?.type === 'group') {
     const count = chatData.participants?.length || 0;
-    const suffix = count === 1 ? "участник" : (count > 1 && count < 5) ? "участника" : "участников";
-    statusText = `${count} ${suffix}`;
+    const getRussianMemberSuffix = (c: number) => {
+      if (c % 10 === 1 && c % 100 !== 11) return "участник";
+      if ([2, 3, 4].includes(c % 10) && ![12, 13, 14].includes(c % 100)) return "участника";
+      return "участников";
+    };
+    subText = `${count} ${getRussianMemberSuffix(count)}`;
   }
 
   return (
@@ -108,7 +112,7 @@ export function ChatWindow({ chatId }: { chatId: string }) {
           </Avatar>
           <div>
             <h2 className="font-semibold text-sm leading-tight truncate max-w-[150px] sm:max-w-none">{chatName}</h2>
-            <p className="text-[10px] text-accent font-medium">{statusText}</p>
+            <p className="text-[10px] text-accent font-medium">{subText}</p>
           </div>
         </div>
         <div className="flex items-center gap-1">
