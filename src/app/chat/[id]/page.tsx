@@ -1,7 +1,7 @@
 import ChatClient from "./chat-client";
 
+// Для output: export нам нужно вернуть хотя бы пустой массив для динамических роутов
 export function generateStaticParams() {
-  // Для output: export нам нужно вернуть хотя бы пустой массив для динамических роутов
   return [];
 }
 
