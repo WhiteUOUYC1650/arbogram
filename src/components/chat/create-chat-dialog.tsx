@@ -126,8 +126,9 @@ export function CreateChatDialog({ children }: { children: React.ReactNode }) {
       const docRef = await addDoc(collection(db, "chats"), chatData);
       setOpen(false);
       router.push(`/chat/${docRef.id}`);
-    } catch (e) {
-      toast({ variant: "destructive", title: "Ошибка", description: "Не удалось создать группу." });
+    } catch (e: any) {
+      console.error("Group creation error:", e);
+      toast({ variant: "destructive", title: "Ошибка", description: e.message || "Не удалось создать группу." });
     } finally {
       setIsCreating(false);
     }
@@ -140,7 +141,12 @@ export function CreateChatDialog({ children }: { children: React.ReactNode }) {
       if (channelSlug) {
         // Проверка уникальности слага
         const q = query(collection(db, "chats"), where("slug", "==", channelSlug));
-        const snap = await getDocs(q);
+        const snap = await getDocs(q).catch(e => {
+          // Если ошибка индекса, она появится тут
+          console.error("Slug check error (possible missing index):", e);
+          throw e;
+        });
+        
         if (!snap.empty) {
           toast({ variant: "destructive", title: "Ошибка", description: "Этот адрес уже занят." });
           setIsCreating(false);
@@ -161,11 +167,13 @@ export function CreateChatDialog({ children }: { children: React.ReactNode }) {
         lastMessageTime: Date.now(),
         createdAt: serverTimestamp()
       };
+      
       const docRef = await addDoc(collection(db, "chats"), chatData);
       setOpen(false);
       router.push(`/chat/${docRef.id}`);
-    } catch (e) {
-      toast({ variant: "destructive", title: "Ошибка", description: "Не удалось создать канал." });
+    } catch (e: any) {
+      console.error("Channel creation error:", e);
+      toast({ variant: "destructive", title: "Ошибка", description: "Проверьте консоль браузера на наличие ошибки индексов или прав доступа." });
     } finally {
       setIsCreating(false);
     }
