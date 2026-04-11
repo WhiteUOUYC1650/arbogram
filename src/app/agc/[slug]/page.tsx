@@ -9,6 +9,11 @@ import { Loader2, MessageSquareOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
+// Добавляем для поддержки output: export
+export function generateStaticParams() {
+  return [];
+}
+
 export default function ChannelSlugPage() {
   const params = useParams();
   const slug = params.slug as string;
@@ -22,8 +27,6 @@ export default function ChannelSlugPage() {
       if (!db || !slug) return;
       
       try {
-        // Запрос на поиск канала по слагу. 
-        // Если возникает ошибка - скорее всего нужен составной индекс (slug + type).
         const q = query(
           collection(db, "chats"), 
           where("slug", "==", slug),
