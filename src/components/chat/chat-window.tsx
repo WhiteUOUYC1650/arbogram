@@ -73,14 +73,14 @@ export function ChatWindow({ chatId }: { chatId: string }) {
   };
 
   let chatName = chatData?.name || "Чат";
-  let targetId = chatId;
+  let avatarTargetId = chatId; // ID документа для получения аватара
   let subText = "В сети";
 
   if (chatData?.type === 'individual' && user) {
     const otherId = chatData.participants?.find((p: string) => p !== user.uid);
     if (otherId && chatData.metadata?.[otherId]) {
       chatName = chatData.metadata[otherId].displayName;
-      targetId = otherId;
+      avatarTargetId = otherId;
     }
   } else if (chatData?.type === 'group') {
     const count = chatData.participants?.length || 0;
@@ -109,7 +109,7 @@ export function ChatWindow({ chatId }: { chatId: string }) {
             <X className="w-5 h-5" />
           </Button>
           
-          <UserAvatar userId={targetId} fallback={chatName} className="w-10 h-10 border-2 border-primary/20" />
+          <UserAvatar userId={avatarTargetId} fallback={chatName} className="w-10 h-10 border-2 border-primary/20 shrink-0" />
           
           <div className="min-w-0">
             <h2 className="font-semibold text-sm leading-tight truncate max-w-[150px] sm:max-w-none flex items-center gap-1">
@@ -145,7 +145,7 @@ export function ChatWindow({ chatId }: { chatId: string }) {
                 )}>
                   {chatData?.type === 'group' && !isMe && (
                     <div className="flex items-center gap-2 mb-1">
-                      <UserAvatar userId={msg.senderId} fallback={msg.senderName} className="w-4 h-4" />
+                      <UserAvatar userId={msg.senderId} fallback={msg.senderName} className="w-4 h-4 shrink-0" />
                       <p className="text-[9px] font-bold opacity-70">{msg.senderName}</p>
                     </div>
                   )}

@@ -110,7 +110,7 @@ export function ChatSidebar() {
                   <UserAvatar 
                     userId={targetId} 
                     fallback={displayName} 
-                    className="w-12 h-12 border-2 border-primary/20" 
+                    className="w-12 h-12 border-2 border-primary/20 shrink-0" 
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">

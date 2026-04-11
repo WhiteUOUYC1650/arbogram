@@ -9,6 +9,7 @@ import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { collection, query, orderBy, where } from "firebase/firestore";
 import { CreateStoryDialog } from "./create-story-dialog";
 import { Dialog, DialogContent, DialogTrigger, DialogTitle, DialogHeader } from "@/components/ui/dialog";
+import { UserAvatar } from "@/components/user-avatar";
 
 export function StoriesBar() {
   const db = useFirestore();
@@ -71,10 +72,11 @@ function StoryViewer({ user }: { user: any }) {
       <DialogTrigger asChild>
         <div className="flex flex-col items-center gap-1 cursor-pointer group">
           <div className="w-14 h-14 rounded-full p-0.5 border-2 border-accent transition-transform hover:scale-105 active:scale-95">
-            <Avatar className="w-full h-full border-2 border-white">
-              <AvatarImage src={user.userPhoto} />
-              <AvatarFallback>{user.userName[0]}</AvatarFallback>
-            </Avatar>
+            <UserAvatar 
+              userId={user.userId} 
+              fallback={user.userName} 
+              className="w-full h-full border-2 border-white" 
+            />
           </div>
           <span className="text-[10px] font-medium truncate max-w-[60px]">{user.userName}</span>
         </div>
@@ -85,10 +87,11 @@ function StoryViewer({ user }: { user: any }) {
         </DialogHeader>
         
         <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
-          <Avatar className="w-8 h-8 border border-white/20">
-            <AvatarImage src={user.userPhoto} />
-            <AvatarFallback>{user.userName[0]}</AvatarFallback>
-          </Avatar>
+          <UserAvatar 
+            userId={user.userId} 
+            fallback={user.userName} 
+            className="w-8 h-8 border border-white/20" 
+          />
           <span className="text-white text-sm font-semibold shadow-black drop-shadow-md">
             {user.userName}
           </span>
