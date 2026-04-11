@@ -9,10 +9,7 @@ interface ArbogramIconProps {
 
 /**
  * Компонент иконки Arbogram.
- * Чтобы заменить иконку, просто вставьте вашу ссылку в переменную ICON_URL ниже.
- * 
- * Про Google Диск: чтобы ссылка работала как прямая картинка, используйте формат:
- * https://docs.google.com/uc?export=download&id=ID_ВАШЕГО_ФАЙЛА
+ * Ссылка на изображение из Google Drive (прямая ссылка).
  */
 const ICON_URL = "https://docs.google.com/uc?export=download&id=1KXNoBIvgzPrBLjJrqpq-QR6Tq7DphLpQ";
 
@@ -25,6 +22,7 @@ export function ArbogramIcon({ className }: ArbogramIconProps) {
         fill
         className="object-cover"
         sizes="(max-width: 768px) 100vw, 128px"
+        priority
       />
     </div>
   );
