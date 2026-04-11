@@ -1,46 +1,64 @@
 
-name: Build and Package
+name: Build Android APK
 
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: 20
-        cache: 'npm'
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-    - name: Install dependencies
-      run: npm install
+      - name: Set up JDK 21
+        uses: actions/setup-java@v3
+        with:
+          java-version: '21'
+          distribution: 'zulu'
 
-    - name: Build project
-      run: npm run build
-      env:
-        NEXT_PUBLIC_FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
-        NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ secrets.FIREBASE_AUTH_DOMAIN }}
-        NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
-        NEXT_PUBLIC_FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+      - name: Use Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
 
-    - name: Upload Web Build Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: web-build
-        path: .next/
-        retention-days: 7
+      - name: Install dependencies
+        run: npm install
 
-    - name: Upload Static Assets
-      uses: actions/upload-artifact@v4
-      with:
-        name: public-assets
-        path: public/
-        retention-days: 7
+      - name: Build Next.js Web App
+        run: npm run static
+        env:
+          NEXT_PUBLIC_FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ secrets.FIREBASE_AUTH_DOMAIN }}
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          NEXT_PUBLIC_FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+
+      - name: Initialize Capacitor Android
+        run: |
+          if [ ! -d "android" ]; then
+            npx cap add android
+          fi
+
+      - name: Sync Capacitor project
+        run: npx cap sync android
+
+      - name: Fix Kotlin dependency conflict
+        run: |
+          sed -i 's/implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"/implementation "org.jetbrains.kotlin:kotlin-stdlib:1.9.10"/g' android/app/build.gradle || true
+
+      - name: Make gradlew executable
+        run: chmod +x android/gradlew
+
+      - name: Build with Gradle
+        run: cd android && ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: arbogram-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 7
