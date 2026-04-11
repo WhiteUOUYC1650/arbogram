@@ -8,7 +8,7 @@ export function generateStaticParams() {
 }
 
 /**
- * Запрещаем генерацию на лету, так как в APK нет сервера.
+ * Запрещаем генерацию на лету для статического экспорта.
  */
 export const dynamicParams = false;
 

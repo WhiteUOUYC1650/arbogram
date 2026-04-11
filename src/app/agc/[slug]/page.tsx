@@ -2,13 +2,14 @@ import ChannelSlugClient from "./channel-slug-client";
 
 /**
  * Обязательно для output: export в Next.js 15 для динамических роутов.
+ * Возвращаем пустой массив, чтобы создать шаблон страницы при сборке.
  */
 export function generateStaticParams() {
   return [];
 }
 
 /**
- * Запрещаем генерацию на лету, так как в APK нет сервера.
+ * Запрещаем генерацию на лету, так как в статическом APK нет сервера.
  */
 export const dynamicParams = false;
 
