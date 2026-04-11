@@ -1,6 +1,7 @@
 import ChannelSlugClient from "./channel-slug-client";
 
 export function generateStaticParams() {
+  // Для статического экспорта динамических путей в SPA стиле
   return [];
 }
 

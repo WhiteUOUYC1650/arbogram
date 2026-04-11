@@ -1,6 +1,7 @@
 import ChatClient from "./chat-client";
 
 export function generateStaticParams() {
+  // Для статического экспорта динамических путей в SPA стиле
   return [];
 }
 
