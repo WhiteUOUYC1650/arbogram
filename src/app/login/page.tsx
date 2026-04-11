@@ -13,12 +13,18 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { MessageSquare, Chrome } from "lucide-react";
+import { MessageSquare, Chrome, Send } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { doc, setDoc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
+
+const TelegramIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
+    <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.14.14-.26.26-.54.26l.213-3.047 5.55-5.015c.24-.213-.054-.334-.373-.12l-6.86 4.32-2.95-.92c-.64-.203-.653-.64.135-.947l11.52-4.44c.533-.193.996.126.845.903z" />
+  </svg>
+);
 
 export default function LoginPage() {
   const auth = useAuth();
@@ -64,18 +70,15 @@ export default function LoginPage() {
       const result = await signInWithPopup(auth, provider);
       const loggedUser = result.user;
 
-      // Проверяем, есть ли уже профиль пользователя в Firestore
       const userDoc = await getDoc(doc(db, "users", loggedUser.uid));
       
       if (!userDoc.exists()) {
-        // Создаем новый профиль для пользователя Google
         const baseUsername = loggedUser.displayName 
           ? loggedUser.displayName.toLowerCase().replace(/\s/g, "_") 
           : loggedUser.email?.split('@')[0] || "user";
         
         let finalUsername = `@${baseUsername}`;
         
-        // Простая проверка уникальности для Google (добавляем кусочек UID если занято)
         const q = query(collection(db, "users"), where("username", "==", finalUsername));
         const snapshot = await getDocs(q);
         if (!snapshot.empty) {
@@ -100,6 +103,18 @@ export default function LoginPage() {
         variant: "destructive",
         title: "Ошибка Google входа",
         description: error.message,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleTelegramLogin = async () => {
+    setIsSubmitting(true);
+    try {
+      toast({
+        title: "Telegram Login (Mock)",
+        description: "Для работы этой функции требуется серверная верификация Telegram Hash и Bot Token. В прототипе кнопка носит демонстрационный характер.",
       });
     } finally {
       setIsSubmitting(false);
@@ -190,7 +205,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-3">
           <Button 
             variant="outline" 
             className="w-full h-12 rounded-xl border-primary/20 hover:bg-primary/5 flex items-center justify-center gap-2"
@@ -201,7 +216,17 @@ export default function LoginPage() {
             <span>Войти через Google</span>
           </Button>
 
-          <div className="relative">
+          <Button 
+            variant="outline" 
+            className="w-full h-12 rounded-xl border-primary/20 hover:bg-primary/5 flex items-center justify-center gap-2"
+            onClick={handleTelegramLogin}
+            disabled={isSubmitting}
+          >
+            <TelegramIcon className="w-5 h-5 text-[#24A1DE]" />
+            <span>Войти через Telegram</span>
+          </Button>
+
+          <div className="relative pt-2">
             <div className="absolute inset-0 flex items-center">
               <span className="w-full border-t border-muted"></span>
             </div>
