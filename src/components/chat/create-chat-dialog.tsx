@@ -67,7 +67,6 @@ export function CreateChatDialog({ children }: { children: React.ReactNode }) {
     setIsCreating(true);
     try {
       const participants = [user.uid, targetUser.uid].sort();
-      // Проверка на существующий чат
       const q = query(
         collection(db, "chats"), 
         where("type", "==", "individual"),
@@ -142,7 +141,6 @@ export function CreateChatDialog({ children }: { children: React.ReactNode }) {
         // Проверка уникальности слага
         const q = query(collection(db, "chats"), where("slug", "==", channelSlug));
         const snap = await getDocs(q).catch(e => {
-          // Если ошибка индекса, она появится тут
           console.error("Slug check error (possible missing index):", e);
           throw e;
         });
@@ -173,7 +171,7 @@ export function CreateChatDialog({ children }: { children: React.ReactNode }) {
       router.push(`/chat/${docRef.id}`);
     } catch (e: any) {
       console.error("Channel creation error:", e);
-      toast({ variant: "destructive", title: "Ошибка", description: "Проверьте консоль браузера на наличие ошибки индексов или прав доступа." });
+      toast({ variant: "destructive", title: "Ошибка создания", description: "Убедитесь, что в консоли Firebase создан индекс для поля 'slug' или проверьте правила доступа." });
     } finally {
       setIsCreating(false);
     }
