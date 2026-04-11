@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Settings, Loader2, Camera, Moon, Sun, Check, User as UserIcon, Upload } from "lucide-react";
+import { Settings, Loader2, Camera, Moon, Sun, Check, User as UserIcon, Upload, Info } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -243,6 +243,14 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
               </div>
             )}
           </Button>
+
+          <div className="flex flex-col items-center gap-1 pt-2">
+            <div className="flex items-center gap-1.5 text-muted-foreground">
+              <Info className="w-3 h-3" />
+              <span className="text-[10px] font-medium uppercase tracking-widest">Arbogram v0.1</span>
+            </div>
+            <p className="text-[8px] text-muted-foreground/60 italic">Сделано с любовью для APK</p>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
