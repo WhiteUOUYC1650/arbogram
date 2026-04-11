@@ -16,8 +16,8 @@ const DEFAULT_ICON_URL = "https://docs.google.com/uc?export=download&id=1KXNoBIv
 export function ArbogramIcon({ className }: ArbogramIconProps) {
   const db = useFirestore();
   
-  // Читаем иконку из Firestore по пути config/app
-  const iconRef = useMemoFirebase(() => (db ? doc(db, "config", "app") : null), [db]);
+  // Читаем иконку из Firestore по пути config/appicon
+  const iconRef = useMemoFirebase(() => (db ? doc(db, "config", "appicon") : null), [db]);
   const { data: iconData } = useDoc(iconRef);
 
   // Если в документе есть поле url, используем его, иначе фолбек
