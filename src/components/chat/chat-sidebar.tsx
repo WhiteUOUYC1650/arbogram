@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { Search, Plus, MessageSquare, Users, LogOut, Megaphone, Globe } from "lucide-react";
+import { Search, Plus, MessageSquare, Users, LogOut, Megaphone, Globe, Settings as SettingsIcon } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import { collection, query, where, orderBy } from "firebase/firestore";
 import { signOut } from "firebase/auth";
 import { CreateChatDialog } from "./create-chat-dialog";
 import { StoriesBar } from "@/components/stories/stories-bar";
+import { SettingsDialog } from "@/components/settings/settings-dialog";
 
 export function ChatSidebar() {
   const pathname = usePathname();
@@ -54,6 +55,11 @@ export function ChatSidebar() {
             </h1>
           </Link>
           <div className="flex gap-1">
+            <SettingsDialog>
+              <Button variant="ghost" size="icon" className="rounded-full">
+                <SettingsIcon className="w-5 h-5 text-muted-foreground" />
+              </Button>
+            </SettingsDialog>
             <CreateChatDialog>
               <Button variant="ghost" size="icon" className="rounded-full">
                 <Plus className="w-5 h-5 text-accent" />
