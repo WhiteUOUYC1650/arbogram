@@ -31,7 +31,6 @@ export default function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    // Если пользователь залогинен и мы не в процессе отправки формы - уходим на главную
     if (user && !loading && !isSubmitting) {
       router.push("/");
     }
@@ -39,11 +38,9 @@ export default function LoginPage() {
 
   const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let val = e.target.value;
-    // Всегда держим @ в начале
     if (!val.startsWith("@")) {
       val = "@" + val.replace(/@/g, "");
     }
-    // Убираем пробелы и приводим к нижнему регистру
     setUsername(val.toLowerCase().replace(/\s/g, ""));
   };
 
@@ -51,10 +48,9 @@ export default function LoginPage() {
     e.preventDefault();
     if (!auth || !db || !email || !password) return;
     
-    // Валидация юзернейма при регистрации
     if (isRegistering) {
       if (username === "@" || username.length < 4) {
-        toast({ variant: "destructive", title: "Ошибка", description: "Юзернейм слишком короткий (минимум 3 символа после @)." });
+        toast({ variant: "destructive", title: "Ошибка", description: "Юзернейм слишком короткий." });
         return;
       }
     }
@@ -62,7 +58,6 @@ export default function LoginPage() {
     setIsSubmitting(true);
     try {
       if (isRegistering) {
-        // 1. Проверка уникальности юзернейма
         const q = query(collection(db, "users"), where("username", "==", username));
         const snapshot = await getDocs(q);
         
@@ -72,16 +67,13 @@ export default function LoginPage() {
           return;
         }
 
-        // 2. Создание аккаунта
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const newUser = userCredential.user;
 
-        // 3. Обновление базового профиля Firebase Auth
         await updateProfile(newUser, {
           displayName: displayName || email.split('@')[0]
         });
 
-        // 4. Создание документа пользователя в Firestore
         const userData = {
           uid: newUser.uid,
           displayName: displayName || email.split('@')[0],
@@ -92,20 +84,18 @@ export default function LoginPage() {
         };
 
         await setDoc(doc(db, "users", newUser.uid), userData);
-        
         toast({ title: "Успех!", description: "Аккаунт создан." });
-        router.push("/");
       } else {
-        // Вход
         await signInWithEmailAndPassword(auth, email, password);
-        router.push("/");
       }
+      router.push("/");
     } catch (error: any) {
       console.error("Auth error:", error);
-      let message = "Произошла ошибка при входе.";
+      let message = "Произошла ошибка.";
       if (error.code === 'auth/email-already-in-use') message = "Этот Email уже используется.";
       if (error.code === 'auth/weak-password') message = "Пароль слишком простой.";
       if (error.code === 'auth/invalid-credential') message = "Неверный Email или пароль.";
+      if (error.code === 'permission-denied') message = "Ошибка базы данных. Проверьте правила.";
       
       toast({ 
         variant: "destructive", 
@@ -122,12 +112,12 @@ export default function LoginPage() {
   return (
     <div className="min-h-dvh flex flex-col items-center justify-center bg-background p-6">
       <div className="w-full max-w-md space-y-6 animate-in fade-in zoom-in duration-500">
-        <div className="flex flex-col items-center space-y-4">
-          <ArbogramIcon className="w-16 h-16 shadow-md" />
-          <div className="text-center space-y-1">
-            <h1 className="text-3xl font-bold font-headline tracking-tight text-foreground">Arbogram</h1>
-            <p className="text-sm text-muted-foreground">
-              {isRegistering ? "Создайте аккаунт" : "С возвращением"}
+        <div className="flex flex-col items-center space-y-3">
+          <ArbogramIcon className="w-14 h-14 shadow-lg" />
+          <div className="text-center">
+            <h1 className="text-2xl font-bold font-headline tracking-tight text-foreground">Arbogram</h1>
+            <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">
+              {isRegistering ? "Регистрация" : "Вход в аккаунт"}
             </p>
           </div>
         </div>
@@ -136,31 +126,31 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {isRegistering && (
               <div className="space-y-4 animate-in slide-in-from-top-4 duration-300">
-                <div className="space-y-2">
-                  <Label htmlFor="name" className="ml-1">Имя</Label>
+                <div className="space-y-1">
+                  <Label htmlFor="name" className="text-[10px] uppercase font-bold ml-1 opacity-70">Имя</Label>
                   <div className="relative">
-                    <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input 
                       id="name"
                       placeholder="Александр" 
                       value={displayName}
                       onChange={(e) => setDisplayName(e.target.value)}
-                      className="h-12 pl-12 rounded-xl bg-muted/30 border-none focus-visible:ring-accent"
+                      className="h-11 pl-12 rounded-xl bg-muted/30 border-none focus-visible:ring-accent"
                       disabled={isSubmitting}
                       required={isRegistering}
                     />
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="username" className="ml-1">Юзернейм</Label>
+                <div className="space-y-1">
+                  <Label htmlFor="username" className="text-[10px] uppercase font-bold ml-1 opacity-70">Юзернейм</Label>
                   <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 font-mono text-accent font-bold">@</span>
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 font-mono text-accent font-bold text-sm">@</span>
                     <Input 
                       id="username"
                       placeholder="username" 
                       value={username.substring(1)}
                       onChange={handleUsernameChange}
-                      className="h-12 pl-10 rounded-xl bg-muted/30 border-none focus-visible:ring-accent font-mono"
+                      className="h-11 pl-10 rounded-xl bg-muted/30 border-none focus-visible:ring-accent font-mono"
                       required
                       disabled={isSubmitting}
                     />
@@ -169,10 +159,10 @@ export default function LoginPage() {
               </div>
             )}
             
-            <div className="space-y-2">
-              <Label htmlFor="email" className="ml-1">Email</Label>
+            <div className="space-y-1">
+              <Label htmlFor="email" className="text-[10px] uppercase font-bold ml-1 opacity-70">Email</Label>
               <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input 
                   id="email"
                   type="email"
@@ -180,16 +170,16 @@ export default function LoginPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="h-12 pl-12 rounded-xl bg-muted/30 border-none focus-visible:ring-accent"
+                  className="h-11 pl-12 rounded-xl bg-muted/30 border-none focus-visible:ring-accent"
                   disabled={isSubmitting}
                 />
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="password" className="ml-1">Пароль</Label>
+            <div className="space-y-1">
+              <Label htmlFor="password" className="text-[10px] uppercase font-bold ml-1 opacity-70">Пароль</Label>
               <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input 
                   id="password"
                   type="password"
@@ -197,7 +187,7 @@ export default function LoginPage() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="h-12 pl-12 rounded-xl bg-muted/30 border-none focus-visible:ring-accent"
+                  className="h-11 pl-12 rounded-xl bg-muted/30 border-none focus-visible:ring-accent"
                   disabled={isSubmitting}
                 />
               </div>
@@ -206,9 +196,9 @@ export default function LoginPage() {
             <Button 
               type="submit"
               disabled={isSubmitting}
-              className="w-full h-14 bg-accent hover:bg-accent/90 text-white font-bold text-lg rounded-2xl shadow-lg shadow-accent/20 transition-all active:scale-95 mt-2"
+              className="w-full h-12 bg-accent hover:bg-accent/90 text-white font-bold rounded-xl shadow-lg shadow-accent/20 transition-all active:scale-95 mt-4"
             >
-              {isSubmitting ? <Loader2 className="w-6 h-6 animate-spin" /> : (isRegistering ? "Регистрация" : "Войти")}
+              {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : (isRegistering ? "Создать аккаунт" : "Войти")}
             </Button>
           </form>
 
@@ -220,14 +210,14 @@ export default function LoginPage() {
                 setDisplayName("");
                 setUsername("@");
               }}
-              className="text-sm text-accent hover:text-accent/80 font-bold p-2 transition-colors"
+              className="text-xs text-accent hover:text-accent/80 font-bold p-2 transition-colors"
             >
-              {isRegistering ? "Уже есть аккаунт? Войти" : "Нет аккаунта? Регистрация"}
+              {isRegistering ? "Есть аккаунт? Войти" : "Нет аккаунта? Регистрация"}
             </button>
           </div>
         </div>
         
-        <p className="text-center text-[10px] text-muted-foreground uppercase tracking-widest font-bold">
+        <p className="text-center text-[9px] text-muted-foreground uppercase tracking-widest font-bold opacity-50">
           Arbogram v0.1 • 2024
         </p>
       </div>
