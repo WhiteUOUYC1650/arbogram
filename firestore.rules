@@ -12,12 +12,14 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if isAuthenticated();
+      // Разрешаем чтение всем, чтобы работал поиск по юзернейму и проверка при регистрации
+      allow read: if true; 
       allow write: if isAuthenticated() && request.auth.uid == userId;
     }
 
     match /avatars/{userId} {
-      allow read: if isAuthenticated();
+      // Аватарки должны быть видны всем пользователям
+      allow read: if true;
       allow write: if isAuthenticated() && request.auth.uid == userId;
     }
 

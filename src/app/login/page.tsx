@@ -1,10 +1,10 @@
-
 "use client";
 
 import { useAuth, useUser, useFirestore } from "@/firebase";
 import { 
   signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword
+  createUserWithEmailAndPassword,
+  updateProfile
 } from "firebase/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +31,7 @@ export default function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
+    // Если пользователь залогинен и мы не в процессе отправки формы - уходим на главную
     if (user && !loading && !isSubmitting) {
       router.push("/");
     }
@@ -38,9 +39,11 @@ export default function LoginPage() {
 
   const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let val = e.target.value;
+    // Всегда держим @ в начале
     if (!val.startsWith("@")) {
-      val = "@" + val.replace("@", "");
+      val = "@" + val.replace(/@/g, "");
     }
+    // Убираем пробелы и приводим к нижнему регистру
     setUsername(val.toLowerCase().replace(/\s/g, ""));
   };
 
@@ -48,14 +51,18 @@ export default function LoginPage() {
     e.preventDefault();
     if (!auth || !db || !email || !password) return;
     
-    if (isRegistering && (username === "@" || username.length < 3)) {
-      toast({ variant: "destructive", title: "Ошибка", description: "Юзернейм слишком короткий." });
-      return;
+    // Валидация юзернейма при регистрации
+    if (isRegistering) {
+      if (username === "@" || username.length < 4) {
+        toast({ variant: "destructive", title: "Ошибка", description: "Юзернейм слишком короткий (минимум 3 символа после @)." });
+        return;
+      }
     }
 
     setIsSubmitting(true);
     try {
       if (isRegistering) {
+        // 1. Проверка уникальности юзернейма
         const q = query(collection(db, "users"), where("username", "==", username));
         const snapshot = await getDocs(q);
         
@@ -65,9 +72,16 @@ export default function LoginPage() {
           return;
         }
 
+        // 2. Создание аккаунта
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const newUser = userCredential.user;
 
+        // 3. Обновление базового профиля Firebase Auth
+        await updateProfile(newUser, {
+          displayName: displayName || email.split('@')[0]
+        });
+
+        // 4. Создание документа пользователя в Firestore
         const userData = {
           uid: newUser.uid,
           displayName: displayName || email.split('@')[0],
@@ -78,13 +92,26 @@ export default function LoginPage() {
         };
 
         await setDoc(doc(db, "users", newUser.uid), userData);
+        
+        toast({ title: "Успех!", description: "Аккаунт создан." });
         router.push("/");
       } else {
+        // Вход
         await signInWithEmailAndPassword(auth, email, password);
         router.push("/");
       }
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Ошибка", description: error.message });
+      console.error("Auth error:", error);
+      let message = "Произошла ошибка при входе.";
+      if (error.code === 'auth/email-already-in-use') message = "Этот Email уже используется.";
+      if (error.code === 'auth/weak-password') message = "Пароль слишком простой.";
+      if (error.code === 'auth/invalid-credential') message = "Неверный Email или пароль.";
+      
+      toast({ 
+        variant: "destructive", 
+        title: "Ошибка", 
+        description: message 
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -94,13 +121,13 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-dvh flex flex-col items-center justify-center bg-background p-6">
-      <div className="w-full max-w-md space-y-8 animate-in fade-in zoom-in duration-500">
+      <div className="w-full max-w-md space-y-6 animate-in fade-in zoom-in duration-500">
         <div className="flex flex-col items-center space-y-4">
-          <ArbogramIcon className="w-12 h-12 shadow-md" />
+          <ArbogramIcon className="w-16 h-16 shadow-md" />
           <div className="text-center space-y-1">
             <h1 className="text-3xl font-bold font-headline tracking-tight text-foreground">Arbogram</h1>
             <p className="text-sm text-muted-foreground">
-              {isRegistering ? "Присоединяйтесь к нам" : "Рады видеть вас снова"}
+              {isRegistering ? "Создайте аккаунт" : "С возвращением"}
             </p>
           </div>
         </div>
@@ -120,6 +147,7 @@ export default function LoginPage() {
                       onChange={(e) => setDisplayName(e.target.value)}
                       className="h-12 pl-12 rounded-xl bg-muted/30 border-none focus-visible:ring-accent"
                       disabled={isSubmitting}
+                      required={isRegistering}
                     />
                   </div>
                 </div>
@@ -129,9 +157,9 @@ export default function LoginPage() {
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 font-mono text-accent font-bold">@</span>
                     <Input 
                       id="username"
-                      placeholder="alex_dev" 
-                      value={username.replace("@", "")}
-                      onChange={(e) => handleUsernameChange({ ...e, target: { ...e.target, value: "@" + e.target.value } } as any)}
+                      placeholder="username" 
+                      value={username.substring(1)}
+                      onChange={handleUsernameChange}
                       className="h-12 pl-10 rounded-xl bg-muted/30 border-none focus-visible:ring-accent font-mono"
                       required
                       disabled={isSubmitting}
@@ -180,14 +208,18 @@ export default function LoginPage() {
               disabled={isSubmitting}
               className="w-full h-14 bg-accent hover:bg-accent/90 text-white font-bold text-lg rounded-2xl shadow-lg shadow-accent/20 transition-all active:scale-95 mt-2"
             >
-              {isSubmitting ? <Loader2 className="w-6 h-6 animate-spin" /> : (isRegistering ? "Создать аккаунт" : "Войти")}
+              {isSubmitting ? <Loader2 className="w-6 h-6 animate-spin" /> : (isRegistering ? "Регистрация" : "Войти")}
             </Button>
           </form>
 
           <div className="text-center pt-2">
             <button 
               type="button"
-              onClick={() => setIsRegistering(!isRegistering)}
+              onClick={() => {
+                setIsRegistering(!isRegistering);
+                setDisplayName("");
+                setUsername("@");
+              }}
               className="text-sm text-accent hover:text-accent/80 font-bold p-2 transition-colors"
             >
               {isRegistering ? "Уже есть аккаунт? Войти" : "Нет аккаунта? Регистрация"}
