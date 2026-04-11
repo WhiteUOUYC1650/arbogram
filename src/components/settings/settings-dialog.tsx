@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -173,7 +172,7 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
           <div className="flex flex-col items-center gap-1 pt-2">
             <div className="flex items-center gap-1.5 text-muted-foreground">
               <Info className="w-3 h-3" />
-              <span className="text-[10px] font-medium uppercase tracking-widest text-accent">Arbogram v0.1</span>
+              <span className="text-[10px] font-medium uppercase tracking-widest text-accent">Arbogram v0.1 • 2026</span>
             </div>
           </div>
         </div>

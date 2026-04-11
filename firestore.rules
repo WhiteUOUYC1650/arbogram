@@ -5,26 +5,26 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Публичная иконка приложения
+    // Иконка приложения (публичная)
     match /config/appicon {
       allow read: if true;
       allow write: if false;
     }
 
+    // Профили пользователей: чтение разрешено всем для корректной регистрации и поиска
     match /users/{userId} {
-      // Разрешаем чтение всем, чтобы работал поиск по юзернейму и проверка при регистрации
       allow read: if true; 
       allow write: if isAuthenticated() && request.auth.uid == userId;
     }
 
+    // Аватарки: чтение всем, запись владельцу
     match /avatars/{userId} {
-      // Аватарки должны быть видны всем пользователям
       allow read: if true;
       allow write: if isAuthenticated() && request.auth.uid == userId;
     }
 
+    // Чаты
     match /chats/{chatId} {
-      // Упрощаем правила для MVP, чтобы избежать ошибок Missing Permissions при сложных запросах
       allow read: if isAuthenticated();
       allow create: if isAuthenticated();
       allow update, delete: if isAuthenticated() && (
@@ -32,13 +32,18 @@ service cloud.firestore {
         request.auth.uid in resource.data.participants
       );
 
+      // Сообщения
       match /messages/{messageId} {
         allow read: if isAuthenticated();
         allow create: if isAuthenticated();
-        allow delete: if isAuthenticated();
+        allow delete: if isAuthenticated() && (
+          request.auth.uid == resource.data.senderId ||
+          request.auth.uid == get(/databases/$(database)/documents/chats/$(chatId)).data.ownerId
+        );
       }
     }
 
+    // Истории
     match /stories/{storyId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;

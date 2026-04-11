@@ -113,7 +113,7 @@ export default function LoginPage() {
     <div className="min-h-dvh flex flex-col items-center justify-center bg-background p-6">
       <div className="w-full max-w-md space-y-6 animate-in fade-in zoom-in duration-500">
         <div className="flex flex-col items-center space-y-3">
-          <ArbogramIcon className="w-14 h-14 shadow-lg" />
+          <ArbogramIcon className="w-16 h-16 shadow-lg" />
           <div className="text-center">
             <h1 className="text-2xl font-bold font-headline tracking-tight text-foreground">Arbogram</h1>
             <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">
@@ -216,10 +216,6 @@ export default function LoginPage() {
             </button>
           </div>
         </div>
-        
-        <p className="text-center text-[9px] text-muted-foreground uppercase tracking-widest font-bold opacity-50">
-          Arbogram v0.1 • 2024
-        </p>
       </div>
     </div>
   );
