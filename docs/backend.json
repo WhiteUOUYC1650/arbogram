@@ -54,9 +54,10 @@
         "senderId": { "type": "string" },
         "senderName": { "type": "string" },
         "text": { "type": "string" },
+        "imageUrl": { "type": "string", "description": "Base64 данные изображения" },
         "timestamp": { "type": "number" }
       },
-      "required": ["senderId", "text", "timestamp"]
+      "required": ["senderId", "timestamp"]
     },
     "Story": {
       "title": "Story",
@@ -66,7 +67,7 @@
         "userId": { "type": "string" },
         "userName": { "type": "string" },
         "userPhoto": { "type": "string" },
-        "content": { "type": "string", "description": "Текст или URL изображения" },
+        "content": { "type": "string", "description": "Текст или Base64 данные изображения" },
         "type": { "type": "string", "enum": ["text", "image"] },
         "timestamp": { "type": "number" }
       },

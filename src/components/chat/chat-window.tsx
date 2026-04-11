@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { Info, Send, Paperclip, Smile, Megaphone, X } from "lucide-react";
+import { Info, Send, Paperclip, Smile, Megaphone, X, Loader2, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -13,12 +13,16 @@ import { collection, query, orderBy, addDoc, doc, updateDoc } from "firebase/fir
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { UserAvatar } from "@/components/user-avatar";
+import { useToast } from "@/hooks/use-toast";
 
 export function ChatWindow({ chatId }: { chatId: string }) {
   const [message, setMessage] = React.useState("");
+  const [isSending, setIsSending] = React.useState(false);
   const db = useFirestore();
   const { user } = useUser();
   const router = useRouter();
+  const { toast } = useToast();
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const chatRef = useMemoFirebase(() => db ? doc(db, "chats", chatId) : null, [db, chatId]);
   const { data: chatData } = useDoc(chatRef);
@@ -40,20 +44,67 @@ export function ChatWindow({ chatId }: { chatId: string }) {
     }
   }, [messages]);
 
-  const handleSend = () => {
-    if (!message.trim() || !db || !user) return;
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 800; // Немного больше чем для аватара
+          const MAX_HEIGHT = 800;
+          let width = img.width;
+          let height = img.height;
 
-    const msgData = {
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', 0.6)); // Качество 0.6 для баланса
+        };
+      };
+      reader.onerror = error => reject(error);
+    });
+  };
+
+  const handleSend = (imageUrl?: string) => {
+    if ((!message.trim() && !imageUrl) || !db || !user) return;
+
+    setIsSending(true);
+    const msgData: any = {
       senderId: user.uid,
       senderName: user.displayName || "Пользователь",
-      text: message,
+      text: message.trim() || null,
       timestamp: Date.now()
     };
+    if (imageUrl) msgData.imageUrl = imageUrl;
 
     const currentMessage = message;
     setMessage("");
 
     addDoc(collection(db, "chats", chatId, "messages"), msgData)
+      .then(() => {
+        if (chatRef) {
+          updateDoc(chatRef, {
+            lastMessage: imageUrl ? "📷 Фото" : currentMessage,
+            lastMessageTime: Date.now()
+          }).catch(() => {});
+        }
+      })
       .catch(async (e) => {
         const error = new FirestorePermissionError({
           path: `chats/${chatId}/messages`,
@@ -62,18 +113,29 @@ export function ChatWindow({ chatId }: { chatId: string }) {
         });
         errorEmitter.emit("permission-error", error);
         setMessage(currentMessage);
-      });
+      })
+      .finally(() => setIsSending(false));
+  };
 
-    if (chatRef) {
-      updateDoc(chatRef, {
-        lastMessage: currentMessage,
-        lastMessageTime: Date.now()
-      }).catch(() => {});
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast({ variant: "destructive", title: "Ошибка", description: "Пожалуйста, выберите изображение." });
+      return;
+    }
+
+    try {
+      const base64 = await compressImage(file);
+      handleSend(base64);
+    } catch (err) {
+      toast({ variant: "destructive", title: "Ошибка", description: "Не удалось загрузить фото." });
     }
   };
 
   let chatName = chatData?.name || "Чат";
-  let avatarTargetId = chatId; // ID документа для получения аватара
+  let avatarTargetId = chatId; 
   let subText = "В сети";
 
   if (chatData?.type === 'individual' && user) {
@@ -138,18 +200,29 @@ export function ChatWindow({ chatId }: { chatId: string }) {
                 alignLeft ? "mr-auto items-start" : "ml-auto items-end"
               )}>
                 <div className={cn(
-                  "px-4 py-2.5 rounded-2xl text-sm shadow-sm transition-all",
+                  "p-1 rounded-2xl text-sm shadow-sm transition-all overflow-hidden",
                   !alignLeft
                     ? "bg-accent text-white rounded-tr-none" 
                     : "bg-white text-foreground rounded-tl-none border border-primary/10"
                 )}>
                   {chatData?.type === 'group' && !isMe && (
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-1 px-3 pt-2">
                       <UserAvatar userId={msg.senderId} fallback={msg.senderName} className="w-4 h-4 shrink-0" />
                       <p className="text-[9px] font-bold opacity-70">{msg.senderName}</p>
                     </div>
                   )}
-                  {msg.text}
+                  {msg.imageUrl && (
+                    <img 
+                      src={msg.imageUrl} 
+                      alt="Shared photo" 
+                      className="w-full max-h-[300px] object-cover rounded-xl"
+                    />
+                  )}
+                  {msg.text && (
+                    <div className={cn("px-3 py-2", msg.imageUrl && "pt-1")}>
+                      {msg.text}
+                    </div>
+                  )}
                 </div>
                 <span className="text-[10px] text-muted-foreground mt-1 px-1">
                   {new Date(msg.timestamp).toLocaleString('ru-RU', { 
@@ -170,7 +243,19 @@ export function ChatWindow({ chatId }: { chatId: string }) {
       {canWrite ? (
         <div className="p-4 bg-white/80 backdrop-blur-md border-t shrink-0">
           <div className="max-w-4xl mx-auto flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-accent shrink-0">
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              className="hidden" 
+              accept="image/*"
+              onChange={handleFileChange}
+            />
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="rounded-full text-muted-foreground hover:text-accent shrink-0"
+              onClick={() => fileInputRef.current?.click()}
+            >
               <Paperclip className="w-5 h-5" />
             </Button>
             <div className="flex-1 relative min-w-0">
@@ -193,10 +278,10 @@ export function ChatWindow({ chatId }: { chatId: string }) {
             </div>
             <Button 
               className="rounded-full bg-accent hover:bg-accent/90 shadow-md text-white px-4 h-11 shrink-0"
-              onClick={handleSend}
-              disabled={!message.trim()}
+              onClick={() => handleSend()}
+              disabled={(!message.trim()) || isSending}
             >
-              <Send className="w-4 h-4" />
+              {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               <span className="hidden sm:inline ml-2">{chatData?.type === 'channel' ? "Пост" : "Отправить"}</span>
             </Button>
           </div>
