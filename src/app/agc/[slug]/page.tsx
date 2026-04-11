@@ -1,17 +1,18 @@
 
-import { redirect } from "next/navigation";
+import ChannelSlugClient from "./channel-slug-client";
 
 /**
- * Генерируем пустой список параметров для статического экспорта,
- * чтобы избежать ошибки "missing generateStaticParams".
+ * Для статического экспорта (output: export) необходимо предоставить хотя бы один параметр.
+ * В APK все динамические переходы будут обрабатываться через этот "скелет".
  */
 export function generateStaticParams() {
-  return [];
+  return [{ slug: 'resolve' }];
 }
 
 /**
- * Перенаправляем на главную, так как приложение теперь SPA.
+ * Страница-обертка для обработки ссылок на каналы.
+ * В APK она служит точкой входа для agc/slug.
  */
-export default function RedirectToRoot() {
-  redirect("/");
+export default function ChannelSlugPage({ params }: { params: { slug: string } }) {
+  return <ChannelSlugClient slug={params.slug} />;
 }

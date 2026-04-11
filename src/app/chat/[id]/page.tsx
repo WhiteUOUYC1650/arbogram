@@ -2,15 +2,16 @@
 import { redirect } from "next/navigation";
 
 /**
- * Генерируем пустой список параметров для статического экспорта.
+ * Генерируем заглушку для статического билда.
  */
 export function generateStaticParams() {
-  return [];
+  return [{ id: 'main' }];
 }
 
 /**
- * Перенаправляем на главную.
+ * Все прямые заходы на /chat/[id] перенаправляем на главную,
+ * так как приложение теперь SPA и все чаты живут в корне.
  */
-export default function RedirectToRoot() {
+export default function ChatRedirectPage() {
   redirect("/");
 }
