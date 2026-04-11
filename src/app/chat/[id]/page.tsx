@@ -1,17 +1,10 @@
+import ChatClient from "./chat-client";
 
-"use client";
-
-import { useParams } from "next/navigation";
-import { ChatWindow } from "@/components/chat/chat-window";
-
-// Добавляем для поддержки output: export
 export function generateStaticParams() {
   return [];
 }
 
-export default function IndividualChatPage() {
-  const params = useParams();
-  const id = params.id as string;
-
-  return <ChatWindow chatId={id} />;
+export default async function IndividualChatPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return <ChatClient id={id} />;
 }
