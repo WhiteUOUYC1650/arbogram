@@ -1,14 +1,16 @@
 import ChannelSlugClient from "./channel-slug-client";
 
 /**
- * Обязательно для output: export в Next.js 15 для динамических роутов.
+ * Серверный компонент для генерации статических путей.
+ * Не содержит "use client", чтобы не конфликтовать с generateStaticParams.
  */
-export function generateStaticParams() {
-  return [];
+export async function generateStaticParams() {
+  // Возвращаем хотя бы один путь-заглушку, чтобы Next.js разрешил статический экспорт
+  return [{ slug: 'welcome' }];
 }
 
 /**
- * Запрещаем генерацию на лету, так как в статическом APK нет сервера.
+ * dynamicParams = false запрещает генерацию путей в рантайме (что невозможно в APK).
  */
 export const dynamicParams = false;
 

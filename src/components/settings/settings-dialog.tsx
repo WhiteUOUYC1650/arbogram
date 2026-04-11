@@ -249,7 +249,7 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
               <Info className="w-3 h-3" />
               <span className="text-[10px] font-medium uppercase tracking-widest text-accent">Arbogram v0.1</span>
             </div>
-            <p className="text-[8px] text-muted-foreground/60 italic">Сделано с любовью для APK</p>
+            <p className="text-[8px] text-muted-foreground/60 italic">Сделано для APK с любовью</p>
           </div>
         </div>
       </DialogContent>

@@ -7,10 +7,10 @@ interface ArbogramIconProps {
 }
 
 /**
- * Прямая ссылка на иконку Arbogram. 
- * Используем стандартный тег img для лучшей совместимости в WebView/APK.
+ * Прямая ссылка на иконку Arbogram с параметром export=download. 
+ * Используем <img> для надежности в WebView.
  */
-const ICON_URL = "https://docs.google.com/uc?id=1KXNoBIvgzPrBLjJrqpq-QR6Tq7DphLpQ";
+const ICON_URL = "https://docs.google.com/uc?export=download&id=1KXNoBIvgzPrBLjJrqpq-QR6Tq7DphLpQ";
 
 export function ArbogramIcon({ className }: ArbogramIconProps) {
   return (
@@ -20,6 +20,10 @@ export function ArbogramIcon({ className }: ArbogramIconProps) {
         alt="Arbogram Logo"
         className="w-full h-full object-cover"
         loading="eager"
+        onError={(e) => {
+          // Фолбек на случай проблем с сетью
+          e.currentTarget.src = "https://picsum.photos/seed/arbogram/200/200";
+        }}
       />
     </div>
   );
