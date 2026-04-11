@@ -31,6 +31,8 @@
         "type": { "type": "string", "enum": ["individual", "group", "channel"] },
         "name": { "type": "string", "description": "Имя группы или канала" },
         "photoURL": { "type": "string", "description": "Фото группы или канала" },
+        "slug": { "type": "string", "description": "Уникальная ссылка канала (без префикса agc/)" },
+        "isPublic": { "type": "boolean", "description": "Является ли канал публичным" },
         "createdAt": { "type": "object" }
       },
       "required": ["participants", "type", "lastMessageTime"]

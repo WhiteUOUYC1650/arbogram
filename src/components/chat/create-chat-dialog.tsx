@@ -2,12 +2,14 @@
 "use client";
 
 import * as React from "react";
-import { Search, Users, Send, Loader2, Megaphone } from "lucide-react";
+import { Search, Users, Send, Loader2, Megaphone, Globe, Lock } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { useFirestore, useUser, useDoc } from "@/firebase";
 import { collection, query, where, getDocs, addDoc, serverTimestamp, doc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
@@ -19,6 +21,8 @@ export function CreateChatDialog({ children }: { children: React.ReactNode }) {
   const [searchQuery, setSearchQuery] = React.useState("@");
   const [groupName, setGroupName] = React.useState("");
   const [channelName, setChannelName] = React.useState("");
+  const [channelSlug, setChannelSlug] = React.useState("");
+  const [isPublic, setIsPublic] = React.useState(true);
   const [isSearching, setIsSearching] = React.useState(false);
   const [isCreating, setIsCreating] = React.useState(false);
   const [foundUser, setFoundUser] = React.useState<any>(null);
@@ -63,6 +67,19 @@ export function CreateChatDialog({ children }: { children: React.ReactNode }) {
     setIsCreating(true);
     try {
       const participants = [user.uid, targetUser.uid].sort();
+      // Проверка на существующий чат
+      const q = query(
+        collection(db, "chats"), 
+        where("type", "==", "individual"),
+        where("participants", "==", participants)
+      );
+      const existing = await getDocs(q);
+      if (!existing.empty) {
+        router.push(`/chat/${existing.docs[0].id}`);
+        setOpen(false);
+        return;
+      }
+
       const chatData = {
         participants,
         metadata: {
@@ -120,12 +137,25 @@ export function CreateChatDialog({ children }: { children: React.ReactNode }) {
     if (!db || !user || !channelName.trim()) return;
     setIsCreating(true);
     try {
+      if (channelSlug) {
+        // Проверка уникальности слага
+        const q = query(collection(db, "chats"), where("slug", "==", channelSlug));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          toast({ variant: "destructive", title: "Ошибка", description: "Этот адрес уже занят." });
+          setIsCreating(false);
+          return;
+        }
+      }
+
       const channelAvatar = PlaceHolderImages.find(img => img.id === 'chat-media-1')?.imageUrl || "";
       const chatData = {
         participants: [user.uid],
         ownerId: user.uid,
         type: "channel",
         name: channelName,
+        slug: channelSlug || null,
+        isPublic,
         photoURL: channelAvatar,
         lastMessage: "Канал создан",
         lastMessageTime: Date.now(),
@@ -199,6 +229,7 @@ export function CreateChatDialog({ children }: { children: React.ReactNode }) {
 
           <TabsContent value="group" className="space-y-4 py-4">
             <div className="space-y-2">
+              <Label>Название группы</Label>
               <Input 
                 placeholder="Название группы" 
                 value={groupName}
@@ -216,13 +247,47 @@ export function CreateChatDialog({ children }: { children: React.ReactNode }) {
           </TabsContent>
 
           <TabsContent value="channel" className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Input 
-                placeholder="Название канала" 
-                value={channelName}
-                onChange={(e) => setChannelName(e.target.value)}
-                className="rounded-xl"
-              />
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Название канала</Label>
+                <Input 
+                  placeholder="Название канала" 
+                  value={channelName}
+                  onChange={(e) => setChannelName(e.target.value)}
+                  className="rounded-xl"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Адрес канала (опционально)</Label>
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground font-mono text-sm shrink-0">agc/</span>
+                  <Input 
+                    placeholder="example-channel" 
+                    value={channelSlug}
+                    onChange={(e) => setChannelSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                    className="rounded-xl font-mono"
+                  />
+                </div>
+                <p className="text-[10px] text-muted-foreground">Только латиница, цифры и дефис.</p>
+              </div>
+
+              <div className="flex items-center justify-between p-3 bg-sidebar/10 rounded-2xl border border-primary/5">
+                <div className="flex items-center gap-2">
+                  {isPublic ? <Globe className="w-4 h-4 text-accent" /> : <Lock className="w-4 h-4 text-muted-foreground" />}
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-semibold">{isPublic ? 'Публичный' : 'Приватный'}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {isPublic ? 'Виден всем по ссылке' : 'Только по приглашению'}
+                    </p>
+                  </div>
+                </div>
+                <Switch 
+                  checked={isPublic}
+                  onCheckedChange={setIsPublic}
+                />
+              </div>
+              
               <p className="text-[10px] text-muted-foreground px-1 flex items-center gap-1">
                 <Megaphone className="w-3 h-3" /> В каналах писать можете только вы.
               </p>

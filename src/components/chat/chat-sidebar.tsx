@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { Search, Plus, MessageSquare, Users, LogOut, Megaphone } from "lucide-react";
+import { Search, Plus, MessageSquare, Users, LogOut, Megaphone, Globe } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -70,7 +70,7 @@ export function ChatSidebar() {
             placeholder="Поиск чатов..." 
             className="pl-9 bg-background/50 border-none focus-visible:ring-primary rounded-xl"
             value={search}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => setSearch(e.target.value)}
           />
         </div>
       </div>
@@ -104,7 +104,10 @@ export function ChatSidebar() {
                   </Avatar>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
-                      <p className="font-semibold text-sm truncate text-foreground">{displayName}</p>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <p className="font-semibold text-sm truncate text-foreground">{displayName}</p>
+                        {chat.isPublic && <Globe className="w-3 h-3 text-accent shrink-0" />}
+                      </div>
                       <span className="text-[10px] text-muted-foreground">
                         {chat.lastMessageTime ? new Date(chat.lastMessageTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ""}
                       </span>

@@ -12,9 +12,10 @@ service cloud.firestore {
     }
 
     match /chats/{chatId} {
+      // Читать чат могут участники ИЛИ если это публичный канал
       allow read: if isAuthenticated() && (
         request.auth.uid in resource.data.participants || 
-        resource.data.type == "channel"
+        (resource.data.type == "channel" && resource.data.isPublic == true)
       );
       
       allow create: if isAuthenticated() && request.auth.uid in request.resource.data.participants;
@@ -27,7 +28,7 @@ service cloud.firestore {
       match /messages/{messageId} {
         allow read: if isAuthenticated() && (
           request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants ||
-          get(/databases/$(database)/documents/chats/$(chatId)).data.type == "channel"
+          (get(/databases/$(database)/documents/chats/$(chatId)).data.type == "channel" && get(/databases/$(database)/documents/chats/$(chatId)).data.isPublic == true)
         );
         
         allow create: if isAuthenticated() && (
