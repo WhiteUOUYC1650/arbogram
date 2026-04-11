@@ -5,7 +5,7 @@ import ChatClient from "./chat-client";
  * generateStaticParams необходим для корректного output: export.
  */
 export async function generateStaticParams() {
-  // Заглушка для статического экспорта
+  // Заглушка для статического экспорта. Для APK это критично.
   return [{ id: 'main' }];
 }
 

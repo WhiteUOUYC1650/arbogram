@@ -9,7 +9,7 @@ interface ArbogramIconProps {
 }
 
 /**
- * Фолбек-иконка, если в Firestore ничего не задано.
+ * Фолбек-иконка, если в Firestore ничего не задано или возникла ошибка.
  */
 const DEFAULT_ICON_URL = "https://docs.google.com/uc?export=download&id=1KXNoBIvgzPrBLjJrqpq-QR6Tq7DphLpQ";
 
@@ -18,7 +18,7 @@ export function ArbogramIcon({ className }: ArbogramIconProps) {
   
   // Читаем иконку из Firestore по пути config/appicon
   const iconRef = useMemoFirebase(() => (db ? doc(db, "config", "appicon") : null), [db]);
-  const { data: iconData } = useDoc(iconRef);
+  const { data: iconData, loading } = useDoc(iconRef);
 
   // Если в документе есть поле url, используем его, иначе фолбек
   const iconUrl = iconData?.url || DEFAULT_ICON_URL;
