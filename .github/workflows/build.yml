@@ -1,4 +1,5 @@
-name: Build Check
+
+name: Build and Package
 
 on:
   push:
@@ -29,3 +30,17 @@ jobs:
         NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ secrets.FIREBASE_AUTH_DOMAIN }}
         NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
         NEXT_PUBLIC_FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+
+    - name: Upload Web Build Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: web-build
+        path: .next/
+        retention-days: 7
+
+    - name: Upload Static Assets
+      uses: actions/upload-artifact@v4
+      with:
+        name: public-assets
+        path: public/
+        retention-days: 7
