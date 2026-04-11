@@ -11,11 +11,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { MessageSquare, Chrome, Loader2 } from "lucide-react";
+import { Chrome, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { doc, setDoc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
+import { ArbogramIcon } from "@/components/arbogram-icon";
 
 export default function LoginPage() {
   const auth = useAuth();
@@ -91,7 +92,6 @@ export default function LoginPage() {
     setIsSubmitting(true);
     try {
       if (isRegistering) {
-        // Сначала создаем аккаунт, чтобы быть авторизованным для проверки юзернейма
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const newUser = userCredential.user;
 
@@ -100,7 +100,6 @@ export default function LoginPage() {
         
         if (!snapshot.empty) {
           toast({ variant: "destructive", title: "Юзернейм занят", description: "Пожалуйста, выберите другой тег." });
-          // В идеале тут нужно удалять созданного пользователя, но для MVP просто просим сменить ник позже или через перелогин
           setIsSubmitting(false);
           return;
         }
@@ -131,9 +130,7 @@ export default function LoginPage() {
     <div className="min-h-dvh flex flex-col items-center justify-center bg-background p-4">
       <div className="w-full max-w-md space-y-8 bg-white p-8 rounded-3xl shadow-xl border border-primary/10">
         <div className="flex flex-col items-center space-y-4">
-          <div className="w-16 h-16 rounded-2xl bg-accent flex items-center justify-center shadow-lg shadow-accent/20">
-            <MessageSquare className="w-8 h-8 text-white" />
-          </div>
+          <ArbogramIcon className="w-20 h-20" />
           <div className="text-center">
             <h1 className="text-3xl font-bold font-headline text-foreground">Arbogram</h1>
             <p className="text-sm text-muted-foreground mt-1">
