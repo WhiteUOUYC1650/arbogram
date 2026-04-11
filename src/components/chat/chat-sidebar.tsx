@@ -14,6 +14,7 @@ import { useCollection, useFirestore, useAuth, useUser, useMemoFirebase } from "
 import { collection, query, where, orderBy } from "firebase/firestore";
 import { signOut } from "firebase/auth";
 import { CreateChatDialog } from "./create-chat-dialog";
+import { StoriesBar } from "@/components/stories/stories-bar";
 
 export function ChatSidebar() {
   const pathname = usePathname();
@@ -42,7 +43,7 @@ export function ChatSidebar() {
 
   return (
     <div className="flex flex-col h-full bg-sidebar/30">
-      <div className="p-4 space-y-4">
+      <div className="p-4 pb-2 space-y-4">
         <div className="flex items-center justify-between">
           <Link href="/chat" className="hover:opacity-80 transition-opacity">
             <h1 className="text-2xl font-bold font-headline text-accent flex items-center gap-2">
@@ -74,6 +75,8 @@ export function ChatSidebar() {
           />
         </div>
       </div>
+
+      <StoriesBar />
 
       <ScrollArea className="flex-1">
         <div className="px-2 pb-4 space-y-1">
@@ -110,11 +113,7 @@ export function ChatSidebar() {
                       </div>
                       <span className="text-[10px] text-muted-foreground shrink-0 ml-2">
                         {chat.lastMessageTime ? new Date(chat.lastMessageTime).toLocaleString('ru-RU', { 
-                          day: '2-digit', 
-                          month: '2-digit', 
-                          year: 'numeric', 
-                          hour: '2-digit', 
-                          minute: '2-digit' 
+                          day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' 
                         }) : ""}
                       </span>
                     </div>

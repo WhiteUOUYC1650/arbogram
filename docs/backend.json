@@ -48,6 +48,20 @@
         "timestamp": { "type": "number" }
       },
       "required": ["senderId", "text", "timestamp"]
+    },
+    "Story": {
+      "title": "Story",
+      "description": "История пользователя (аналог Stories в Telegram)",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userPhoto": { "type": "string" },
+        "content": { "type": "string", "description": "Текст или URL изображения" },
+        "type": { "type": "string", "enum": ["text", "image"] },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["userId", "content", "timestamp"]
     }
   },
   "auth": {
@@ -56,6 +70,7 @@
   "firestore": {
     "/users/{userId}": { "schema": "User", "description": "Профили пользователей" },
     "/chats/{chatId}": { "schema": "Chat", "description": "Список чатов" },
-    "/chats/{chatId}/messages/{messageId}": { "schema": "Message", "description": "Сообщения в чате" }
+    "/chats/{chatId}/messages/{messageId}": { "schema": "Message", "description": "Сообщения в чате" },
+    "/stories/{storyId}": { "schema": "Story", "description": "Истории пользователей" }
   }
 }
