@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -27,12 +26,9 @@ export function StoriesBar() {
 
   const { data: stories } = useCollection(storiesQuery);
 
-  // Группируем все истории по пользователям
   const userGroups = React.useMemo(() => {
     if (!stories) return [];
     const groups: Record<string, any> = {};
-    
-    // Сортируем истории от старых к новым для правильного порядка просмотра внутри группы
     const sortedStories = [...stories].sort((a, b) => a.timestamp - b.timestamp);
 
     sortedStories.forEach(s => {
@@ -47,7 +43,6 @@ export function StoriesBar() {
       groups[s.userId].stories.push(s);
     });
     
-    // Возвращаем группы, отсортированные по времени последней истории (самые свежие в начале ленты)
     return Object.values(groups).sort((a: any, b: any) => {
       const lastA = a.stories[a.stories.length - 1].timestamp;
       const lastB = b.stories[b.stories.length - 1].timestamp;
@@ -113,12 +108,11 @@ function StoryViewer({ group }: { group: any }) {
           <span className="text-[10px] font-medium truncate max-w-[60px]">{group.userName}</span>
         </div>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md p-0 overflow-hidden bg-black rounded-3xl border-none h-[80vh] flex flex-col items-center justify-center select-none">
+      <DialogContent className="w-[95vw] sm:max-w-md p-0 overflow-hidden bg-black rounded-3xl border-none h-[80vh] flex flex-col items-center justify-center select-none">
         <DialogHeader className="sr-only">
           <DialogTitle>Истории от {group.userName}</DialogTitle>
         </DialogHeader>
         
-        {/* Индикаторы прогресса */}
         <div className="absolute top-2 left-2 right-2 z-30 flex gap-1">
           {group.stories.map((_: any, idx: number) => (
             <div 
@@ -149,7 +143,6 @@ function StoryViewer({ group }: { group: any }) {
           </div>
         </div>
 
-        {/* Зоны клика для навигации */}
         <div className="absolute inset-0 z-10 flex">
           <div className="w-1/3 h-full cursor-west-resize" onClick={handlePrev} />
           <div className="w-1/3 h-full" />
@@ -176,7 +169,6 @@ function StoryViewer({ group }: { group: any }) {
            </span>
         </div>
 
-        {/* Кнопки навигации для десктопа */}
         {currentIndex > 0 && (
           <button 
             onClick={handlePrev}

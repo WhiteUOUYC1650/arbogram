@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -90,7 +89,6 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
           canvas.height = height;
           const ctx = canvas.getContext('2d');
           ctx?.drawImage(img, 0, 0, width, height);
-          // Сжимаем до 0.7 качества для экономии места
           resolve(canvas.toDataURL('image/jpeg', 0.7));
         };
       };
@@ -131,7 +129,6 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
 
     setIsUpdating(true);
     try {
-      // Проверка уникальности юзернейма
       if (username !== userData?.username) {
         const q = query(collection(db, "users"), where("username", "==", username));
         const snap = await getDocs(q);
@@ -142,7 +139,6 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // Сохраняем аватар в отдельную коллекцию
       if (photoURL && photoURL.startsWith('data:image')) {
         await setDoc(doc(db, "avatars", user.uid), { base64: photoURL });
       }
@@ -150,7 +146,7 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
       await updateDoc(userRef, {
         displayName,
         username,
-        photoURL: user.uid // Используем UID как ссылку на аватар в отдельной коллекции
+        photoURL: user.uid
       });
 
       toast({ title: "Профиль обновлен", description: "Ваши данные успешно сохранены." });
@@ -167,7 +163,7 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
       <DialogTrigger asChild>
         {children}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md rounded-3xl">
+      <DialogContent className="w-[95vw] sm:max-w-md rounded-3xl">
         <DialogHeader>
           <DialogTitle>Настройки профиля</DialogTitle>
         </DialogHeader>

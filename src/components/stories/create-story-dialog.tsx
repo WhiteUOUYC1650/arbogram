@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -121,7 +120,7 @@ export function CreateStoryDialog({ children }: { children: React.ReactNode }) {
       <DialogTrigger asChild>
         {children}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md rounded-3xl">
+      <DialogContent className="w-[95vw] sm:max-w-md rounded-3xl">
         <DialogHeader>
           <DialogTitle>Создать историю</DialogTitle>
         </DialogHeader>

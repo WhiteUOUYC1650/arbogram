@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -139,8 +138,6 @@ export function CreateChatDialog({ children }: { children: React.ReactNode }) {
     setIsCreating(true);
     try {
       if (channelSlug) {
-        // Проверка уникальности слага. 
-        // ВАЖНО: Если тут возникнет ошибка, проверьте консоль (F12) на наличие ссылки для создания индекса.
         const q = query(collection(db, "chats"), where("slug", "==", channelSlug));
         const snap = await getDocs(q).catch(e => {
           console.error("CRITICAL: Slug check failed. Check if index is required:", e);
@@ -172,11 +169,11 @@ export function CreateChatDialog({ children }: { children: React.ReactNode }) {
       setOpen(false);
       router.push(`/chat/${docRef.id}`);
     } catch (e: any) {
-      console.error("Channel creation full error object:", e);
+      console.error("Channel creation error:", e);
       toast({ 
         variant: "destructive", 
         title: "Ошибка создания", 
-        description: e.message || "Проверьте консоль браузера для диагностики индекса." 
+        description: e.message || "Проверьте консоль браузера для диагностики." 
       });
     } finally {
       setIsCreating(false);
@@ -188,7 +185,7 @@ export function CreateChatDialog({ children }: { children: React.ReactNode }) {
       <DialogTrigger asChild>
         {children}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md rounded-3xl">
+      <DialogContent className="w-[95vw] sm:max-w-md rounded-3xl">
         <DialogHeader>
           <DialogTitle>Новый Arbogram</DialogTitle>
         </DialogHeader>

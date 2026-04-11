@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -237,7 +236,7 @@ export function ChatWindow({ chatId }: { chatId: string }) {
                 <Info className="w-5 h-5" />
               </Button>
             </DialogTrigger>
-            <DialogContent className="rounded-3xl sm:max-w-md">
+            <DialogContent className="w-[95vw] sm:max-w-md rounded-3xl">
               <DialogHeader>
                 <DialogTitle>Информация о {chatData?.type === 'individual' ? 'собеседнике' : 'чате'}</DialogTitle>
               </DialogHeader>
