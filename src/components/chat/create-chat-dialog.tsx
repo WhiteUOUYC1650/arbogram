@@ -55,7 +55,7 @@ export function CreateChatDialog({ children }: { children: React.ReactNode }) {
         toast({ variant: "destructive", title: "Не найдено", description: "Пользователь с таким тегом не существует." });
       }
     } catch (e) {
-      console.error(e);
+      console.error("Search error:", e);
     } finally {
       setIsSearching(false);
     }
@@ -100,8 +100,9 @@ export function CreateChatDialog({ children }: { children: React.ReactNode }) {
       const docRef = await addDoc(collection(db, "chats"), chatData);
       setOpen(false);
       router.push(`/chat/${docRef.id}`);
-    } catch (e) {
-      toast({ variant: "destructive", title: "Ошибка", description: "Не удалось создать чат." });
+    } catch (e: any) {
+      console.error("Chat creation error:", e);
+      toast({ variant: "destructive", title: "Ошибка", description: e.message || "Не удалось создать чат." });
     } finally {
       setIsCreating(false);
     }
@@ -138,10 +139,11 @@ export function CreateChatDialog({ children }: { children: React.ReactNode }) {
     setIsCreating(true);
     try {
       if (channelSlug) {
-        // Проверка уникальности слага
+        // Проверка уникальности слага. 
+        // ВАЖНО: Если тут возникнет ошибка, проверьте консоль (F12) на наличие ссылки для создания индекса.
         const q = query(collection(db, "chats"), where("slug", "==", channelSlug));
         const snap = await getDocs(q).catch(e => {
-          console.error("Slug check error (possible missing index):", e);
+          console.error("CRITICAL: Slug check failed. Check if index is required:", e);
           throw e;
         });
         
@@ -170,8 +172,12 @@ export function CreateChatDialog({ children }: { children: React.ReactNode }) {
       setOpen(false);
       router.push(`/chat/${docRef.id}`);
     } catch (e: any) {
-      console.error("Channel creation error:", e);
-      toast({ variant: "destructive", title: "Ошибка создания", description: "Убедитесь, что в консоли Firebase создан индекс для поля 'slug' или проверьте правила доступа." });
+      console.error("Channel creation full error object:", e);
+      toast({ 
+        variant: "destructive", 
+        title: "Ошибка создания", 
+        description: e.message || "Проверьте консоль браузера для диагностики индекса." 
+      });
     } finally {
       setIsCreating(false);
     }

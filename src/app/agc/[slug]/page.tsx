@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useFirestore, useMemoFirebase } from "@/firebase";
+import { useFirestore } from "@/firebase";
 import { collection, query, where, getDocs, limit } from "firebase/firestore";
 import { Loader2, MessageSquareOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,8 @@ export default function ChannelSlugPage() {
       if (!db || !slug) return;
       
       try {
+        // Запрос на поиск канала по слагу. 
+        // Если возникает ошибка - скорее всего нужен составной индекс (slug + type).
         const q = query(
           collection(db, "chats"), 
           where("slug", "==", slug),
@@ -36,8 +38,8 @@ export default function ChannelSlugPage() {
           setError(true);
           setLoading(false);
         }
-      } catch (e) {
-        console.error(e);
+      } catch (e: any) {
+        console.error("Slug resolution error. Check if index is required for [slug + type]:", e);
         setError(true);
         setLoading(false);
       }
