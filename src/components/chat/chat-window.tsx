@@ -134,7 +134,6 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
       senderId: user.uid,
       senderName: user.displayName || "User",
       timestamp: Date.now(),
-      type: "text" // Default type
     };
 
     if (imageUrl) {
@@ -268,10 +267,12 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
     const msg = messages?.find(m => m.id === messageId);
     if (!msg?.poll) return;
 
+    // Обновляем структуру голосов: каждый вариант хранит список UID проголосовавших
     const updatedOptions = msg.poll.options.map((opt: any) => {
+      const voters = opt.voters || [];
+      const hasVoted = voters.includes(user.uid);
+
       if (opt.id === optionId) {
-        const voters = opt.voters || [];
-        const hasVoted = voters.includes(user.uid);
         return {
           ...opt,
           voters: hasVoted 
@@ -279,22 +280,28 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
             : [...voters, user.uid]
         };
       }
+
+      // Если опрос не поддерживает выбор нескольких вариантов, убираем голос из остальных
       if (!msg.poll.multipleChoice) {
         return {
           ...opt,
-          voters: (opt.voters || []).filter((v: string) => v !== user.uid)
+          voters: voters.filter((v: string) => v !== user.uid)
         };
       }
+
       return opt;
     });
 
-    updateDoc(msgRef, {
+    const updateData = {
       "poll.options": updatedOptions
-    }).catch(async (e) => {
+    };
+
+    // Обновляем только список вариантов внутри объекта poll
+    updateDoc(msgRef, updateData).catch(async (e) => {
       const error = new FirestorePermissionError({
         path: msgRef.path,
         operation: 'update',
-        requestResourceData: { "poll.options": updatedOptions }
+        requestResourceData: updateData
       });
       (error as any).originalError = e;
       errorEmitter.emit('permission-error', error);
@@ -483,7 +490,11 @@ function CreatePollDialog({ open, onOpenChange, onPollCreate, lang, children }: 
     if (!question.trim() || options.filter(o => o.trim()).length < 2) return;
     onPollCreate({
       question: question.trim(),
-      options: options.filter(o => o.trim()).map(o => ({ id: Math.random().toString(36).substring(7), text: o.trim(), voters: [] })),
+      options: options.filter(o => o.trim()).map(o => ({ 
+        id: Math.random().toString(36).substring(7), 
+        text: o.trim(), 
+        voters: [] 
+      })),
       multipleChoice
     });
     onOpenChange(false);
@@ -529,8 +540,8 @@ function PollBubble({ poll, messageId, onVote, isMe, currentUserId, lang }: {
   lang: Language;
 }) {
   const t = translations[lang];
-  const totalVotes = poll.options.reduce((sum: number, opt: any) => sum + (opt.voters?.length || 0), 0);
-  const userHasVoted = poll.options.some((opt: any) => opt.voters?.includes(currentUserId));
+  const totalVotes = poll.options?.reduce((sum: number, opt: any) => sum + (opt.voters?.length || 0), 0) || 0;
+  const userHasVoted = poll.options?.some((opt: any) => opt.voters?.includes(currentUserId));
 
   return (
     <div className="p-4 space-y-3 min-w-[240px] max-w-full">
@@ -539,7 +550,7 @@ function PollBubble({ poll, messageId, onVote, isMe, currentUserId, lang }: {
         <p className={cn("text-[9px] font-bold opacity-60 uppercase tracking-wider", isMe ? "text-white" : "text-muted-foreground")}>{userHasVoted ? t.results : t.choose}</p>
       </div>
       <div className="space-y-2">
-        {poll.options.map((opt: any) => {
+        {poll.options?.map((opt: any) => {
           const votes = opt.voters?.length || 0;
           const percent = totalVotes > 0 ? Math.round((votes / totalVotes) * 100) : 0;
           const isVoted = opt.voters?.includes(currentUserId);
