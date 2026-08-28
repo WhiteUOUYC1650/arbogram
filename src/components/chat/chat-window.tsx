@@ -2,7 +2,11 @@
 "use client";
 
 import * as React from "react";
-import { Info, Send, Paperclip, Smile, Megaphone, X, Loader2, Image as ImageIcon, MoreVertical, Trash2, Copy, Download, Calendar, Users, ShieldCheck } from "lucide-react";
+import { 
+  Info, Send, Paperclip, Smile, Megaphone, X, Loader2, 
+  Image as ImageIcon, MoreVertical, Trash2, Copy, 
+  Calendar, Users, Mic, Square, Play, Pause, Volume2 
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -42,10 +46,17 @@ interface ChatWindowProps {
 export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
   const [message, setMessage] = React.useState("");
   const [isSending, setIsSending] = React.useState(false);
+  const [isRecording, setIsRecording] = React.useState(false);
+  const [recordingTime, setRecordingTime] = React.useState(0);
+  
   const db = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
+  
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const mediaRecorderRef = React.useRef<MediaRecorder | null>(null);
+  const audioChunksRef = React.useRef<Blob[]>([]);
+  const timerRef = React.useRef<NodeJS.Timeout | null>(null);
 
   const chatRef = useMemoFirebase(() => db ? doc(db, "chats", chatId) : null, [db, chatId]);
   const { data: chatData } = useDoc(chatRef);
@@ -80,7 +91,6 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
           const MAX_HEIGHT = 1200;
           let width = img.width;
           let height = img.height;
-
           if (width > height) {
             if (width > MAX_WIDTH) {
               height *= MAX_WIDTH / width;
@@ -92,7 +102,6 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
               height = MAX_HEIGHT;
             }
           }
-
           canvas.width = width;
           canvas.height = height;
           const ctx = canvas.getContext('2d');
@@ -104,8 +113,9 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
     });
   };
 
-  const handleSend = (imageUrl?: string) => {
-    if ((!message.trim() && !imageUrl) || !db || !user) return;
+  const handleSend = (options: { imageUrl?: string; audioUrl?: string; duration?: number }) => {
+    const { imageUrl, audioUrl, duration } = options;
+    if ((!message.trim() && !imageUrl && !audioUrl) || !db || !user) return;
 
     setIsSending(true);
     const msgData: any = {
@@ -115,15 +125,23 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
       timestamp: Date.now()
     };
     if (imageUrl) msgData.imageUrl = imageUrl;
+    if (audioUrl) {
+      msgData.audioUrl = audioUrl;
+      msgData.duration = duration;
+    }
 
     const currentMessage = message;
-    setMessage("");
+    if (!imageUrl && !audioUrl) setMessage("");
 
     addDoc(collection(db, "chats", chatId, "messages"), msgData)
       .then(() => {
         if (chatRef) {
+          let lastMsg = currentMessage;
+          if (imageUrl) lastMsg = "📷 Photo";
+          if (audioUrl) lastMsg = "🎤 Voice Message";
+          
           updateDoc(chatRef, {
-            lastMessage: imageUrl ? "📷 Photo" : currentMessage,
+            lastMessage: lastMsg,
             lastMessageTime: Date.now()
           }).catch(() => {});
         }
@@ -135,23 +153,65 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
           requestResourceData: msgData
         });
         errorEmitter.emit("permission-error", error);
-        setMessage(currentMessage);
+        if (!imageUrl && !audioUrl) setMessage(currentMessage);
       })
       .finally(() => setIsSending(false));
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const reader = new FileReader();
+        reader.readAsDataURL(audioBlob);
+        reader.onloadend = () => {
+          const base64Audio = reader.result as string;
+          handleSend({ audioUrl: base64Audio, duration: recordingTime });
+          setRecordingTime(0);
+        };
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      setRecordingTime(0);
+      timerRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
+    } catch (err) {
+      toast({ variant: "destructive", title: "Microphone error", description: "Access denied." });
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     if (!file.type.startsWith('image/')) {
       toast({ variant: "destructive", title: "Error", description: "Please select an image." });
       return;
     }
-
     try {
       const base64 = await compressImage(file);
-      handleSend(base64);
+      handleSend({ imageUrl: base64 });
     } catch (err) {
       toast({ variant: "destructive", title: "Error", description: "Failed to upload photo." });
     }
@@ -170,16 +230,6 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast({ title: "Copied to clipboard" });
-  };
-
-  const saveImage = (base64: string) => {
-    const link = document.createElement("a");
-    link.href = base64;
-    link.download = `cove_image_${Date.now()}.jpg`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast({ title: "Image saved" });
   };
 
   const addEmoji = (emoji: string) => {
@@ -205,6 +255,12 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
 
   const canWrite = chatData?.type !== 'channel' || chatData?.ownerId === user?.uid;
 
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden animate-in slide-in-from-right duration-300">
       <div className="flex items-center justify-between p-4 border-b bg-white/80 dark:bg-black/40 backdrop-blur-md z-10 shrink-0">
@@ -223,7 +279,7 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
           <UserAvatar userId={avatarTargetId} fallback={chatName} className="w-10 h-10 border-2 border-primary/20 shrink-0" />
           
           <div className="min-w-0">
-            <h2 className="font-semibold text-sm leading-tight truncate max-w-[150px] sm:max-w-none flex items-center gap-1">
+            <h2 className="font-semibold text-sm leading-tight truncate max-w-[150px] sm:max-w-none flex items-center gap-1 text-foreground">
               {chatName}
               {chatData?.type === 'channel' && <Megaphone className="w-3 h-3 text-primary" />}
             </h2>
@@ -308,8 +364,11 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
                         className="w-full max-h-[300px] object-cover rounded-xl"
                       />
                     )}
+                    {msg.audioUrl && (
+                      <AudioBubble audioUrl={msg.audioUrl} duration={msg.duration} isMe={!alignLeft} />
+                    )}
                     {msg.text && (
-                      <div className={cn("px-3 py-2", msg.imageUrl && "pt-1")}>
+                      <div className={cn("px-3 py-2", (msg.imageUrl || msg.audioUrl) && "pt-1")}>
                         {msg.text}
                       </div>
                     )}
@@ -348,61 +407,90 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
       {canWrite ? (
         <div className="p-4 bg-white/80 dark:bg-black/40 backdrop-blur-md border-t shrink-0">
           <div className="max-w-4xl mx-auto flex items-center gap-2">
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              className="hidden" 
-              accept="image/*"
-              onChange={handleFileChange}
-            />
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="rounded-full text-muted-foreground hover:text-primary shrink-0"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Paperclip className="w-5 h-5" />
-            </Button>
-            <div className="flex-1 relative min-w-0">
-              <Input 
-                placeholder="Message..."
-                className="pr-10 bg-background border-none rounded-full focus-visible:ring-primary shadow-inner h-11"
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSend();
-                }}
-              />
-              <Popover>
-                <PopoverTrigger asChild>
+            {isRecording ? (
+              <div className="flex-1 flex items-center gap-3 bg-red-500/10 p-2 px-4 rounded-full animate-pulse border border-red-500/20">
+                <div className="w-2 h-2 rounded-full bg-red-500" />
+                <span className="text-xs font-bold text-red-500 font-mono">{formatTime(recordingTime)}</span>
+                <div className="flex-1" />
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="rounded-full text-red-500 hover:bg-red-500/20"
+                  onClick={stopRecording}
+                >
+                  <Square className="w-5 h-5 fill-current" />
+                </Button>
+              </div>
+            ) : (
+              <>
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  className="hidden" 
+                  accept="image/*"
+                  onChange={handleFileChange}
+                />
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="rounded-full text-muted-foreground hover:text-primary shrink-0"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Paperclip className="w-5 h-5" />
+                </Button>
+                <div className="flex-1 relative min-w-0">
+                  <Input 
+                    placeholder="Message..."
+                    className="pr-10 bg-background border-none rounded-full focus-visible:ring-primary shadow-inner h-11"
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSend({});
+                    }}
+                  />
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="absolute right-1 top-1/2 -translate-y-1/2 rounded-full text-muted-foreground hover:text-primary"
+                      >
+                        <Smile className="w-5 h-5" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-64 p-2 rounded-2xl grid grid-cols-5 gap-1 shadow-xl" align="end" side="top">
+                      {COMMON_EMOJIS.map(emoji => (
+                        <button 
+                          key={emoji} 
+                          onClick={() => addEmoji(emoji)}
+                          className="text-xl hover:bg-sidebar/50 p-1 rounded-lg transition-colors"
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                {message.trim() ? (
                   <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="absolute right-1 top-1/2 -translate-y-1/2 rounded-full text-muted-foreground hover:text-primary"
+                    className="rounded-full cove-gradient hover:opacity-90 shadow-md text-white px-4 h-11 shrink-0"
+                    onClick={() => handleSend({})}
+                    disabled={isSending}
                   >
-                    <Smile className="w-5 h-5" />
+                    {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                   </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-64 p-2 rounded-2xl grid grid-cols-5 gap-1 shadow-xl" align="end" side="top">
-                  {COMMON_EMOJIS.map(emoji => (
-                    <button 
-                      key={emoji} 
-                      onClick={() => addEmoji(emoji)}
-                      className="text-xl hover:bg-sidebar/50 p-1 rounded-lg transition-colors"
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                </PopoverContent>
-              </Popover>
-            </div>
-            <Button 
-              className="rounded-full cove-gradient hover:opacity-90 shadow-md text-white px-4 h-11 shrink-0"
-              onClick={() => handleSend()}
-              disabled={(!message.trim()) || isSending}
-            >
-              {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-            </Button>
+                ) : (
+                  <Button 
+                    variant="ghost"
+                    size="icon"
+                    className="rounded-full text-muted-foreground hover:text-primary shrink-0"
+                    onClick={startRecording}
+                  >
+                    <Mic className="w-5 h-5" />
+                  </Button>
+                )}
+              </>
+            )}
           </div>
         </div>
       ) : (
@@ -410,6 +498,78 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
           <p className="text-xs text-muted-foreground">Admins only.</p>
         </div>
       )}
+    </div>
+  );
+}
+
+function AudioBubble({ audioUrl, duration, isMe }: { audioUrl: string; duration?: number; isMe: boolean }) {
+  const [isPlaying, setIsPlaying] = React.useState(false);
+  const [progress, setProgress] = React.useState(0);
+  const audioRef = React.useRef<HTMLAudioElement | null>(null);
+
+  const togglePlay = () => {
+    if (audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.pause();
+      } else {
+        audioRef.current.play();
+      }
+      setIsPlaying(!isPlaying);
+    }
+  };
+
+  const onTimeUpdate = () => {
+    if (audioRef.current) {
+      const p = (audioRef.current.currentTime / audioRef.current.duration) * 100;
+      setProgress(p || 0);
+    }
+  };
+
+  const onEnded = () => {
+    setIsPlaying(false);
+    setProgress(0);
+  };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  return (
+    <div className="flex items-center gap-3 p-3 py-2 min-w-[200px]">
+      <audio 
+        ref={audioRef} 
+        src={audioUrl} 
+        onTimeUpdate={onTimeUpdate} 
+        onEnded={onEnded} 
+        className="hidden" 
+      />
+      <Button 
+        variant="ghost" 
+        size="icon" 
+        className={cn(
+          "w-8 h-8 rounded-full shrink-0",
+          isMe ? "bg-white/20 text-white hover:bg-white/30" : "bg-primary/10 text-primary hover:bg-primary/20"
+        )}
+        onClick={togglePlay}
+      >
+        {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current" />}
+      </Button>
+      <div className="flex-1 flex flex-col gap-1">
+        <div className={cn("w-full h-1 rounded-full relative", isMe ? "bg-white/20" : "bg-primary/10")}>
+          <div 
+            className={cn("h-full rounded-full transition-all duration-100", isMe ? "bg-white" : "bg-primary")} 
+            style={{ width: `${progress}%` }} 
+          />
+        </div>
+        <div className="flex items-center justify-between">
+          <span className={cn("text-[9px] font-bold opacity-70", isMe ? "text-white" : "text-muted-foreground")}>
+            {isPlaying && audioRef.current ? formatTime(audioRef.current.currentTime) : formatTime(duration || 0)}
+          </span>
+          <Volume2 className={cn("w-3 h-3 opacity-40", isMe ? "text-white" : "text-muted-foreground")} />
+        </div>
+      </div>
     </div>
   );
 }

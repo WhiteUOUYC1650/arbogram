@@ -55,6 +55,8 @@
         "senderName": { "type": "string" },
         "text": { "type": "string" },
         "imageUrl": { "type": "string", "description": "Base64 данные изображения" },
+        "audioUrl": { "type": "string", "description": "Base64 данные голосового сообщения" },
+        "duration": { "type": "number", "description": "Длительность аудио в секундах" },
         "timestamp": { "type": "number" }
       },
       "required": ["senderId", "timestamp"]
