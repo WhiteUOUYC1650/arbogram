@@ -5,14 +5,15 @@ import * as React from "react";
 import { 
   Info, Send, Paperclip, Smile, Megaphone, X, Loader2, 
   Image as ImageIcon, MoreVertical, Trash2, Copy, 
-  Calendar, Users, Mic, Square, Play, Pause, Volume2 
+  Calendar, Users, Mic, Square, Play, Pause, Volume2,
+  BarChart2, CheckCircle2, PlusCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useCollection, useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
-import { collection, query, orderBy, addDoc, doc, updateDoc, deleteDoc } from "firebase/firestore";
+import { collection, query, orderBy, addDoc, doc, updateDoc, deleteDoc, arrayUnion, arrayRemove } from "firebase/firestore";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { UserAvatar } from "@/components/user-avatar";
@@ -35,6 +36,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const COMMON_EMOJIS = ["😀", "😂", "🥰", "😍", "😎", "🤔", "😊", "👍", "🔥", "❤️", "✨", "🎉", "🙌", "😭", "😮", "🙏", "🚀", "🍕", "☀️", "🌚"];
 
@@ -48,6 +50,7 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
   const [isSending, setIsSending] = React.useState(false);
   const [isRecording, setIsRecording] = React.useState(false);
   const [recordingTime, setRecordingTime] = React.useState(0);
+  const [isPollDialogOpen, setIsPollDialogOpen] = React.useState(false);
   
   const db = useFirestore();
   const { user } = useUser();
@@ -113,9 +116,9 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
     });
   };
 
-  const handleSend = (options: { imageUrl?: string; audioUrl?: string; duration?: number }) => {
-    const { imageUrl, audioUrl, duration } = options;
-    if ((!message.trim() && !imageUrl && !audioUrl) || !db || !user) return;
+  const handleSend = (options: { imageUrl?: string; audioUrl?: string; duration?: number; poll?: any }) => {
+    const { imageUrl, audioUrl, duration, poll } = options;
+    if ((!message.trim() && !imageUrl && !audioUrl && !poll) || !db || !user) return;
 
     setIsSending(true);
     const msgData: any = {
@@ -129,9 +132,10 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
       msgData.audioUrl = audioUrl;
       msgData.duration = duration;
     }
+    if (poll) msgData.poll = poll;
 
     const currentMessage = message;
-    if (!imageUrl && !audioUrl) setMessage("");
+    if (!imageUrl && !audioUrl && !poll) setMessage("");
 
     addDoc(collection(db, "chats", chatId, "messages"), msgData)
       .then(() => {
@@ -139,6 +143,7 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
           let lastMsg = currentMessage;
           if (imageUrl) lastMsg = "📷 Photo";
           if (audioUrl) lastMsg = "🎤 Voice Message";
+          if (poll) lastMsg = "📊 Poll";
           
           updateDoc(chatRef, {
             lastMessage: lastMsg,
@@ -153,7 +158,7 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
           requestResourceData: msgData
         });
         errorEmitter.emit("permission-error", error);
-        if (!imageUrl && !audioUrl) setMessage(currentMessage);
+        if (!imageUrl && !audioUrl && !poll) setMessage(currentMessage);
       })
       .finally(() => setIsSending(false));
   };
@@ -234,6 +239,43 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
 
   const addEmoji = (emoji: string) => {
     setMessage(prev => prev + emoji);
+  };
+
+  const handleVote = async (messageId: string, optionId: string) => {
+    if (!db || !user) return;
+    const msgRef = doc(db, "chats", chatId, "messages", messageId);
+    
+    // В реальном приложении логика голосования сложнее (напр. убрать старый голос при одиночном выборе)
+    // Здесь упрощенная версия: добавляем или убираем голос из массива voters конкретной опции.
+    const msg = messages?.find(m => m.id === messageId);
+    if (!msg?.poll) return;
+
+    const updatedOptions = msg.poll.options.map((opt: any) => {
+      if (opt.id === optionId) {
+        const hasVoted = opt.voters?.includes(user.uid);
+        return {
+          ...opt,
+          voters: hasVoted 
+            ? opt.voters.filter((v: string) => v !== user.uid)
+            : [...(opt.voters || []), user.uid]
+        };
+      }
+      // Если выбор не множественный, убираем голос у остальных
+      if (!msg.poll.multipleChoice) {
+        return {
+          ...opt,
+          voters: (opt.voters || []).filter((v: string) => v !== user.uid)
+        };
+      }
+      return opt;
+    });
+
+    updateDoc(msgRef, {
+      "poll.options": updatedOptions
+    }).catch(e => {
+      console.error("Vote error:", e);
+      toast({ variant: "destructive", title: "Error", description: "Voting failed." });
+    });
   };
 
   let chatName = chatData?.name || "Chat";
@@ -367,8 +409,17 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
                     {msg.audioUrl && (
                       <AudioBubble audioUrl={msg.audioUrl} duration={msg.duration} isMe={!alignLeft} />
                     )}
+                    {msg.poll && (
+                      <PollBubble 
+                        poll={msg.poll} 
+                        messageId={msg.id} 
+                        onVote={handleVote} 
+                        isMe={!alignLeft} 
+                        currentUserId={user?.uid} 
+                      />
+                    )}
                     {msg.text && (
-                      <div className={cn("px-3 py-2", (msg.imageUrl || msg.audioUrl) && "pt-1")}>
+                      <div className={cn("px-3 py-2", (msg.imageUrl || msg.audioUrl || msg.poll) && "pt-1")}>
                         {msg.text}
                       </div>
                     )}
@@ -430,14 +481,43 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
                   accept="image/*"
                   onChange={handleFileChange}
                 />
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="rounded-full text-muted-foreground hover:text-primary shrink-0"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <Paperclip className="w-5 h-5" />
-                </Button>
+                
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="rounded-full text-muted-foreground hover:text-primary shrink-0"
+                    >
+                      <Paperclip className="w-5 h-5" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-48 p-2 rounded-2xl shadow-xl flex flex-col gap-1" align="start" side="top">
+                    <Button 
+                      variant="ghost" 
+                      className="w-full justify-start gap-3 rounded-xl h-10"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <ImageIcon className="w-4 h-4 text-primary" />
+                      <span className="text-xs font-medium">Photo</span>
+                    </Button>
+                    <CreatePollDialog 
+                      open={isPollDialogOpen} 
+                      onOpenChange={setIsPollDialogOpen}
+                      onPollCreate={(poll) => handleSend({ poll })}
+                    >
+                      <Button 
+                        variant="ghost" 
+                        className="w-full justify-start gap-3 rounded-xl h-10"
+                        onClick={() => setIsPollDialogOpen(true)}
+                      >
+                        <BarChart2 className="w-4 h-4 text-accent" />
+                        <span className="text-xs font-medium">Poll</span>
+                      </Button>
+                    </CreatePollDialog>
+                  </PopoverContent>
+                </Popover>
+
                 <div className="flex-1 relative min-w-0">
                   <Input 
                     placeholder="Message..."
@@ -498,6 +578,181 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
           <p className="text-xs text-muted-foreground">Admins only.</p>
         </div>
       )}
+    </div>
+  );
+}
+
+function CreatePollDialog({ open, onOpenChange, onPollCreate, children }: { 
+  open: boolean; 
+  onOpenChange: (val: boolean) => void;
+  onPollCreate: (poll: any) => void;
+  children: React.ReactNode;
+}) {
+  const [question, setQuestion] = React.useState("");
+  const [options, setOptions] = React.useState(["", ""]);
+  const [multipleChoice, setMultipleChoice] = React.useState(false);
+
+  const addOption = () => {
+    if (options.length < 10) setOptions([...options, ""]);
+  };
+
+  const updateOption = (idx: number, text: string) => {
+    const newOptions = [...options];
+    newOptions[idx] = text;
+    setOptions(newOptions);
+  };
+
+  const removeOption = (idx: number) => {
+    if (options.length > 2) {
+      setOptions(options.filter((_, i) => i !== idx));
+    }
+  };
+
+  const handleCreate = () => {
+    if (!question.trim() || options.filter(o => o.trim()).length < 2) return;
+    const poll = {
+      question: question.trim(),
+      options: options
+        .filter(o => o.trim())
+        .map(o => ({
+          id: Math.random().toString(36).substring(7),
+          text: o.trim(),
+          voters: []
+        })),
+      multipleChoice
+    };
+    onPollCreate(poll);
+    onOpenChange(false);
+    setQuestion("");
+    setOptions(["", ""]);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      {children}
+      <DialogContent className="w-[95vw] sm:max-w-md rounded-3xl">
+        <DialogHeader>
+          <DialogTitle>New Poll</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <span className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Question</span>
+            <Input 
+              placeholder="Ask something..." 
+              value={question} 
+              onChange={e => setQuestion(e.target.value)}
+              className="rounded-xl h-11"
+            />
+          </div>
+          <div className="space-y-3">
+            <span className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Options</span>
+            {options.map((opt, idx) => (
+              <div key={idx} className="flex gap-2">
+                <Input 
+                  placeholder={`Option ${idx + 1}`} 
+                  value={opt} 
+                  onChange={e => updateOption(idx, e.target.value)}
+                  className="rounded-xl h-10"
+                />
+                {options.length > 2 && (
+                  <Button variant="ghost" size="icon" onClick={() => removeOption(idx)} className="rounded-full shrink-0">
+                    <X className="w-4 h-4 text-destructive" />
+                  </Button>
+                )}
+              </div>
+            ))}
+            {options.length < 10 && (
+              <Button variant="ghost" className="w-full rounded-xl text-primary border border-dashed border-primary/20 h-10" onClick={addOption}>
+                <PlusCircle className="w-4 h-4 mr-2" /> Add Option
+              </Button>
+            )}
+          </div>
+          <div className="flex items-center justify-between p-3 bg-sidebar/10 rounded-2xl">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-accent" />
+              <span className="text-xs font-semibold">Multiple answers</span>
+            </div>
+            <Checkbox checked={multipleChoice} onCheckedChange={(val) => setMultipleChoice(!!val)} />
+          </div>
+          <Button className="w-full rounded-xl cove-gradient h-12 text-white font-bold" onClick={handleCreate} disabled={!question.trim() || options.filter(o => o.trim()).length < 2}>
+            Create Poll
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PollBubble({ poll, messageId, onVote, isMe, currentUserId }: { 
+  poll: any; 
+  messageId: string; 
+  onVote: (mid: string, oid: string) => void;
+  isMe: boolean;
+  currentUserId?: string;
+}) {
+  const totalVotes = poll.options.reduce((sum: number, opt: any) => sum + (opt.voters?.length || 0), 0);
+  const userHasVoted = poll.options.some((opt: any) => opt.voters?.includes(currentUserId));
+
+  return (
+    <div className="p-4 space-y-3 min-w-[240px] max-w-full">
+      <div className="space-y-1">
+        <h4 className={cn("font-bold text-sm leading-tight", isMe ? "text-white" : "text-foreground")}>
+          {poll.question}
+        </h4>
+        <p className={cn("text-[9px] font-bold opacity-60 uppercase tracking-wider", isMe ? "text-white" : "text-muted-foreground")}>
+          {userHasVoted ? "Poll Results" : "Choose an option"}
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        {poll.options.map((opt: any) => {
+          const votes = opt.voters?.length || 0;
+          const percent = totalVotes > 0 ? Math.round((votes / totalVotes) * 100) : 0;
+          const isVoted = opt.voters?.includes(currentUserId);
+
+          return (
+            <div 
+              key={opt.id} 
+              className="relative cursor-pointer group/opt"
+              onClick={() => onVote(messageId, opt.id)}
+            >
+              <div className={cn(
+                "relative z-10 flex items-center justify-between p-2 px-3 rounded-xl border transition-all",
+                isVoted 
+                  ? (isMe ? "bg-white/20 border-white/40" : "bg-primary/10 border-primary/30") 
+                  : (isMe ? "bg-black/10 border-white/10 hover:bg-black/20" : "bg-sidebar/30 border-primary/5 hover:bg-sidebar/50")
+              )}>
+                <span className={cn("text-xs font-medium truncate pr-4", isMe ? "text-white" : "text-foreground")}>
+                  {opt.text}
+                </span>
+                {userHasVoted && (
+                  <span className={cn("text-[10px] font-bold shrink-0", isMe ? "text-white/80" : "text-muted-foreground")}>
+                    {percent}%
+                  </span>
+                )}
+                {isVoted && <CheckCircle2 className={cn("absolute -top-1 -right-1 w-3 h-3 fill-current", isMe ? "text-white" : "text-accent")} />}
+              </div>
+              {userHasVoted && (
+                <div 
+                  className={cn("absolute inset-0 rounded-xl transition-all duration-500", isMe ? "bg-white/10" : "bg-primary/10")} 
+                  style={{ width: `${percent}%` }} 
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="flex items-center justify-between pt-1">
+        <span className={cn("text-[9px] font-bold opacity-60", isMe ? "text-white" : "text-muted-foreground")}>
+          {totalVotes} {totalVotes === 1 ? 'vote' : 'votes'}
+        </span>
+        {poll.multipleChoice && (
+          <span className={cn("text-[8px] font-bold px-1.5 py-0.5 rounded-full", isMe ? "bg-white/20 text-white" : "bg-accent/10 text-accent")}>
+            MULTI
+          </span>
+        )}
+      </div>
     </div>
   );
 }

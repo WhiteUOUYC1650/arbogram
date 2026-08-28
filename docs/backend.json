@@ -57,6 +57,24 @@
         "imageUrl": { "type": "string", "description": "Base64 данные изображения" },
         "audioUrl": { "type": "string", "description": "Base64 данные голосового сообщения" },
         "duration": { "type": "number", "description": "Длительность аудио в секундах" },
+        "poll": {
+          "type": "object",
+          "properties": {
+            "question": { "type": "string" },
+            "options": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "string" },
+                  "text": { "type": "string" },
+                  "voters": { "type": "array", "items": { "type": "string" } }
+                }
+              }
+            },
+            "multipleChoice": { "type": "boolean" }
+          }
+        },
         "timestamp": { "type": "number" }
       },
       "required": ["senderId", "timestamp"]
