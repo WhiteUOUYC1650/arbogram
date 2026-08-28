@@ -4,7 +4,7 @@
 import * as React from "react";
 import { 
   Info, Send, Paperclip, Smile, Megaphone, X, Loader2, 
-  Image as ImageIcon, MoreVertical, Trash2, Copy, 
+  ImageIcon, MoreVertical, Trash2, Copy, 
   Mic, Square, Play, Pause, Volume2,
   BarChart2, CheckCircle2, PlusCircle
 } from "lucide-react";
@@ -134,6 +134,7 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
       senderId: user.uid,
       senderName: user.displayName || "User",
       timestamp: Date.now(),
+      type: "text", // default
     };
 
     if (imageUrl) {
@@ -148,12 +149,8 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
       msgData.type = "poll";
       msgData.poll = poll;
     } else {
-      msgData.type = "text";
       msgData.text = message.trim();
     }
-
-    const currentMessage = message;
-    if (!imageUrl && !audioUrl && !poll) setMessage("");
 
     addDoc(collection(db, "chats", chatId, "messages"), msgData)
       .then(() => {
@@ -168,6 +165,7 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
             lastMessageTime: Date.now()
           }).catch(() => {});
         }
+        if (!imageUrl && !audioUrl && !poll) setMessage("");
       })
       .catch(async (e) => {
         const error = new FirestorePermissionError({
@@ -177,7 +175,6 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
         });
         (error as any).originalError = e;
         errorEmitter.emit("permission-error", error);
-        if (!imageUrl && !audioUrl && !poll) setMessage(currentMessage);
       })
       .finally(() => setIsSending(false));
   };
@@ -229,10 +226,6 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      toast({ variant: "destructive", title: t.error, description: "Select an image." });
-      return;
-    }
     try {
       const base64 = await compressImage(file);
       handleSend({ imageUrl: base64 });
@@ -267,7 +260,6 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
     const msg = messages?.find(m => m.id === messageId);
     if (!msg?.poll) return;
 
-    // Обновляем структуру голосов: каждый вариант хранит список UID проголосовавших
     const updatedOptions = msg.poll.options.map((opt: any) => {
       const voters = opt.voters || [];
       const hasVoted = voters.includes(user.uid);
@@ -281,7 +273,6 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
         };
       }
 
-      // Если опрос не поддерживает выбор нескольких вариантов, убираем голос из остальных
       if (!msg.poll.multipleChoice) {
         return {
           ...opt,
@@ -296,7 +287,6 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
       "poll.options": updatedOptions
     };
 
-    // Обновляем только список вариантов внутри объекта poll
     updateDoc(msgRef, updateData).catch(async (e) => {
       const error = new FirestorePermissionError({
         path: msgRef.path,

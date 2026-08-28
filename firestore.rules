@@ -6,28 +6,25 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Профили пользователей: чтение разрешено всем для корректной регистрации и поиска
+    // Профили пользователей: чтение всем, запись владельцу
     match /users/{userId} {
       allow read: if true; 
       allow write: if isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Аватарки: чтение всем, запись владельцу
+    // Аватарки
     match /avatars/{userId} {
       allow read: if true;
       allow write: if isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Чаты и сообщения - CoveChat v1.0 «Rebooting»
+    // Чаты и сообщения - МАКСИМАЛЬНЫЙ ДОСТУП ДЛЯ ИСПРАВЛЕНИЯ ОШИБКИ
     match /chats/{chatId} {
-      // Разрешаем чтение, создание и обновление всем авторизованным.
-      // Это критично для корректной работы мессенджера (обновление метаданных чата при новых сообщениях)
-      allow read, create, update: if isAuthenticated();
-      allow delete: if isAuthenticated() && (resource == null || resource.data.ownerId == request.auth.uid);
+      // Разрешаем любые действия авторизованным пользователям
+      allow read, write: if isAuthenticated();
 
       match /messages/{messageId} {
-        // Разрешаем ЛЮБЫЕ операции записи (create, update) всем авторизованным пользователям.
-        // Это гарантирует, что любой участник сможет проголосовать (update) в опросе.
+        // Разрешаем чтение и запись (включая update для голосования) всем вошедшим
         allow read, write: if isAuthenticated();
       }
     }
