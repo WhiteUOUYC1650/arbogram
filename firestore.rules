@@ -5,34 +5,60 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Профили пользователей: чтение разрешено всем для корректной регистрации и поиска
+    // Профили пользователей: чтение разрешено всем для корректной регистрации и поиска по юзернейму
     match /users/{userId} {
       allow read: if true; 
       allow write: if isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Аватарки: чтение всем, запись владельцу
+    // Аватарки: чтение всем, запись владельцу (в Base64)
     match /avatars/{userId} {
       allow read: if true;
       allow write: if isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Чаты
+    // Чаты (личные, группы, каналы)
     match /chats/{chatId} {
-      allow read: if isAuthenticated();
+      // Доступ к чтению если пользователь участник или это публичный канал
+      allow read: if isAuthenticated() && (
+        request.auth.uid in resource.data.participants || 
+        resource.data.isPublic == true
+      );
+      
       allow create: if isAuthenticated();
-      allow update, delete: if isAuthenticated() && (
-        request.auth.uid == resource.data.ownerId ||
+      
+      // Обновление разрешено участникам (например, для изменения lastMessage)
+      allow update: if isAuthenticated() && (
         request.auth.uid in resource.data.participants
       );
+      
+      // Удаление только владельцем (ownerId)
+      allow delete: if isAuthenticated() && request.auth.uid == resource.data.ownerId;
 
-      // Сообщения
+      // Сообщения внутри чатов
       match /messages/{messageId} {
-        allow read: if isAuthenticated();
-        allow create: if isAuthenticated();
-        // Разрешаем обновление только для голосования в опросах
+        // Чтение если есть доступ к самому чату
+        allow read: if isAuthenticated() && (
+          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants ||
+          get(/databases/$(database)/documents/chats/$(chatId)).data.isPublic == true
+        );
+        
+        // Создание сообщений:
+        // 1. В обычных чатах/группах — для всех участников
+        // 2. В каналах — только для владельца
+        allow create: if isAuthenticated() && (
+          (get(/databases/$(database)/documents/chats/$(chatId)).data.type != 'channel' && 
+           request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants) ||
+          (get(/databases/$(database)/documents/chats/$(chatId)).data.type == 'channel' && 
+           request.auth.uid == get(/databases/$(database)/documents/chats/$(chatId)).data.ownerId)
+        );
+        
+        // Голосование в опросах: разрешаем обновление ТОЛЬКО поля 'poll' всем участникам чата
         allow update: if isAuthenticated() && 
-          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['poll']));
+          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['poll']);
+          
+        // Удаление: отправителем или владельцем чата
         allow delete: if isAuthenticated() && (
           request.auth.uid == resource.data.senderId ||
           request.auth.uid == get(/databases/$(database)/documents/chats/$(chatId)).data.ownerId
@@ -40,7 +66,7 @@ service cloud.firestore {
       }
     }
 
-    // Истории
+    // Истории пользователей
     match /stories/{storyId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
