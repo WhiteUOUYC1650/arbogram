@@ -127,7 +127,7 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
         await setDoc(doc(db, "avatars", user.uid), { base64: photoURL });
       }
       await updateDoc(userRef, { displayName, username, photoURL: user.uid });
-      toast({ title: "Профиль обновлен" });
+      toast({ title: "Profile updated" });
       setOpen(false);
     } catch (e: any) {
       toast({ variant: "destructive", title: "Ошибка", description: e.message });
@@ -140,39 +140,39 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="w-[95vw] sm:max-w-md rounded-3xl">
-        <DialogHeader><DialogTitle>Настройки профиля</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>Settings</DialogTitle></DialogHeader>
         <div className="space-y-6 py-4">
           <div className="flex flex-col items-center gap-4">
             <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-              <Avatar className="w-24 h-24 border-4 border-accent/20">
+              <Avatar className="w-24 h-24 border-4 border-primary/20">
                 <AvatarImage src={photoURL} className="object-cover" />
-                <AvatarFallback className="text-2xl bg-accent/10 text-accent">{displayName[0] || <UserIcon />}</AvatarFallback>
+                <AvatarFallback className="text-2xl bg-primary/10 text-primary">{displayName[0] || <UserIcon />}</AvatarFallback>
               </Avatar>
               <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                 <Camera className="w-8 h-8 text-white" />
               </div>
               <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
             </div>
-            <p className="text-[10px] text-muted-foreground flex items-center gap-1"><Upload className="w-3 h-3" /> Нажмите для фото</p>
+            <p className="text-[10px] text-muted-foreground flex items-center gap-1"><Upload className="w-3 h-3" /> Tap to change photo</p>
           </div>
           <div className="space-y-4">
-            <div className="space-y-2"><Label>Ваше имя</Label><Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="rounded-xl" /></div>
-            <div className="space-y-2"><Label>Юзернейм</Label><Input value={username} onChange={(e) => setUsername(e.target.value)} className="rounded-xl font-mono" /></div>
+            <div className="space-y-2"><Label>Display Name</Label><Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="rounded-xl" /></div>
+            <div className="space-y-2"><Label>Username</Label><Input value={username} onChange={(e) => setUsername(e.target.value)} className="rounded-xl font-mono" /></div>
             <div className="flex items-center justify-between p-4 bg-sidebar/20 rounded-2xl border border-primary/10">
               <div className="flex items-center gap-3">
-                {isDarkMode ? <Moon className="w-5 h-5 text-accent" /> : <Sun className="w-5 h-5 text-orange-400" />}
-                <p className="text-sm font-semibold">Темная тема</p>
+                {isDarkMode ? <Moon className="w-5 h-5 text-primary" /> : <Sun className="w-5 h-5 text-orange-400" />}
+                <p className="text-sm font-semibold">Dark Mode</p>
               </div>
               <Switch checked={isDarkMode} onCheckedChange={toggleTheme} />
             </div>
           </div>
-          <Button className="w-full rounded-xl bg-accent h-12 text-white font-bold" onClick={handleSave} disabled={isUpdating}>
-            {isUpdating ? <Loader2 className="w-5 h-5 animate-spin" /> : "Сохранить изменения"}
+          <Button className="w-full rounded-xl cove-gradient h-12 text-white font-bold" onClick={handleSave} disabled={isUpdating}>
+            {isUpdating ? <Loader2 className="w-5 h-5 animate-spin" /> : "Save Changes"}
           </Button>
           <div className="flex flex-col items-center gap-1 pt-2">
             <div className="flex items-center gap-1.5 text-muted-foreground">
               <Info className="w-3 h-3" />
-              <span className="text-[10px] font-medium uppercase tracking-widest text-accent">Arbogram v0.1 • 2026</span>
+              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">CoveChat v1.0 • Rebooting • 2026</span>
             </div>
           </div>
         </div>

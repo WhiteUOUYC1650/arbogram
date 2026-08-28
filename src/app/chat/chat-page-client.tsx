@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * Основной интерфейс мессенджера (SPA).
- * Работает без смены URL, что гарантирует стабильность в APK.
+ * CoveChat v1.0 "Rebooting"
  */
 export default function ChatPageClient() {
   const [activeChatId, setActiveChatId] = React.useState<string | null>(null);
@@ -48,10 +48,12 @@ export default function ChatPageClient() {
           <div className="hidden md:flex h-full flex-col items-center justify-center p-8 text-center space-y-6 animate-in fade-in duration-700">
             <ArbogramIcon className="w-32 h-32" />
             <div className="space-y-2">
-              <h2 className="text-4xl font-bold font-headline text-foreground tracking-tight">Arbogram</h2>
-              <p className="text-muted-foreground max-w-sm">
-                Выберите чат, чтобы начать общение. Версия v0.1
-              </p>
+              <h2 className="text-5xl font-bold font-headline text-foreground tracking-tighter">CoveChat</h2>
+              <div className="flex items-center justify-center gap-2">
+                <span className="h-px w-8 bg-primary/30" />
+                <p className="text-[10px] font-bold text-primary uppercase tracking-[0.4em]">Rebooting v1.0</p>
+                <span className="h-px w-8 bg-primary/30" />
+              </div>
             </div>
           </div>
         )}

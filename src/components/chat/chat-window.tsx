@@ -110,7 +110,7 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
     setIsSending(true);
     const msgData: any = {
       senderId: user.uid,
-      senderName: user.displayName || "Пользователь",
+      senderName: user.displayName || "User",
       text: message.trim() || null,
       timestamp: Date.now()
     };
@@ -123,7 +123,7 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
       .then(() => {
         if (chatRef) {
           updateDoc(chatRef, {
-            lastMessage: imageUrl ? "📷 Фото" : currentMessage,
+            lastMessage: imageUrl ? "📷 Photo" : currentMessage,
             lastMessageTime: Date.now()
           }).catch(() => {});
         }
@@ -145,7 +145,7 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      toast({ variant: "destructive", title: "Ошибка", description: "Пожалуйста, выберите изображение." });
+      toast({ variant: "destructive", title: "Error", description: "Please select an image." });
       return;
     }
 
@@ -153,7 +153,7 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
       const base64 = await compressImage(file);
       handleSend(base64);
     } catch (err) {
-      toast({ variant: "destructive", title: "Ошибка", description: "Не удалось загрузить фото." });
+      toast({ variant: "destructive", title: "Error", description: "Failed to upload photo." });
     }
   };
 
@@ -161,34 +161,34 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
     if (!db) return;
     try {
       await deleteDoc(doc(db, "chats", chatId, "messages", messageId));
-      toast({ title: "Сообщение удалено" });
+      toast({ title: "Message deleted" });
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Ошибка", description: "Недостаточно прав для удаления." });
+      toast({ variant: "destructive", title: "Error", description: "Insufficient permissions." });
     }
   };
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-    toast({ title: "Скопировано в буфер обмена" });
+    toast({ title: "Copied to clipboard" });
   };
 
   const saveImage = (base64: string) => {
     const link = document.createElement("a");
     link.href = base64;
-    link.download = `arbogram_image_${Date.now()}.jpg`;
+    link.download = `cove_image_${Date.now()}.jpg`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast({ title: "Изображение сохранено" });
+    toast({ title: "Image saved" });
   };
 
   const addEmoji = (emoji: string) => {
     setMessage(prev => prev + emoji);
   };
 
-  let chatName = chatData?.name || "Чат";
+  let chatName = chatData?.name || "Chat";
   let avatarTargetId = chatId; 
-  let subText = "В сети";
+  let subText = "Online";
 
   if (chatData?.type === 'individual' && user) {
     const otherId = chatData.participants?.find((p: string) => p !== user.uid);
@@ -198,9 +198,9 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
     }
   } else if (chatData?.type === 'group') {
     const count = chatData.participants?.length || 0;
-    subText = `${count} участников`;
+    subText = `${count} members`;
   } else if (chatData?.type === 'channel') {
-    subText = "Канал";
+    subText = "Channel";
   }
 
   const canWrite = chatData?.type !== 'channel' || chatData?.ownerId === user?.uid;
@@ -213,7 +213,7 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
             <Button 
               variant="ghost" 
               size="icon" 
-              className="rounded-full text-muted-foreground hover:text-destructive transition-colors shrink-0"
+              className="rounded-full text-muted-foreground hover:text-primary transition-colors shrink-0"
               onClick={onBack}
             >
               <X className="w-5 h-5" />
@@ -225,47 +225,47 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
           <div className="min-w-0">
             <h2 className="font-semibold text-sm leading-tight truncate max-w-[150px] sm:max-w-none flex items-center gap-1">
               {chatName}
-              {chatData?.type === 'channel' && <Megaphone className="w-3 h-3 text-accent" />}
+              {chatData?.type === 'channel' && <Megaphone className="w-3 h-3 text-primary" />}
             </h2>
-            <p className="text-[10px] text-accent font-medium">{subText}</p>
+            <p className="text-[10px] text-primary font-bold tracking-wider uppercase opacity-80">{subText}</p>
           </div>
         </div>
         <div className="flex items-center gap-1">
           <Dialog>
             <DialogTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-accent">
+              <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-primary">
                 <Info className="w-5 h-5" />
               </Button>
             </DialogTrigger>
             <DialogContent className="w-[95vw] sm:max-w-md rounded-3xl">
               <DialogHeader>
-                <DialogTitle>Информация о чате</DialogTitle>
+                <DialogTitle>Chat Details</DialogTitle>
               </DialogHeader>
               <div className="flex flex-col items-center gap-6 py-4">
-                <UserAvatar userId={avatarTargetId} fallback={chatName} className="w-24 h-24 border-4 border-accent/20" />
+                <UserAvatar userId={avatarTargetId} fallback={chatName} className="w-24 h-24 border-4 border-primary/20" />
                 <div className="text-center space-y-1">
                   <h3 className="text-xl font-bold">{chatName}</h3>
                   <p className="text-sm text-muted-foreground">
-                    {chatData?.type === 'individual' ? 'Личный чат' : chatData?.type === 'group' ? 'Групповой чат' : 'Канал'}
+                    {chatData?.type === 'individual' ? 'Direct Message' : chatData?.type === 'group' ? 'Group Chat' : 'Public Channel'}
                   </p>
                 </div>
                 <div className="w-full space-y-3">
                   <div className="flex items-center justify-between p-4 bg-sidebar/20 rounded-2xl border border-primary/10">
                     <div className="flex items-center gap-3 text-sm font-medium">
-                      <Calendar className="w-4 h-4 text-accent" />
-                      <span>Создан</span>
+                      <Calendar className="w-4 h-4 text-primary" />
+                      <span>Created</span>
                     </div>
                     <span className="text-xs text-muted-foreground">
                       {chatData?.createdAt?.seconds 
-                        ? new Date(chatData.createdAt.seconds * 1000).toLocaleDateString('ru-RU') 
-                        : 'Недавно'}
+                        ? new Date(chatData.createdAt.seconds * 1000).toLocaleDateString() 
+                        : 'Recently'}
                     </span>
                   </div>
                   {chatData?.type !== 'individual' && (
                     <div className="flex items-center justify-between p-4 bg-sidebar/20 rounded-2xl border border-primary/10">
                       <div className="flex items-center gap-3 text-sm font-medium">
-                        <Users className="w-4 h-4 text-accent" />
-                        <span>Участников</span>
+                        <Users className="w-4 h-4 text-primary" />
+                        <span>Participants</span>
                       </div>
                       <span className="text-xs text-muted-foreground">{chatData?.participants?.length || 0}</span>
                     </div>
@@ -277,7 +277,7 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
         </div>
       </div>
 
-      <ScrollArea className="flex-1 min-h-0 bg-sidebar/10">
+      <ScrollArea className="flex-1 min-h-0 bg-sidebar/5">
         <div className="p-4 flex flex-col gap-4 max-w-4xl mx-auto">
           {messages?.map((msg) => {
             const isMe = msg.senderId === user?.uid;
@@ -292,7 +292,7 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
                   <div className={cn(
                     "p-1 rounded-2xl text-sm shadow-sm transition-all overflow-hidden flex-1",
                     !alignLeft
-                      ? "bg-accent text-white rounded-tr-none" 
+                      ? "cove-gradient text-white rounded-tr-none" 
                       : "bg-white dark:bg-zinc-800 text-foreground rounded-tl-none border border-primary/10"
                   )}>
                     {chatData?.type === 'group' && !isMe && (
@@ -324,12 +324,12 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
                     <DropdownMenuContent align={alignLeft ? "start" : "end"} className="rounded-xl">
                       {msg.text && (
                         <DropdownMenuItem onClick={() => copyToClipboard(msg.text!)} className="gap-2 cursor-pointer">
-                          <Copy className="w-4 h-4" /> <span>Копировать</span>
+                          <Copy className="w-4 h-4" /> <span>Copy</span>
                         </DropdownMenuItem>
                       )}
                       {(isMe || chatData?.ownerId === user?.uid) && (
                         <DropdownMenuItem onClick={() => handleDeleteMessage(msg.id)} className="gap-2 cursor-pointer text-destructive focus:text-destructive">
-                          <Trash2 className="w-4 h-4" /> <span>Удалить</span>
+                          <Trash2 className="w-4 h-4" /> <span>Delete</span>
                         </DropdownMenuItem>
                       )}
                     </DropdownMenuContent>
@@ -358,14 +358,14 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
             <Button 
               variant="ghost" 
               size="icon" 
-              className="rounded-full text-muted-foreground hover:text-accent shrink-0"
+              className="rounded-full text-muted-foreground hover:text-primary shrink-0"
               onClick={() => fileInputRef.current?.click()}
             >
               <Paperclip className="w-5 h-5" />
             </Button>
             <div className="flex-1 relative min-w-0">
               <Input 
-                placeholder="Сообщение..."
+                placeholder="Message..."
                 className="pr-10 bg-background border-none rounded-full focus-visible:ring-primary shadow-inner h-11"
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
@@ -378,7 +378,7 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
                   <Button 
                     variant="ghost" 
                     size="icon" 
-                    className="absolute right-1 top-1/2 -translate-y-1/2 rounded-full text-muted-foreground hover:text-accent"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 rounded-full text-muted-foreground hover:text-primary"
                   >
                     <Smile className="w-5 h-5" />
                   </Button>
@@ -397,7 +397,7 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
               </Popover>
             </div>
             <Button 
-              className="rounded-full bg-accent hover:bg-accent/90 shadow-md text-white px-4 h-11 shrink-0"
+              className="rounded-full cove-gradient hover:opacity-90 shadow-md text-white px-4 h-11 shrink-0"
               onClick={() => handleSend()}
               disabled={(!message.trim()) || isSending}
             >
@@ -407,7 +407,7 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
         </div>
       ) : (
         <div className="p-4 bg-sidebar/20 text-center border-t shrink-0">
-          <p className="text-xs text-muted-foreground">Только администраторы могут писать здесь.</p>
+          <p className="text-xs text-muted-foreground">Admins only.</p>
         </div>
       )}
     </div>

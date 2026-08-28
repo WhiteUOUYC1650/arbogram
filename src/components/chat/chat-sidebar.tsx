@@ -42,7 +42,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
     const chatName = chat.type === 'individual' && user 
       ? chat.metadata?.[chat.participants.find(p => p !== user.uid)]?.displayName
       : chat.name;
-    return (chatName || "Чат").toLowerCase().includes(search.toLowerCase());
+    return (chatName || "Chat").toLowerCase().includes(search.toLowerCase());
   }) || [];
 
   return (
@@ -53,8 +53,8 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
           <div className="flex items-center gap-2">
             <ArbogramIcon className="w-10 h-10 shadow-md" />
             <div className="flex flex-col">
-              <h1 className="text-xl font-bold font-headline text-accent leading-none">Arbogram</h1>
-              <span className="text-[10px] text-muted-foreground font-bold tracking-widest uppercase">Messenger</span>
+              <h1 className="text-xl font-bold font-headline text-primary leading-none">CoveChat</h1>
+              <span className="text-[10px] text-muted-foreground font-bold tracking-[0.2em] uppercase">Messenger</span>
             </div>
           </div>
           <div className="flex gap-0.5">
@@ -65,7 +65,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
             </SettingsDialog>
             <CreateChatDialog onChatCreated={onChatSelect}>
               <Button variant="ghost" size="icon" className="rounded-full h-9 w-9">
-                <Plus className="w-5 h-5 text-accent" />
+                <Plus className="w-5 h-5 text-primary" />
               </Button>
             </CreateChatDialog>
             <Button 
@@ -82,7 +82,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input 
-            placeholder="Поиск..." 
+            placeholder="Search Cove..." 
             className="pl-9 bg-background/50 border-none focus-visible:ring-primary rounded-xl h-10"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -97,7 +97,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
           {filteredChats.length > 0 ? (
             filteredChats.map((chat) => {
               const isActive = activeChatId === chat.id;
-              let displayName = chat.name || "Группа";
+              let displayName = chat.name || "Group";
               let targetId = chat.id; 
 
               if (chat.type === 'individual' && user) {
@@ -128,7 +128,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5 min-w-0">
                         <p className="font-semibold text-sm truncate text-foreground">{displayName}</p>
-                        {chat.isPublic && <Globe className="w-3 h-3 text-accent shrink-0" />}
+                        {chat.isPublic && <Globe className="w-3 h-3 text-primary shrink-0" />}
                       </div>
                       <span className="text-[10px] text-muted-foreground shrink-0 ml-2">
                         {chat.lastMessageTime ? new Date(chat.lastMessageTime).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : ""}
@@ -136,7 +136,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
                     </div>
                     <div className="flex items-center gap-1">
                       <Icon className="w-3 h-3 text-muted-foreground" />
-                      <p className="text-xs text-muted-foreground truncate">{chat.lastMessage || "Нет сообщений"}</p>
+                      <p className="text-xs text-muted-foreground truncate">{chat.lastMessage || "No messages"}</p>
                     </div>
                   </div>
                 </div>
@@ -144,7 +144,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
             })
           ) : (
             <div className="p-8 text-center space-y-2">
-              <p className="text-xs text-muted-foreground">Чаты не найдены</p>
+              <p className="text-xs text-muted-foreground">Empty Cove</p>
             </div>
           )}
         </div>

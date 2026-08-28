@@ -114,11 +114,11 @@ export default function LoginPage() {
     <div className="min-h-dvh flex flex-col items-center justify-center bg-background p-6">
       <div className="w-full max-w-md space-y-6 animate-in fade-in zoom-in duration-500">
         <div className="flex flex-col items-center space-y-3">
-          <ArbogramIcon className="w-16 h-16 shadow-lg" />
+          <ArbogramIcon className="w-16 h-16 shadow-xl" />
           <div className="text-center">
-            <h1 className="text-2xl font-bold font-headline tracking-tight text-foreground">Arbogram</h1>
-            <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">
-              {isRegistering ? "Регистрация" : "Вход в аккаунт"}
+            <h1 className="text-3xl font-bold font-headline tracking-tight text-foreground">CoveChat</h1>
+            <p className="text-[10px] text-primary font-bold uppercase tracking-[0.2em] font-headline">
+              {isRegistering ? "Registration" : "Sign In"}
             </p>
           </div>
         </div>
@@ -128,30 +128,30 @@ export default function LoginPage() {
             {isRegistering && (
               <div className="space-y-4 animate-in slide-in-from-top-4 duration-300">
                 <div className="space-y-1">
-                  <Label htmlFor="name" className="text-[10px] uppercase font-bold ml-1 opacity-70">Имя</Label>
+                  <Label htmlFor="name" className="text-[10px] uppercase font-bold ml-1 opacity-70">Name</Label>
                   <div className="relative">
                     <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input 
                       id="name"
-                      placeholder="Александр" 
+                      placeholder="Alexander" 
                       value={displayName}
                       onChange={(e) => setDisplayName(e.target.value)}
-                      className="h-11 pl-12 rounded-xl bg-muted/30 border-none focus-visible:ring-accent"
+                      className="h-11 pl-12 rounded-xl bg-muted/30 border-none focus-visible:ring-primary"
                       disabled={isSubmitting}
                       required={isRegistering}
                     />
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="username" className="text-[10px] uppercase font-bold ml-1 opacity-70">Юзернейм</Label>
+                  <Label htmlFor="username" className="text-[10px] uppercase font-bold ml-1 opacity-70">Username</Label>
                   <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 font-mono text-accent font-bold text-sm">@</span>
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 font-mono text-primary font-bold text-sm">@</span>
                     <Input 
                       id="username"
                       placeholder="username" 
                       value={username.substring(1)}
                       onChange={handleUsernameChange}
-                      className="h-11 pl-10 rounded-xl bg-muted/30 border-none focus-visible:ring-accent font-mono"
+                      className="h-11 pl-10 rounded-xl bg-muted/30 border-none focus-visible:ring-primary font-mono"
                       required
                       disabled={isSubmitting}
                     />
@@ -171,14 +171,14 @@ export default function LoginPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="h-11 pl-12 rounded-xl bg-muted/30 border-none focus-visible:ring-accent"
+                  className="h-11 pl-12 rounded-xl bg-muted/30 border-none focus-visible:ring-primary"
                   disabled={isSubmitting}
                 />
               </div>
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor="password" className="text-[10px] uppercase font-bold ml-1 opacity-70">Пароль</Label>
+              <Label htmlFor="password" className="text-[10px] uppercase font-bold ml-1 opacity-70">Password</Label>
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input 
@@ -188,7 +188,7 @@ export default function LoginPage() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="h-11 pl-12 rounded-xl bg-muted/30 border-none focus-visible:ring-accent"
+                  className="h-11 pl-12 rounded-xl bg-muted/30 border-none focus-visible:ring-primary"
                   disabled={isSubmitting}
                 />
               </div>
@@ -197,9 +197,9 @@ export default function LoginPage() {
             <Button 
               type="submit"
               disabled={isSubmitting}
-              className="w-full h-12 bg-accent hover:bg-accent/90 text-white font-bold rounded-xl shadow-lg shadow-accent/20 transition-all active:scale-95 mt-4"
+              className="w-full h-12 cove-gradient hover:opacity-90 text-white font-bold rounded-xl shadow-lg shadow-primary/20 transition-all active:scale-95 mt-4"
             >
-              {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : (isRegistering ? "Создать аккаунт" : "Войти")}
+              {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : (isRegistering ? "Create Account" : "Enter Cove")}
             </Button>
           </form>
 
@@ -211,9 +211,9 @@ export default function LoginPage() {
                 setDisplayName("");
                 setUsername("@");
               }}
-              className="text-xs text-accent hover:text-accent/80 font-bold p-2 transition-colors"
+              className="text-xs text-primary hover:text-primary/80 font-bold p-2 transition-colors"
             >
-              {isRegistering ? "Есть аккаунт? Войти" : "Нет аккаунта? Регистрация"}
+              {isRegistering ? "Have an account? Log In" : "No account? Register"}
             </button>
           </div>
         </div>

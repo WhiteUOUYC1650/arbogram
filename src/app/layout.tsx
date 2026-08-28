@@ -6,13 +6,13 @@ import { FirebaseErrorListener } from '@/components/firebase-error-listener';
 import { Toaster } from '@/components/ui/toaster';
 
 export const metadata: Metadata = {
-  title: 'Arbogram',
-  description: 'Настоящий мессенджер на Firebase',
+  title: 'CoveChat',
+  description: 'Rebooting - The next generation messenger',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Arbogram',
+    title: 'CoveChat',
   },
   formatDetection: {
     telephone: false,
@@ -24,7 +24,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: '#8ed1a1',
+  themeColor: '#8b5cf6',
 };
 
 export default function RootLayout({

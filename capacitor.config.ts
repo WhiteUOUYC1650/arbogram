@@ -2,8 +2,8 @@
 import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.arbogram.app',
-  appName: 'Arbogram',
+  appId: 'com.covechat.app',
+  appName: 'CoveChat',
   webDir: 'out',
   server: {
     androidScheme: 'https'
