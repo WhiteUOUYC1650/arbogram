@@ -5,7 +5,7 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Профили пользователей: чтение разрешено всем для корректной регистрации и поиска
+    // Профили пользователей: чтение всем для регистрации и поиска
     match /users/{userId} {
       allow read: if true; 
       allow write: if isAuthenticated() && request.auth.uid == userId;
@@ -17,21 +17,15 @@ service cloud.firestore {
       allow write: if isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Чаты (личные, группы, каналы)
+    // Чаты и сообщения - CoveChat v1.0 «Rebooting»
+    // Примечание: обновление правил форсировано для исправления ошибки voting failed.
     match /chats/{chatId} {
-      // Разрешаем чтение и обновление всем авторизованным для MVP, чтобы избежать сбоев голосования
       allow read, create, update: if isAuthenticated();
-      allow delete: if isAuthenticated() && request.auth.uid == resource.data.ownerId;
+      allow delete: if isAuthenticated() && (resource == null || resource.data.ownerId == request.auth.uid);
 
-      // Сообщения внутри чатов
       match /messages/{messageId} {
-        // Разрешаем обновление (update) всем авторизованным для работы опросов
         allow read, create, update: if isAuthenticated();
-        
-        allow delete: if isAuthenticated() && (
-          request.auth.uid == resource.data.senderId ||
-          request.auth.uid == get(/databases/$(database)/documents/chats/$(chatId)).data.ownerId
-        );
+        allow delete: if isAuthenticated(); 
       }
     }
 
