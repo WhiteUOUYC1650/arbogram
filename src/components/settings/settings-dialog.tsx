@@ -1,8 +1,7 @@
-
 "use client";
 
 import * as React from "react";
-import { Settings, Loader2, Camera, Moon, Sun, User as UserIcon, Upload, Info } from "lucide-react";
+import { Settings, Loader2, Camera, Moon, Sun, User as UserIcon, Upload, Info, Languages } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -12,11 +11,14 @@ import { useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
 import { doc, updateDoc, collection, query, where, getDocs, setDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { translations, Language } from "@/lib/i18n";
 
 export function SettingsDialog({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = React.useState(false);
   const [isUpdating, setIsUpdating] = React.useState(false);
   const [isDarkMode, setIsDarkMode] = React.useState(false);
+  const [lang, setLang] = React.useState<Language>('ru');
   
   const db = useFirestore();
   const { user } = useUser();
@@ -33,6 +35,8 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
   const [photoURL, setPhotoURL] = React.useState("");
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
+  const t = translations[lang];
+
   React.useEffect(() => {
     if (userData) {
       setDisplayName(userData.displayName || "");
@@ -48,6 +52,9 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     const storedTheme = localStorage.getItem("theme");
+    const storedLang = localStorage.getItem("lang") as Language;
+    if (storedLang) setLang(storedLang);
+    
     const isDark = storedTheme === "dark" || (!storedTheme && window.matchMedia("(prefers-color-scheme: dark)").matches);
     setIsDarkMode(isDark);
     if (isDark) document.documentElement.classList.add("dark");
@@ -62,6 +69,12 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
       document.documentElement.classList.remove("dark");
       localStorage.setItem("theme", "light");
     }
+  };
+
+  const changeLanguage = (value: Language) => {
+    setLang(value);
+    localStorage.setItem("lang", value);
+    window.location.reload(); // Перезагрузка для применения языка ко всему приложению
   };
 
   const compressImage = (file: File): Promise<string> => {
@@ -106,7 +119,7 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
       const base64 = await compressImage(file);
       setPhotoURL(base64);
     } catch (err) {
-      toast({ variant: "destructive", title: "Ошибка", description: "Не удалось обработать изображение." });
+      toast({ variant: "destructive", title: t.error, description: "Error processing image." });
     }
   };
 
@@ -118,7 +131,7 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
         const q = query(collection(db, "users"), where("username", "==", username));
         const snap = await getDocs(q);
         if (!snap.empty) {
-          toast({ variant: "destructive", title: "Ошибка", description: "Этот юзернейм уже занят." });
+          toast({ variant: "destructive", title: t.error, description: "Username taken." });
           setIsUpdating(false);
           return;
         }
@@ -127,10 +140,10 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
         await setDoc(doc(db, "avatars", user.uid), { base64: photoURL });
       }
       await updateDoc(userRef, { displayName, username, photoURL: user.uid });
-      toast({ title: "Profile updated" });
+      toast({ title: t.success, description: "Profile updated" });
       setOpen(false);
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Ошибка", description: e.message });
+      toast({ variant: "destructive", title: t.error, description: e.message });
     } finally {
       setIsUpdating(false);
     }
@@ -140,7 +153,7 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="w-[95vw] sm:max-w-md rounded-3xl">
-        <DialogHeader><DialogTitle>Settings</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{t.settings}</DialogTitle></DialogHeader>
         <div className="space-y-6 py-4">
           <div className="flex flex-col items-center gap-4">
             <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
@@ -153,21 +166,39 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
               </div>
               <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
             </div>
-            <p className="text-[10px] text-muted-foreground flex items-center gap-1"><Upload className="w-3 h-3" /> Tap to change photo</p>
           </div>
           <div className="space-y-4">
-            <div className="space-y-2"><Label>Display Name</Label><Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="rounded-xl" /></div>
-            <div className="space-y-2"><Label>Username</Label><Input value={username} onChange={(e) => setUsername(e.target.value)} className="rounded-xl font-mono" /></div>
-            <div className="flex items-center justify-between p-4 bg-sidebar/20 rounded-2xl border border-primary/10">
-              <div className="flex items-center gap-3">
-                {isDarkMode ? <Moon className="w-5 h-5 text-primary" /> : <Sun className="w-5 h-5 text-orange-400" />}
-                <p className="text-sm font-semibold">Dark Mode</p>
+            <div className="space-y-2"><Label>{t.name}</Label><Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="rounded-xl" /></div>
+            <div className="space-y-2"><Label>{t.username}</Label><Input value={username} onChange={(e) => setUsername(e.target.value)} className="rounded-xl font-mono" /></div>
+            
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-4 bg-sidebar/20 rounded-2xl border border-primary/10">
+                <div className="flex items-center gap-3">
+                  {isDarkMode ? <Moon className="w-5 h-5 text-primary" /> : <Sun className="w-5 h-5 text-orange-400" />}
+                  <p className="text-sm font-semibold">{t.darkMode}</p>
+                </div>
+                <Switch checked={isDarkMode} onCheckedChange={toggleTheme} />
               </div>
-              <Switch checked={isDarkMode} onCheckedChange={toggleTheme} />
+
+              <div className="flex items-center justify-between p-4 bg-sidebar/20 rounded-2xl border border-primary/10">
+                <div className="flex items-center gap-3">
+                  <Languages className="w-5 h-5 text-accent" />
+                  <p className="text-sm font-semibold">{t.language}</p>
+                </div>
+                <Select value={lang} onValueChange={(v: Language) => changeLanguage(v)}>
+                  <SelectTrigger className="w-24 rounded-xl border-none bg-background/50 h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    <SelectItem value="ru">RU</SelectItem>
+                    <SelectItem value="en">EN</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
           <Button className="w-full rounded-xl cove-gradient h-12 text-white font-bold" onClick={handleSave} disabled={isUpdating}>
-            {isUpdating ? <Loader2 className="w-5 h-5 animate-spin" /> : "Save Changes"}
+            {isUpdating ? <Loader2 className="w-5 h-5 animate-spin" /> : t.save}
           </Button>
           <div className="flex flex-col items-center gap-1 pt-2">
             <div className="flex items-center gap-1.5 text-muted-foreground">

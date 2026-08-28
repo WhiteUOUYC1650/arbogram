@@ -5,12 +5,6 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Иконка приложения (публичная)
-    match /config/appicon {
-      allow read: if true;
-      allow write: if false;
-    }
-
     // Профили пользователей: чтение разрешено всем для корректной регистрации и поиска
     match /users/{userId} {
       allow read: if true; 
@@ -36,6 +30,9 @@ service cloud.firestore {
       match /messages/{messageId} {
         allow read: if isAuthenticated();
         allow create: if isAuthenticated();
+        // Разрешаем обновление только для голосования в опросах
+        allow update: if isAuthenticated() && 
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['poll']));
         allow delete: if isAuthenticated() && (
           request.auth.uid == resource.data.senderId ||
           request.auth.uid == get(/databases/$(database)/documents/chats/$(chatId)).data.ownerId

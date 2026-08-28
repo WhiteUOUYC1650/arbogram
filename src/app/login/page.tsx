@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useAuth, useUser, useFirestore } from "@/firebase";
@@ -16,6 +15,7 @@ import { useEffect, useState } from "react";
 import { doc, setDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { ArbogramIcon } from "@/components/arbogram-icon";
+import { translations, Language } from "@/lib/i18n";
 
 export default function LoginPage() {
   const auth = useAuth();
@@ -30,6 +30,14 @@ export default function LoginPage() {
   const [username, setUsername] = useState("@");
   const [isRegistering, setIsRegistering] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [lang, setLang] = useState<Language>('ru');
+
+  useEffect(() => {
+    const storedLang = localStorage.getItem("lang") as Language;
+    if (storedLang) setLang(storedLang);
+  }, []);
+
+  const t = translations[lang];
 
   useEffect(() => {
     if (user && !loading && !isSubmitting) {
@@ -51,7 +59,7 @@ export default function LoginPage() {
     
     if (isRegistering) {
       if (username === "@" || username.length < 4) {
-        toast({ variant: "destructive", title: "Ошибка", description: "Юзернейм слишком короткий." });
+        toast({ variant: "destructive", title: t.error, description: "Юзернейм слишком короткий." });
         return;
       }
     }
@@ -63,7 +71,7 @@ export default function LoginPage() {
         const snapshot = await getDocs(q);
         
         if (!snapshot.empty) {
-          toast({ variant: "destructive", title: "Юзернейм занят", description: "Пожалуйста, выберите другой." });
+          toast({ variant: "destructive", title: t.error, description: "Юзернейм занят." });
           setIsSubmitting(false);
           return;
         }
@@ -85,22 +93,20 @@ export default function LoginPage() {
         };
 
         await setDoc(doc(db, "users", newUser.uid), userData);
-        toast({ title: "Успех!", description: "Аккаунт создан." });
+        toast({ title: t.success, description: "Аккаунт создан." });
       } else {
         await signInWithEmailAndPassword(auth, email, password);
       }
       router.push("/");
     } catch (error: any) {
-      console.error("Auth error:", error);
       let message = "Произошла ошибка.";
       if (error.code === 'auth/email-already-in-use') message = "Этот Email уже используется.";
       if (error.code === 'auth/weak-password') message = "Пароль слишком простой.";
       if (error.code === 'auth/invalid-credential') message = "Неверный Email или пароль.";
-      if (error.code === 'permission-denied') message = "Ошибка базы данных. Проверьте правила.";
       
       toast({ 
         variant: "destructive", 
-        title: "Ошибка", 
+        title: t.error, 
         description: message 
       });
     } finally {
@@ -116,9 +122,9 @@ export default function LoginPage() {
         <div className="flex flex-col items-center space-y-3">
           <ArbogramIcon className="w-16 h-16 shadow-xl" />
           <div className="text-center">
-            <h1 className="text-3xl font-bold font-headline tracking-tight text-foreground">CoveChat</h1>
+            <h1 className="text-3xl font-bold font-headline tracking-tight text-foreground">{t.appName}</h1>
             <p className="text-[10px] text-primary font-bold uppercase tracking-[0.2em] font-headline">
-              {isRegistering ? "Registration" : "Sign In"}
+              {isRegistering ? t.registration : t.login}
             </p>
           </div>
         </div>
@@ -128,7 +134,7 @@ export default function LoginPage() {
             {isRegistering && (
               <div className="space-y-4 animate-in slide-in-from-top-4 duration-300">
                 <div className="space-y-1">
-                  <Label htmlFor="name" className="text-[10px] uppercase font-bold ml-1 opacity-70">Name</Label>
+                  <Label htmlFor="name" className="text-[10px] uppercase font-bold ml-1 opacity-70">{t.name}</Label>
                   <div className="relative">
                     <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input 
@@ -143,7 +149,7 @@ export default function LoginPage() {
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="username" className="text-[10px] uppercase font-bold ml-1 opacity-70">Username</Label>
+                  <Label htmlFor="username" className="text-[10px] uppercase font-bold ml-1 opacity-70">{t.username}</Label>
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 font-mono text-primary font-bold text-sm">@</span>
                     <Input 
@@ -161,7 +167,7 @@ export default function LoginPage() {
             )}
             
             <div className="space-y-1">
-              <Label htmlFor="email" className="text-[10px] uppercase font-bold ml-1 opacity-70">Email</Label>
+              <Label htmlFor="email" className="text-[10px] uppercase font-bold ml-1 opacity-70">{t.email}</Label>
               <div className="relative">
                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input 
@@ -178,7 +184,7 @@ export default function LoginPage() {
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor="password" className="text-[10px] uppercase font-bold ml-1 opacity-70">Password</Label>
+              <Label htmlFor="password" className="text-[10px] uppercase font-bold ml-1 opacity-70">{t.password}</Label>
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input 
@@ -199,7 +205,7 @@ export default function LoginPage() {
               disabled={isSubmitting}
               className="w-full h-12 cove-gradient hover:opacity-90 text-white font-bold rounded-xl shadow-lg shadow-primary/20 transition-all active:scale-95 mt-4"
             >
-              {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : (isRegistering ? "Create Account" : "Enter Cove")}
+              {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : (isRegistering ? t.createAccount : t.enter)}
             </Button>
           </form>
 
@@ -213,7 +219,7 @@ export default function LoginPage() {
               }}
               className="text-xs text-primary hover:text-primary/80 font-bold p-2 transition-colors"
             >
-              {isRegistering ? "Have an account? Log In" : "No account? Register"}
+              {isRegistering ? t.haveAccount : t.noAccount}
             </button>
           </div>
         </div>
