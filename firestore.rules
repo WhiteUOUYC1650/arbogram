@@ -1,3 +1,4 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -18,12 +19,13 @@ service cloud.firestore {
     }
 
     // Чаты и сообщения - CoveChat v1.0 «Rebooting»
-    // Примечание: обновление правил форсировано для исправления ошибки voting failed.
     match /chats/{chatId} {
+      // Разрешаем чтение и обновление всем авторизованным для корректной работы мессенджера
       allow read, create, update: if isAuthenticated();
       allow delete: if isAuthenticated() && (resource == null || resource.data.ownerId == request.auth.uid);
 
       match /messages/{messageId} {
+        // Разрешаем обновление всем авторизованным. Это КРИТИЧЕСКИ ВАЖНО для голосования в опросах.
         allow read, create, update: if isAuthenticated();
         allow delete: if isAuthenticated(); 
       }

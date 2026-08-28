@@ -48,36 +48,37 @@
     },
     "Message": {
       "title": "Message",
-      "description": "Сообщение в чате",
+      "description": "Сообщение в чате с поддержкой различных типов контента",
       "type": "object",
       "properties": {
         "senderId": { "type": "string" },
         "senderName": { "type": "string" },
-        "text": { "type": "string" },
+        "type": { "type": "string", "enum": ["text", "image", "audio", "poll"], "description": "Тип сообщения" },
+        "text": { "type": "string", "description": "Текст сообщения или подпись к медиа" },
         "imageUrl": { "type": "string", "description": "Base64 данные изображения" },
         "audioUrl": { "type": "string", "description": "Base64 данные голосового сообщения" },
         "duration": { "type": "number", "description": "Длительность аудио в секундах" },
         "poll": {
           "type": "object",
           "properties": {
-            "question": { "type": "string" },
+            "question": { "type": "string", "description": "Вопрос опроса" },
             "options": {
               "type": "array",
               "items": {
                 "type": "object",
                 "properties": {
-                  "id": { "type": "string" },
-                  "text": { "type": "string" },
-                  "voters": { "type": "array", "items": { "type": "string" } }
+                  "id": { "type": "string", "description": "Уникальный ID варианта" },
+                  "text": { "type": "string", "description": "Текст варианта ответа" },
+                  "voters": { "type": "array", "items": { "type": "string" }, "description": "Список UID пользователей, выбравших этот вариант" }
                 }
               }
             },
-            "multipleChoice": { "type": "boolean" }
+            "multipleChoice": { "type": "boolean", "description": "Разрешен ли выбор нескольких вариантов" }
           }
         },
         "timestamp": { "type": "number" }
       },
-      "required": ["senderId", "timestamp"]
+      "required": ["senderId", "type", "timestamp"]
     },
     "Story": {
       "title": "Story",

@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -132,15 +133,25 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
     const msgData: any = {
       senderId: user.uid,
       senderName: user.displayName || "User",
-      text: message.trim() || null,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      type: "text" // Default type
     };
-    if (imageUrl) msgData.imageUrl = imageUrl;
-    if (audioUrl) {
+
+    if (imageUrl) {
+      msgData.type = "image";
+      msgData.imageUrl = imageUrl;
+      msgData.text = message.trim() || null;
+    } else if (audioUrl) {
+      msgData.type = "audio";
       msgData.audioUrl = audioUrl;
       msgData.duration = duration;
+    } else if (poll) {
+      msgData.type = "poll";
+      msgData.poll = poll;
+    } else {
+      msgData.type = "text";
+      msgData.text = message.trim();
     }
-    if (poll) msgData.poll = poll;
 
     const currentMessage = message;
     if (!imageUrl && !audioUrl && !poll) setMessage("");
@@ -148,7 +159,7 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
     addDoc(collection(db, "chats", chatId, "messages"), msgData)
       .then(() => {
         if (chatRef) {
-          let lastMsg = currentMessage;
+          let lastMsg = msgData.text || "";
           if (imageUrl) lastMsg = `📷 ${t.photo}`;
           if (audioUrl) lastMsg = `🎤 ${t.voice}`;
           if (poll) lastMsg = `📊 ${t.poll}`;
@@ -277,7 +288,6 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
       return opt;
     });
 
-    // Обновляем опрос. Используем асинхронный catch для логирования деталей в консоль.
     updateDoc(msgRef, {
       "poll.options": updatedOptions
     }).catch(async (e) => {
@@ -371,9 +381,9 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
                         <p className="text-[9px] font-bold opacity-70">{msg.senderName}</p>
                       </div>
                     )}
-                    {msg.imageUrl && <img src={msg.imageUrl} alt="Shared" className="w-full max-h-[300px] object-cover rounded-xl" />}
-                    {msg.audioUrl && <AudioBubble audioUrl={msg.audioUrl} duration={msg.duration} isMe={!alignLeft} />}
-                    {msg.poll && <PollBubble poll={msg.poll} messageId={msg.id} onVote={handleVote} isMe={!alignLeft} currentUserId={user?.uid} lang={lang} />}
+                    {msg.type === "image" && msg.imageUrl && <img src={msg.imageUrl} alt="Shared" className="w-full max-h-[300px] object-cover rounded-xl" />}
+                    {msg.type === "audio" && msg.audioUrl && <AudioBubble audioUrl={msg.audioUrl} duration={msg.duration} isMe={!alignLeft} />}
+                    {msg.type === "poll" && msg.poll && <PollBubble poll={msg.poll} messageId={msg.id} onVote={handleVote} isMe={!alignLeft} currentUserId={user?.uid} lang={lang} />}
                     {msg.text && <div className={cn("px-3 py-2", (msg.imageUrl || msg.audioUrl || msg.poll) && "pt-1")}>{msg.text}</div>}
                   </div>
                   
