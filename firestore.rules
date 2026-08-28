@@ -19,12 +19,13 @@ service cloud.firestore {
 
     // Чаты (личные, группы, каналы)
     match /chats/{chatId} {
-      // Упрощаем правила для MVP, чтобы избежать ошибок при голосовании и поиске
+      // Разрешаем чтение и обновление всем авторизованным для MVP, чтобы избежать сбоев голосования
       allow read, create, update: if isAuthenticated();
       allow delete: if isAuthenticated() && request.auth.uid == resource.data.ownerId;
 
       // Сообщения внутри чатов
       match /messages/{messageId} {
+        // Разрешаем обновление (update) всем авторизованным для работы опросов
         allow read, create, update: if isAuthenticated();
         
         allow delete: if isAuthenticated() && (

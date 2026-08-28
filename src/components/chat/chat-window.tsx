@@ -4,7 +4,7 @@ import * as React from "react";
 import { 
   Info, Send, Paperclip, Smile, Megaphone, X, Loader2, 
   Image as ImageIcon, MoreVertical, Trash2, Copy, 
-  Calendar, Users, Mic, Square, Play, Pause, Volume2,
+  Mic, Square, Play, Pause, Volume2,
   BarChart2, CheckCircle2, PlusCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -165,6 +165,7 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
           operation: "create",
           requestResourceData: msgData
         });
+        (error as any).originalError = e;
         errorEmitter.emit("permission-error", error);
         if (!imageUrl && !audioUrl && !poll) setMessage(currentMessage);
       })
@@ -235,7 +236,12 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
     try {
       await deleteDoc(doc(db, "chats", chatId, "messages", messageId));
     } catch (e: any) {
-      toast({ variant: "destructive", title: t.error, description: "Insufficient permissions." });
+      const error = new FirestorePermissionError({
+        path: `chats/${chatId}/messages/${messageId}`,
+        operation: 'delete'
+      });
+      (error as any).originalError = e;
+      errorEmitter.emit('permission-error', error);
     }
   };
 
@@ -253,12 +259,13 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
 
     const updatedOptions = msg.poll.options.map((opt: any) => {
       if (opt.id === optionId) {
-        const hasVoted = opt.voters?.includes(user.uid);
+        const voters = opt.voters || [];
+        const hasVoted = voters.includes(user.uid);
         return {
           ...opt,
           voters: hasVoted 
-            ? opt.voters.filter((v: string) => v !== user.uid)
-            : [...(opt.voters || []), user.uid]
+            ? voters.filter((v: string) => v !== user.uid)
+            : [...voters, user.uid]
         };
       }
       if (!msg.poll.multipleChoice) {
@@ -270,10 +277,17 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
       return opt;
     });
 
+    // Обновляем опрос. Используем асинхронный catch для логирования деталей в консоль.
     updateDoc(msgRef, {
       "poll.options": updatedOptions
-    }).catch(e => {
-      toast({ variant: "destructive", title: t.error, description: "Voting failed." });
+    }).catch(async (e) => {
+      const error = new FirestorePermissionError({
+        path: msgRef.path,
+        operation: 'update',
+        requestResourceData: { "poll.options": updatedOptions }
+      });
+      (error as any).originalError = e;
+      errorEmitter.emit('permission-error', error);
     });
   };
 
