@@ -74,7 +74,7 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
   const changeLanguage = (value: Language) => {
     setLang(value);
     localStorage.setItem("lang", value);
-    window.location.reload(); // Перезагрузка для применения языка ко всему приложению
+    window.location.reload();
   };
 
   const compressImage = (file: File): Promise<string> => {

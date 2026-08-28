@@ -5,7 +5,7 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Профили пользователей: чтение разрешено всем для корректной регистрации и поиска по юзернейму
+    // Профили пользователей: чтение разрешено всем для корректной регистрации и поиска
     match /users/{userId} {
       allow read: if true; 
       allow write: if isAuthenticated() && request.auth.uid == userId;
@@ -46,10 +46,11 @@ service cloud.firestore {
            request.auth.uid == get(/databases/$(database)/documents/chats/$(chatId)).data.ownerId)
         );
         
-        // Голосование в опросах: разрешаем обновление ТОЛЬКО поля 'poll' всем участникам чата
-        allow update: if isAuthenticated() && 
-          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['poll']);
+        // Голосование в опросах: разрешаем обновление участникам или посетителям публичных чатов
+        allow update: if isAuthenticated() && (
+          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants ||
+          get(/databases/$(database)/documents/chats/$(chatId)).data.isPublic == true
+        );
           
         allow delete: if isAuthenticated() && (
           request.auth.uid == resource.data.senderId ||
