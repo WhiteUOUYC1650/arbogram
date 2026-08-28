@@ -9,33 +9,31 @@ interface CoveChatIconProps {
   className?: string;
 }
 
-const DEFAULT_ICON = "https://picsum.photos/seed/covechat/200/200";
+const DEFAULT_ICON = "/pictures/logo.png";
 
 export function ArbogramIcon({ className }: CoveChatIconProps) {
   const db = useFirestore();
   
-  // Читаем документ config/appicon поле base64
+  // По-прежнему пытаемся прочитать динамическую иконку из базы, если она есть
   const iconRef = useMemoFirebase(() => (db ? doc(db, "config", "appicon") : null), [db]);
   const { data: iconData, loading } = useDoc(iconRef);
 
+  // Если в базе пусто, используем твой новый файл logo.png
   const displaySrc = iconData?.base64 || DEFAULT_ICON;
 
   return (
-    <div className={cn("relative overflow-hidden rounded-[1.5rem] shadow-xl aspect-square shrink-0 cove-gradient flex items-center justify-center border border-white/20", className)}>
+    <div className={cn("relative overflow-hidden rounded-[1.5rem] shadow-xl aspect-square shrink-0 bg-white flex items-center justify-center border border-primary/10", className)}>
       <img 
         src={displaySrc}
         alt="CoveChat"
-        className="w-full h-full object-cover mix-blend-overlay opacity-80"
+        className="w-full h-full object-cover"
         loading="eager"
         onError={(e) => {
           e.currentTarget.src = DEFAULT_ICON;
         }}
       />
-      <div className="absolute inset-0 flex items-center justify-center">
-        <div className="w-1/2 h-1/2 bg-white rounded-full blur-2xl opacity-20 animate-pulse" />
-      </div>
       {loading && !iconData && (
-        <div className="absolute inset-0 bg-white/10 animate-pulse" />
+        <div className="absolute inset-0 bg-muted animate-pulse" />
       )}
     </div>
   );
