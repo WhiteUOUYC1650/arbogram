@@ -7,11 +7,11 @@ interface CoveChatIconProps {
   className?: string;
 }
 
-const LOGO_PATH = "/pictures/logo.png";
+const LOGO_PATH = "/pictures/logo.jpg";
 
 /**
  * Иконка CoveChat.
- * Теперь использует исключительно локальный файл из public/pictures/logo.png.
+ * Теперь использует исключительно локальный файл из public/pictures/logo.jpg.
  */
 export function ArbogramIcon({ className }: CoveChatIconProps) {
   return (
