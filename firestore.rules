@@ -11,7 +11,7 @@ service cloud.firestore {
       allow write: if isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Аватарки: чтение всем, запись владельцу (в Base64)
+    // Аватарки: чтение всем, запись владельцу
     match /avatars/{userId} {
       allow read: if true;
       allow write: if isAuthenticated() && request.auth.uid == userId;
@@ -19,7 +19,6 @@ service cloud.firestore {
 
     // Чаты (личные, группы, каналы)
     match /chats/{chatId} {
-      // Доступ к чтению если пользователь участник или это публичный канал
       allow read: if isAuthenticated() && (
         request.auth.uid in resource.data.participants || 
         resource.data.isPublic == true
@@ -27,25 +26,19 @@ service cloud.firestore {
       
       allow create: if isAuthenticated();
       
-      // Обновление разрешено участникам (например, для изменения lastMessage)
       allow update: if isAuthenticated() && (
         request.auth.uid in resource.data.participants
       );
       
-      // Удаление только владельцем (ownerId)
       allow delete: if isAuthenticated() && request.auth.uid == resource.data.ownerId;
 
       // Сообщения внутри чатов
       match /messages/{messageId} {
-        // Чтение если есть доступ к самому чату
         allow read: if isAuthenticated() && (
           request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants ||
           get(/databases/$(database)/documents/chats/$(chatId)).data.isPublic == true
         );
         
-        // Создание сообщений:
-        // 1. В обычных чатах/группах — для всех участников
-        // 2. В каналах — только для владельца
         allow create: if isAuthenticated() && (
           (get(/databases/$(database)/documents/chats/$(chatId)).data.type != 'channel' && 
            request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants) ||
@@ -58,7 +51,6 @@ service cloud.firestore {
           request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['poll']);
           
-        // Удаление: отправителем или владельцем чата
         allow delete: if isAuthenticated() && (
           request.auth.uid == resource.data.senderId ||
           request.auth.uid == get(/databases/$(database)/documents/chats/$(chatId)).data.ownerId
