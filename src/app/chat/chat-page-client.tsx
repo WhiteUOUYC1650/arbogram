@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { useFirestore, useUser } from "@/firebase";
 import { collection, query, where, getDocs, addDoc, serverTimestamp, doc, getDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
+import { CallOverlay } from "@/components/chat/call-overlay";
 
 /**
  * Основной интерфейс мессенджера (SPA).
@@ -28,7 +29,6 @@ export default function ChatPageClient() {
     try {
       const participants = [user.uid, targetUserId].sort();
       
-      // 1. Проверяем, существует ли уже такой чат
       const q = query(
         collection(db, "chats"),
         where("type", "==", "individual"),
@@ -41,7 +41,6 @@ export default function ChatPageClient() {
         return;
       }
 
-      // 2. Получаем данные обоих пользователей для метаданных
       const [userSnap, targetSnap] = await Promise.all([
         getDoc(doc(db, "users", user.uid)),
         getDoc(doc(db, "users", targetUserId))
@@ -55,7 +54,6 @@ export default function ChatPageClient() {
       const userData = userSnap.data();
       const targetData = targetSnap.data();
 
-      // 3. Создаем новый чат
       const newChat = await addDoc(collection(db, "chats"), {
         participants,
         type: "individual",
@@ -75,13 +73,13 @@ export default function ChatPageClient() {
     }
   };
 
-  // На мобилках: если выбран чат, показываем окно, если нет - сайдбар.
   const showSidebar = !isMobile || !activeChatId;
   const showChat = activeChatId || !isMobile;
 
   return (
     <div className="flex h-[100dvh] overflow-hidden bg-background">
-      {/* Левая панель (Сайдбар) */}
+      <CallOverlay />
+      
       <div className={cn(
         "w-full md:w-80 flex-shrink-0 border-r bg-sidebar/50 backdrop-blur-sm transition-all duration-300",
         !showSidebar && "hidden md:block"
@@ -92,7 +90,6 @@ export default function ChatPageClient() {
         />
       </div>
 
-      {/* Основная область (Окно чата или заглушка) */}
       <main className={cn(
         "flex-1 relative h-full overflow-hidden transition-all duration-300",
         !showChat && "hidden md:flex flex-col items-center justify-center p-8 text-center space-y-6"

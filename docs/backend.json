@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "User": {
@@ -11,6 +12,7 @@
         "photoURL": { "type": "string", "description": "URL или ID аватара" },
         "email": { "type": "string", "format": "email" },
         "lastSeen": { "type": "number" },
+        "status": { "type": "string", "enum": ["online", "offline"] },
         "settings": {
           "type": "object",
           "properties": {
@@ -34,7 +36,8 @@
         "type": { "type": "string", "enum": ["individual", "group", "channel"] },
         "name": { "type": "string" },
         "isPublic": { "type": "boolean" },
-        "createdAt": { "type": "object" }
+        "createdAt": { "type": "object" },
+        "typing": { "type": "object" }
       },
       "required": ["participants", "type", "lastMessageTime"]
     },
@@ -49,9 +52,23 @@
         "text": { "type": "string" },
         "imageUrl": { "type": "string" },
         "audioUrl": { "type": "string" },
+        "duration": { "type": "number" },
         "timestamp": { "type": "number" }
       },
       "required": ["senderId", "type", "timestamp"]
+    },
+    "Call": {
+      "title": "Call",
+      "description": "Сигнальные данные звонка WebRTC",
+      "type": "object",
+      "properties": {
+        "callerId": { "type": "string" },
+        "receiverId": { "type": "string" },
+        "status": { "type": "string", "enum": ["dialing", "ringing", "connected", "ended"] },
+        "offer": { "type": "object" },
+        "answer": { "type": "object" },
+        "timestamp": { "type": "number" }
+      }
     }
   },
   "auth": {
@@ -60,6 +77,7 @@
   "firestore": {
     "/users/{userId}": { "schema": "User", "description": "Профили" },
     "/chats/{chatId}": { "schema": "Chat", "description": "Чаты" },
-    "/chats/{chatId}/messages/{messageId}": { "schema": "Message", "description": "Сообщения" }
+    "/chats/{chatId}/messages/{messageId}": { "schema": "Message", "description": "Сообщения" },
+    "/calls/{callId}": { "schema": "Call", "description": "Сигналинг звонков" }
   }
 }

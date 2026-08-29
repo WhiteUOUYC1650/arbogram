@@ -83,7 +83,6 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
     }
   }, [messages]);
 
-  // Обработка статуса печати
   const handleTyping = () => {
     if (!db || !user || !chatRef) return;
     
@@ -191,8 +190,13 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
   };
 
   const handleCall = () => {
-    if (chatData?.type === 'individual') {
-      toast({ title: t.calling, description: "Video/Audio calls coming soon in v1.2" });
+    if (chatData?.type === 'individual' && user) {
+      const otherId = chatData.participants?.find((p: string) => p !== user.uid);
+      if (otherId && (window as any).__startCall) {
+        (window as any).__startCall(otherId);
+      } else {
+        toast({ title: t.error, description: "Не удалось начать звонок." });
+      }
     } else {
       toast({ title: "Групповые звонки", description: "Функция будет доступна в v1.3" });
     }
