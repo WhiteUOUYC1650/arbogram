@@ -204,7 +204,7 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
           <div className="flex flex-col items-center gap-1 pt-2">
             <div className="flex items-center gap-1.5 text-muted-foreground">
               <Info className="w-3 h-3" />
-              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">CoveChat v1.0 • Rebooting • 2026</span>
+              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">CoveChat v1.4.1 • Redirection • 2026</span>
             </div>
           </div>
         </div>

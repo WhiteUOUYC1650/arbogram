@@ -1,10 +1,9 @@
-
 export const firebaseConfig = {
-  apiKey: "AIzaSyBwFm_ELgNp6CvtHrPvScT-m7bu-L79z38",
-  authDomain: "arbogramchik.firebaseapp.com",
-  projectId: "arbogramchik",
-  storageBucket: "arbogramchik.firebasestorage.app",
-  messagingSenderId: "294100861157",
-  appId: "1:294100861157:web:483a157a873a3fc101d40c",
-  measurementId: "G-XSKJBQNRHC"
+  apiKey: "AIzaSyBfca62tIUFPv6g4tJMI_CX0iJ6KcrJtM8",
+  authDomain: "covechat-a1344.firebaseapp.com",
+  projectId: "covechat-a1344",
+  storageBucket: "covechat-a1344.firebasestorage.app",
+  messagingSenderId: "156058624037",
+  appId: "1:156058624037:web:e8110587f2efb8b3035fcc",
+  measurementId: "G-D3THN5XGSC"
 };

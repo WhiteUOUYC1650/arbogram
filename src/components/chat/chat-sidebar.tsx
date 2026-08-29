@@ -81,8 +81,8 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
                 <div className="py-4 space-y-4">
                   <div className="flex flex-col items-center gap-2 text-center">
                     <ArbogramIcon className="w-20 h-20" />
-                    <h2 className="text-2xl font-bold">{t.version} 1.0</h2>
-                    <p className="text-xs text-primary font-bold uppercase tracking-widest">{t.rebooting}</p>
+                    <h2 className="text-2xl font-bold">{t.version} 1.4.1</h2>
+                    <p className="text-xs text-primary font-bold uppercase tracking-widest">Redirection</p>
                   </div>
                   <div className="space-y-2">
                     <h3 className="font-bold text-sm">{t.changelog}:</h3>
