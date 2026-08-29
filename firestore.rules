@@ -1,11 +1,56 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // ЯДЕРНЫЙ ВАРИАНТ ПРАВИЛ: РАЗРЕШАЕМ ВСЁ АВТОРИЗОВАННЫМ ПОЛЬЗОВАТЕЛЯМ
-    // Это гарантирует, что любые операции (включая update) сработают немедленно.
-    // Версия: 1.4.1 "Redirection"
-    match /{document=**} {
-      allow read, write: if request.auth != null;
+    // Хелпер проверки авторизации
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Профили пользователей: читать могут все, писать только владелец
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Аватары: публичное чтение, запись только владельцем
+    match /avatars/{userId} {
+      allow read: if true;
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Чаты
+    match /chats/{chatId} {
+      // Чтение разрешено участникам или если чат публичный
+      allow read: if isAuthenticated() && (
+        request.auth.uid in resource.data.participants || 
+        resource.data.isPublic == true
+      );
+      
+      allow create: if isAuthenticated();
+      
+      // Обновление (метаданные, вступление в чат) разрешено участникам или если чат публичный
+      allow update: if isAuthenticated() && (
+        request.auth.uid in resource.data.participants || 
+        resource.data.isPublic == true
+      );
+
+      // Сообщения внутри чатов
+      match /messages/{messageId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated();
+        // Удаление разрешено автору или владельцу чата
+        allow delete: if isAuthenticated() && (
+          resource.data.senderId == request.auth.uid ||
+          get(/databases/$(database)/documents/chats/$(chatId)).data.ownerId == request.auth.uid
+        );
+      }
+    }
+
+    // Истории: 24-часовой доступ для всех авторизованных, управление автором
+    match /stories/{storyId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
     }
   }
 }

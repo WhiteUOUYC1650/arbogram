@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useAuth, useFirestore, useUser } from "@/firebase";
@@ -47,10 +46,10 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (user && !loading && step !== "setup") {
-      // Проверяем, есть ли уже профиль в Firestore
       const checkProfile = async () => {
         if (!db || !user) return;
-        const docSnap = await getDocs(query(collection(db, "users"), where("uid", "==", user.uid)));
+        const q = query(collection(db, "users"), where("uid", "==", user.uid));
+        const docSnap = await getDocs(q);
         if (docSnap.empty) {
           setStep("setup");
         } else {
@@ -62,11 +61,11 @@ export default function LoginPage() {
   }, [user, loading, db, router, step]);
 
   const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let val = e.target.value;
+    let val = e.target.value.toLowerCase();
     if (!val.startsWith("@")) {
       val = "@" + val.replace(/@/g, "");
     }
-    setUsername(val.toLowerCase().replace(/\s/g, ""));
+    setUsername(val.replace(/\s/g, ""));
   };
 
   const handleCheckEmail = async (e: React.FormEvent) => {
@@ -74,12 +73,12 @@ export default function LoginPage() {
     if (!db || !email) return;
     setIsSubmitting(true);
     try {
-      const q = query(collection(db, "users"), where("email", "==", email.toLowerCase()));
+      const q = query(collection(db, "users"), where("email", "==", email.toLowerCase().trim()));
       const snapshot = await getDocs(q);
       setIsNewUser(snapshot.empty);
       setStep("password");
     } catch (error) {
-      toast({ variant: "destructive", title: t.error, description: "Ошибка проверки почты." });
+      toast({ variant: "destructive", title: t.error, description: "Connection error." });
     } finally {
       setIsSubmitting(false);
     }
@@ -90,23 +89,23 @@ export default function LoginPage() {
     if (!auth || !db) return;
 
     if (isNewUser && password !== confirmPassword) {
-      toast({ variant: "destructive", title: t.error, description: "Пароли не совпадают." });
+      toast({ variant: "destructive", title: t.error, description: "Passwords do not match." });
       return;
     }
 
     setIsSubmitting(true);
     try {
       if (isNewUser) {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        setStep("setup");
+        await createUserWithEmailAndPassword(auth, email.toLowerCase().trim(), password);
+        // After creation, useEffect will catch the user and set step to "setup"
       } else {
-        await signInWithEmailAndPassword(auth, email, password);
+        await signInWithEmailAndPassword(auth, email.toLowerCase().trim(), password);
         router.push("/");
       }
     } catch (error: any) {
-      let message = "Произошла ошибка.";
-      if (error.code === 'auth/wrong-password') message = "Неверный пароль.";
-      if (error.code === 'auth/user-not-found') message = "Пользователь не найден.";
+      let message = "An error occurred.";
+      if (error.code === 'auth/wrong-password') message = "Wrong password.";
+      if (error.code === 'auth/user-not-found') message = "User not found.";
       toast({ variant: "destructive", title: t.error, description: message });
     } finally {
       setIsSubmitting(false);
@@ -117,40 +116,45 @@ export default function LoginPage() {
     e.preventDefault();
     if (!auth || !db || !user) return;
 
-    if (username === "@" || username.length < 4) {
-      toast({ variant: "destructive", title: t.error, description: "Юзернейм слишком короткий." });
+    const finalUsername = username.toLowerCase().trim();
+
+    if (finalUsername === "@" || finalUsername.length < 4) {
+      toast({ variant: "destructive", title: t.error, description: "Username is too short." });
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const q = query(collection(db, "users"), where("username", "==", username));
+      // КРИТИЧЕСКАЯ ПРОВЕРКА УНИКАЛЬНОСТИ
+      const q = query(collection(db, "users"), where("username", "==", finalUsername));
       const snapshot = await getDocs(q);
       
       if (!snapshot.empty) {
-        toast({ variant: "destructive", title: t.error, description: "Юзернейм занят." });
+        toast({ variant: "destructive", title: t.error, description: "This username is already taken." });
         setIsSubmitting(false);
         return;
       }
 
+      const finalDisplayName = displayName.trim() || email.split('@')[0];
+
       await updateProfile(user, {
-        displayName: displayName || email.split('@')[0]
+        displayName: finalDisplayName
       });
 
       const userData = {
         uid: user.uid,
-        displayName: displayName || email.split('@')[0],
-        username: username,
+        displayName: finalDisplayName,
+        username: finalUsername,
         photoURL: "",
         email: user.email?.toLowerCase(),
         lastSeen: Date.now()
       };
 
       await setDoc(doc(db, "users", user.uid), userData);
-      toast({ title: t.success, description: "Добро пожаловать в Cove!" });
+      toast({ title: t.success, description: "Welcome to CoveChat!" });
       router.push("/");
-    } catch (error) {
-      toast({ variant: "destructive", title: t.error, description: "Ошибка создания профиля." });
+    } catch (error: any) {
+      toast({ variant: "destructive", title: t.error, description: error.message || "Setup failed." });
     } finally {
       setIsSubmitting(false);
     }
@@ -172,7 +176,6 @@ export default function LoginPage() {
         </div>
 
         <div className="bg-card p-8 rounded-[2.5rem] shadow-2xl border border-primary/5 relative overflow-hidden">
-          {/* Email Step */}
           {step === "email" && (
             <form onSubmit={handleCheckEmail} className="space-y-6 animate-in slide-in-from-right duration-300">
               <div className="space-y-2">
@@ -201,7 +204,6 @@ export default function LoginPage() {
             </form>
           )}
 
-          {/* Password Step */}
           {step === "password" && (
             <form onSubmit={handleAuth} className="space-y-6 animate-in slide-in-from-right duration-300">
               <button 
@@ -262,7 +264,6 @@ export default function LoginPage() {
             </form>
           )}
 
-          {/* Setup Step */}
           {step === "setup" && (
             <form onSubmit={handleSetup} className="space-y-6 animate-in slide-in-from-right duration-300">
               <div className="text-center space-y-2 mb-4">
@@ -302,6 +303,7 @@ export default function LoginPage() {
                       disabled={isSubmitting}
                     />
                   </div>
+                  <p className="text-[9px] text-muted-foreground ml-1">Must be unique, letters and numbers only.</p>
                 </div>
               </div>
 

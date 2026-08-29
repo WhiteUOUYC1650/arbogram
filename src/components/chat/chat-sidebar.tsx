@@ -1,14 +1,14 @@
-
 "use client";
 
 import * as React from "react";
-import { Search, Info, MessageSquare, Users, LogOut, Megaphone, Globe, Settings as SettingsIcon, Pencil } from "lucide-react";
+import { Search, Info, MessageSquare, Users, LogOut, Megaphone, Globe, Settings as SettingsIcon, Pencil, Hash } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { useCollection, useFirestore, useAuth, useUser, useMemoFirebase } from "@/firebase";
-import { collection, query, where, orderBy } from "firebase/firestore";
+import { collection, query, where, orderBy, limit } from "firebase/firestore";
 import { signOut } from "firebase/auth";
 import { CreateChatDialog } from "./create-chat-dialog";
 import { StoriesBar } from "@/components/stories/stories-bar";
@@ -25,6 +25,7 @@ interface ChatSidebarProps {
 
 export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
   const [search, setSearch] = React.useState("");
+  const [activeTab, setActiveTab] = React.useState<"my" | "public">("my");
   const [lang, setLang] = React.useState<Language>('ru');
   const db = useFirestore();
   const auth = useAuth();
@@ -37,7 +38,8 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
 
   const t = translations[lang];
 
-  const chatsQuery = useMemoFirebase(() => {
+  // Запрос моих чатов
+  const myChatsQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return query(
       collection(db, "chats"),
@@ -46,18 +48,30 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
     );
   }, [db, user?.uid]);
 
-  const { data: chats } = useCollection(chatsQuery);
+  // Запрос публичных чатов (Мировой чат)
+  const publicChatsQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return query(
+      collection(db, "chats"),
+      where("isPublic", "==", true),
+      limit(20)
+    );
+  }, [db]);
 
-  const filteredChats = chats?.filter(chat => {
+  const { data: myChats } = useCollection(myChatsQuery);
+  const { data: publicChats } = useCollection(publicChatsQuery);
+
+  const displayChats = activeTab === "my" ? (myChats || []) : (publicChats || []);
+
+  const filteredChats = displayChats.filter(chat => {
     const chatName = chat.type === 'individual' && user 
       ? chat.metadata?.[chat.participants.find(p => p !== user.uid)]?.displayName
       : chat.name;
     return (chatName || "Chat").toLowerCase().includes(search.toLowerCase());
-  }) || [];
+  });
 
   return (
     <div className="flex flex-col h-full bg-sidebar/30 relative">
-      {/* Шапка сайдбара */}
       <div className="p-4 pb-2 space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -68,32 +82,6 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
             </div>
           </div>
           <div className="flex gap-0.5">
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button variant="ghost" size="icon" className="rounded-full h-9 w-9">
-                  <Info className="w-5 h-5 text-primary" />
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="rounded-3xl sm:max-w-md">
-                <DialogHeader>
-                  <DialogTitle>{t.whatsNew}</DialogTitle>
-                </DialogHeader>
-                <div className="py-4 space-y-4">
-                  <div className="flex flex-col items-center gap-2 text-center">
-                    <ArbogramIcon className="w-20 h-20" />
-                    <h2 className="text-2xl font-bold">{t.version} 1.4.1</h2>
-                    <p className="text-xs text-primary font-bold uppercase tracking-widest">Redirection</p>
-                  </div>
-                  <div className="space-y-2">
-                    <h3 className="font-bold text-sm">{t.changelog}:</h3>
-                    <p className="text-sm text-muted-foreground bg-sidebar/50 p-4 rounded-2xl border border-primary/5">
-                      {t.v1_0_desc}
-                    </p>
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
-            
             <SettingsDialog>
               <Button variant="ghost" size="icon" className="rounded-full h-9 w-9">
                 <SettingsIcon className="w-5 h-5 text-muted-foreground" />
@@ -121,6 +109,17 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
         </div>
       </div>
 
+      <div className="px-4 py-1">
+        <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="w-full">
+          <TabsList className="grid w-full grid-cols-2 rounded-xl bg-muted/50 h-9">
+            <TabsTrigger value="my" className="text-[10px] font-bold uppercase">{t.chats}</TabsTrigger>
+            <TabsTrigger value="public" className="text-[10px] font-bold uppercase flex items-center gap-1">
+              <Globe className="w-3 h-3" /> {t.public}
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
+
       <StoriesBar />
 
       <ScrollArea className="flex-1">
@@ -139,7 +138,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
                 }
               }
               
-              const Icon = chat.type === "group" ? Users : chat.type === "channel" ? Megaphone : MessageSquare;
+              const Icon = chat.type === "group" ? Users : chat.type === "channel" ? Megaphone : chat.isPublic ? Hash : MessageSquare;
               
               return (
                 <div 
@@ -159,7 +158,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5 min-w-0">
                         <p className="font-semibold text-sm truncate text-foreground">{displayName}</p>
-                        {chat.isPublic && <Globe className="w-3 h-3 text-primary shrink-0" />}
+                        {chat.isPublic && <Globe className="w-3 h-3 text-accent shrink-0" />}
                       </div>
                       <span className="text-[10px] text-muted-foreground shrink-0 ml-2">
                         {chat.lastMessageTime ? new Date(chat.lastMessageTime).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : ""}
@@ -168,7 +167,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
                     <div className="flex items-center gap-1">
                       <Icon className="w-3 h-3 text-muted-foreground shrink-0" />
                       <p className="text-xs text-muted-foreground truncate overflow-hidden text-ellipsis whitespace-nowrap">
-                        {chat.lastMessage || "No messages"}
+                        {chat.lastMessage || (activeTab === 'public' ? "Public Channel" : "No messages")}
                       </p>
                     </div>
                   </div>
@@ -177,13 +176,12 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
             })
           ) : (
             <div className="p-8 text-center space-y-2">
-              <p className="text-xs text-muted-foreground">Empty Cove</p>
+              <p className="text-xs text-muted-foreground">{activeTab === 'my' ? "No active chats" : "No public channels yet"}</p>
             </div>
           )}
         </div>
       </ScrollArea>
 
-      {/* FAB - Плавающая кнопка создания чата */}
       <div className="absolute bottom-6 right-6 z-20">
         <CreateChatDialog onChatCreated={onChatSelect}>
           <Button className="w-14 h-14 rounded-full cove-gradient shadow-2xl hover:scale-105 active:scale-95 transition-transform flex items-center justify-center p-0">
