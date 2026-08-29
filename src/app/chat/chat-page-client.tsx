@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -10,7 +9,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * Основной интерфейс мессенджера (SPA).
- * CoveChat v1.4.1 "Redirection"
+ * CoveChat v1.1 "Redirection"
  */
 export default function ChatPageClient() {
   const [activeChatId, setActiveChatId] = React.useState<string | null>(null);
@@ -51,7 +50,7 @@ export default function ChatPageClient() {
               <h2 className="text-5xl font-bold font-headline text-foreground tracking-tighter">CoveChat</h2>
               <div className="flex items-center justify-center gap-2">
                 <span className="h-px w-8 bg-primary/30" />
-                <p className="text-[10px] font-bold text-primary uppercase tracking-[0.4em]">Redirection v1.4.1</p>
+                <p className="text-[10px] font-bold text-primary uppercase tracking-[0.4em]">Redirection v1.1</p>
                 <span className="h-px w-8 bg-primary/30" />
               </div>
             </div>

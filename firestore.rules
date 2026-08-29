@@ -5,9 +5,9 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Профили: читать могут все, писать только владелец
+    // Профили: разрешаем чтение всем, чтобы работала проверка email при входе (Идентификация)
     match /users/{userId} {
-      allow read: if isAuthenticated();
+      allow read: if true;
       allow write: if isAuthenticated() && request.auth.uid == userId;
     }
 
