@@ -246,6 +246,14 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
     toast({ title: t.success, description: "Copied" });
   };
 
+  const formatMessageDate = (timestamp: number) => {
+    return new Date(timestamp).toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-US', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
+  };
+
   let chatName = chatData?.name || "Chat";
   let avatarTargetId = chatId; 
   let subText = t.online;
@@ -344,11 +352,25 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
 
       <ScrollArea className="flex-1 min-h-0 bg-sidebar/5">
         <div className="p-4 flex flex-col gap-4 max-w-4xl mx-auto">
-          {messages?.map((msg) => {
+          {messages?.reduce((acc: React.ReactNode[], msg, idx) => {
             const isMe = msg.senderId === user?.uid;
             const alignLeft = chatData?.type === 'channel' || !isMe;
             
-            return (
+            const msgDate = formatMessageDate(msg.timestamp);
+            const prevMsg = idx > 0 ? messages[idx - 1] : null;
+            const prevMsgDate = prevMsg ? formatMessageDate(prevMsg.timestamp) : null;
+
+            if (msgDate !== prevMsgDate) {
+              acc.push(
+                <div key={`date-${msg.timestamp}`} className="flex justify-center my-6">
+                  <div className="px-4 py-1.5 bg-sidebar/50 backdrop-blur-md rounded-2xl border border-primary/10 shadow-sm flex items-center gap-2">
+                     <span className="text-[10px] font-black text-primary uppercase tracking-[0.2em]">{msgDate}</span>
+                  </div>
+                </div>
+              );
+            }
+
+            acc.push(
               <div key={msg.id} className={cn("flex flex-col group/msg max-w-[85%] sm:max-w-[75%]", alignLeft ? "mr-auto items-start" : "ml-auto items-end")}>
                 <div className="flex items-start gap-1 w-full">
                   <div className={cn("p-1 rounded-2xl text-sm shadow-sm transition-all overflow-hidden flex-1", !alignLeft ? "cove-gradient text-white rounded-tr-none" : "bg-white dark:bg-zinc-800 text-foreground rounded-tl-none border border-primary/10")}>
@@ -378,7 +400,8 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
                 <span className="text-[10px] text-muted-foreground mt-1 px-1">{new Date(msg.timestamp).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span>
               </div>
             );
-          })}
+            return acc;
+          }, [])}
           <div ref={scrollRef} className="h-2" />
         </div>
       </ScrollArea>
