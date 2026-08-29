@@ -50,7 +50,11 @@ export const translations = {
     results: 'Результаты опроса',
     choose: 'Выберите вариант',
     success: 'Успех',
-    error: 'Ошибка'
+    error: 'Ошибка',
+    whatsNew: 'Что нового?',
+    version: 'Версия',
+    changelog: 'Список изменений',
+    v1_0_desc: 'Первый стабильный релиз CoveChat. Новая система входа, истории, голосовые сообщения и праздничные логотипы.'
   },
   en: {
     appName: 'CoveChat',
@@ -101,7 +105,11 @@ export const translations = {
     results: 'Poll Results',
     choose: 'Choose an option',
     success: 'Success',
-    error: 'Error'
+    error: 'Error',
+    whatsNew: "What's new?",
+    version: 'Version',
+    changelog: 'Changelog',
+    v1_0_desc: 'First stable release of CoveChat. New login system, stories, voice messages, and holiday logos.'
   }
 };
 
