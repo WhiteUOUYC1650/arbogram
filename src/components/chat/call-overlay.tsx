@@ -8,6 +8,7 @@ import { useFirestore, useUser } from "@/firebase";
 import { doc, collection, addDoc, updateDoc, onSnapshot, setDoc, query, where, limit, getDoc } from "firebase/firestore";
 import { UserAvatar } from "@/components/user-avatar";
 import { cn } from "@/lib/utils";
+import { errorEmitter } from "@/firebase/error-emitter";
 
 /**
  * Оверлей звонка. Управляет состоянием WebRTC и UI звонка.
@@ -30,6 +31,7 @@ export function CallOverlay() {
     ],
   };
 
+  // Слушатель входящих звонков
   React.useEffect(() => {
     if (!db || !user) return;
     
@@ -56,6 +58,7 @@ export function CallOverlay() {
     return () => unsubscribe();
   }, [db, user, callStatus]);
 
+  // Слушатель изменений текущего звонка
   React.useEffect(() => {
     if (!db || !activeCall) return;
 
@@ -75,13 +78,20 @@ export function CallOverlay() {
     const pc = new RTCPeerConnection(rtcConfig);
     peerConnection.current = pc;
 
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    localStream.current = stream;
-    stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      localStream.current = stream;
+      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+    } catch (e) {
+      errorEmitter.emit('permission-error', new Error("Доступ к микрофону отклонен"));
+    }
 
+    // КРИТИЧНО: Обработка входящего аудио
     pc.ontrack = (event) => {
-      if (remoteAudioRef.current && event.streams[0]) {
-        remoteAudioRef.current.srcObject = event.streams[0];
+      if (remoteAudioRef.current) {
+        const remoteStream = event.streams[0] || new MediaStream([event.track]);
+        remoteAudioRef.current.srcObject = remoteStream;
+        remoteAudioRef.current.play().catch(() => {});
       }
     };
 
@@ -201,7 +211,14 @@ export function CallOverlay() {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
-      <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
+      {/* КРИТИЧНО: Аудио элемент для WebRTC */}
+      <audio 
+        ref={remoteAudioRef} 
+        autoPlay 
+        playsInline 
+        style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }} 
+      />
+      
       <div className="bg-card w-full max-w-sm mx-4 p-8 rounded-[3rem] shadow-2xl border border-primary/10 flex flex-col items-center gap-8 text-center">
         <div className="relative">
           <UserAvatar userId={otherPartyId} fallback={otherUserData?.displayName} className="w-32 h-32 border-4 border-primary/20 shadow-xl" />

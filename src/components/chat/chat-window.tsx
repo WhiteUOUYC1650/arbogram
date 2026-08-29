@@ -183,7 +183,7 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
   const targetUserRef = useMemoFirebase(() => (db && otherId ? doc(db, "users", otherId) : null), [db, otherId]);
   const { data: targetUserData } = useDoc(targetUserRef);
 
-  let subText = t.online;
+  let subText = t.offline;
   if (chatData?.type === 'individual') {
     if (targetUserData?.status === 'online') {
       subText = t.online;

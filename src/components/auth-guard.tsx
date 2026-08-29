@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useUser, useFirestore } from "@/firebase";
@@ -23,7 +24,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     const updateStatus = (status: "online" | "offline") => {
       updateDoc(userRef, {
         status,
-        lastSeen: status === "offline" ? Date.now() : serverTimestamp()
+        lastSeen: Date.now() // Используем число для консистентности с entity
       }).catch(() => {});
     };
 
