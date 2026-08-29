@@ -81,12 +81,22 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
     if (scrollRef.current) scrollRef.current.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Очистка статуса печатает при размонтировании
+  React.useEffect(() => {
+    return () => {
+      if (db && user && chatRef) {
+        updateDoc(chatRef, { [`typing.${user.uid}`]: deleteField() }).catch(() => {});
+      }
+    };
+  }, [db, user, chatRef]);
+
   const handleTyping = () => {
     if (!db || !user || !chatRef) return;
     updateDoc(chatRef, { [`typing.${user.uid}`]: Date.now() }).catch(() => {});
+    
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => {
-      updateDoc(chatRef, { [`typing.${user.uid}`]: deleteField() }).catch(() => {});
+      if (chatRef) updateDoc(chatRef, { [`typing.${user.uid}`]: deleteField() }).catch(() => {});
     }, 3000);
   };
 
@@ -120,7 +130,11 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
           let lastMsg = msgData.text || "";
           if (imageUrl) lastMsg = `📷 ${t.photo}`;
           if (audioUrl) lastMsg = `🎤 ${t.voice}`;
-          updateDoc(chatRef, { lastMessage: lastMsg, lastMessageTime: Date.now(), [`typing.${user.uid}`]: deleteField() }).catch(() => {});
+          updateDoc(chatRef, { 
+            lastMessage: lastMsg, 
+            lastMessageTime: Date.now(), 
+            [`typing.${user.uid}`]: deleteField() 
+          }).catch(() => {});
         }
         if (!imageUrl && !audioUrl) setMessage("");
       })
@@ -165,7 +179,9 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
     if (chatData?.type === 'individual' && user) {
       const otherId = chatData.participants?.find((p: string) => p !== user.uid);
       if (otherId && (window as any).__startCall) (window as any).__startCall(otherId);
-    } else { toast({ title: "Групповые звонки", description: "Функция будет доступна в v1.3" }); }
+    } else { 
+      toast({ title: "Групповые звонки", description: "Функция будет доступна в v1.3" }); 
+    }
   };
 
   let chatName = chatData?.name || "Chat";
@@ -243,7 +259,7 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
           </Dialog>
         </div>
         <div className="flex items-center gap-1">
-          {chatData?.type !== 'channel' && (
+          {chatData?.type === 'individual' && (
             <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-primary" onClick={handleCall}>
               <Phone className="w-5 h-5" />
             </Button>

@@ -5,7 +5,7 @@ import * as React from "react";
 import { Phone, PhoneOff, Mic, MicOff, Volume2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useFirestore, useUser } from "@/firebase";
-import { doc, collection, addDoc, updateDoc, onSnapshot, setDoc, query, where, limit, getDoc } from "firebase/firestore";
+import { doc, collection, addDoc, updateDoc, onSnapshot, setDoc, query, where, limit, getDoc, deleteDoc, getDocs } from "firebase/firestore";
 import { UserAvatar } from "@/components/user-avatar";
 import { cn } from "@/lib/utils";
 import { errorEmitter } from "@/firebase/error-emitter";
@@ -83,15 +83,12 @@ export function CallOverlay() {
       localStream.current = stream;
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
     } catch (e) {
-      errorEmitter.emit('permission-error', new Error("Доступ к микрофону отклонен"));
+      console.error("Mic access error:", e);
     }
 
-    // КРИТИЧНО: Обработка входящего аудио
     pc.ontrack = (event) => {
       if (remoteAudioRef.current) {
-        const remoteStream = event.streams[0] || new MediaStream([event.track]);
-        remoteAudioRef.current.srcObject = remoteStream;
-        remoteAudioRef.current.play().catch(() => {});
+        remoteAudioRef.current.srcObject = event.streams[0];
       }
     };
 
@@ -118,10 +115,15 @@ export function CallOverlay() {
       const offerDescription = await pc.createOffer();
       await pc.setLocalDescription(offerDescription);
 
+      const offer = {
+        sdp: offerDescription.sdp,
+        type: offerDescription.type,
+      };
+
       await setDoc(callDoc, {
         callerId: user.uid,
         receiverId,
-        offer: { type: offerDescription.type, sdp: offerDescription.sdp },
+        offer,
         status: "dialing",
         timestamp: Date.now()
       });
@@ -137,11 +139,15 @@ export function CallOverlay() {
 
       onSnapshot(collection(db, "calls", callDoc.id, "receiverCandidates"), (snapshot) => {
         snapshot.docChanges().forEach((change) => {
-          if (change.type === "added") pc.addIceCandidate(new RTCIceCandidate(change.doc.data()));
+          if (change.type === "added") {
+            const candidate = new RTCIceCandidate(change.doc.data());
+            pc.addIceCandidate(candidate);
+          }
         });
       });
 
     } catch (e) {
+      console.error("Call start error:", e);
       handleEndCall();
     }
   };
@@ -159,34 +165,52 @@ export function CallOverlay() {
         }
       };
 
-      await pc.setRemoteDescription(new RTCSessionDescription(activeCall.offer));
+      const offerDescription = activeCall.offer;
+      await pc.setRemoteDescription(new RTCSessionDescription(offerDescription));
+
       const answerDescription = await pc.createAnswer();
       await pc.setLocalDescription(answerDescription);
 
+      const answer = {
+        type: answerDescription.type,
+        sdp: answerDescription.sdp,
+      };
+
       await updateDoc(doc(db, "calls", activeCall.id), {
-        answer: { type: answerDescription.type, sdp: answerDescription.sdp },
+        answer,
         status: "connected"
       });
 
       onSnapshot(collection(db, "calls", activeCall.id, "callerCandidates"), (snapshot) => {
         snapshot.docChanges().forEach((change) => {
-          if (change.type === "added") pc.addIceCandidate(new RTCIceCandidate(change.doc.data()));
+          if (change.type === "added") {
+            const candidate = new RTCIceCandidate(change.doc.data());
+            pc.addIceCandidate(candidate);
+          }
         });
       });
 
     } catch (e) {
+      console.error("Call answer error:", e);
       handleEndCall();
     }
   };
 
-  const handleEndCall = () => {
+  const handleEndCall = async () => {
     if (db && activeCall) {
       updateDoc(doc(db, "calls", activeCall.id), { status: "ended" }).catch(() => {});
     }
-    peerConnection.current?.close();
-    localStream.current?.getTracks().forEach(track => track.stop());
-    peerConnection.current = null;
-    localStream.current = null;
+    
+    if (peerConnection.current) {
+      peerConnection.current.close();
+      peerConnection.current = null;
+    }
+    
+    if (localStream.current) {
+      localStream.current.getTracks().forEach(track => track.stop());
+      localStream.current = null;
+    }
+
     setActiveCall(null);
     setCallStatus("idle");
     setOtherUserData(null);
@@ -211,12 +235,11 @@ export function CallOverlay() {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
-      {/* КРИТИЧНО: Аудио элемент для WebRTC */}
       <audio 
         ref={remoteAudioRef} 
         autoPlay 
         playsInline 
-        style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }} 
+        className="hidden"
       />
       
       <div className="bg-card w-full max-w-sm mx-4 p-8 rounded-[3rem] shadow-2xl border border-primary/10 flex flex-col items-center gap-8 text-center">

@@ -24,7 +24,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     const updateStatus = (status: "online" | "offline") => {
       updateDoc(userRef, {
         status,
-        lastSeen: Date.now() // Используем число для консистентности с entity
+        lastSeen: Date.now()
       }).catch(() => {});
     };
 
@@ -32,15 +32,20 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       updateStatus(document.visibilityState === "visible" ? "online" : "offline");
     };
 
+    // Принудительно устанавливаем онлайн при входе
     updateStatus("online");
+
     window.addEventListener("visibilitychange", handleVisibilityChange);
-    
-    // Также ловим закрытие вкладки
+    window.addEventListener("focus", () => updateStatus("online"));
+    window.addEventListener("blur", () => updateStatus("offline"));
     window.addEventListener("beforeunload", () => updateStatus("offline"));
 
     return () => {
       updateStatus("offline");
       window.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", () => updateStatus("online"));
+      window.removeEventListener("blur", () => updateStatus("offline"));
+      window.removeEventListener("beforeunload", () => updateStatus("offline"));
     };
   }, [user, db]);
 
