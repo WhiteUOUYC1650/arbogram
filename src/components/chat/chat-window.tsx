@@ -134,7 +134,7 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
       senderId: user.uid,
       senderName: user.displayName || "User",
       timestamp: Date.now(),
-      type: "text", // default
+      type: "text",
     };
 
     if (imageUrl) {
@@ -261,7 +261,7 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
     if (!msg?.poll) return;
 
     const updatedOptions = msg.poll.options.map((opt: any) => {
-      const voters = opt.voters || [];
+      const voters = Array.isArray(opt.voters) ? opt.voters : [];
       const hasVoted = voters.includes(user.uid);
 
       if (opt.id === optionId) {
@@ -283,15 +283,15 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
       return opt;
     });
 
-    const updateData = {
+    const updatePayload = {
       "poll.options": updatedOptions
     };
 
-    updateDoc(msgRef, updateData).catch(async (e) => {
+    updateDoc(msgRef, updatePayload).catch(async (e) => {
       const error = new FirestorePermissionError({
         path: msgRef.path,
         operation: 'update',
-        requestResourceData: updateData
+        requestResourceData: updatePayload
       });
       (error as any).originalError = e;
       errorEmitter.emit('permission-error', error);
@@ -530,8 +530,8 @@ function PollBubble({ poll, messageId, onVote, isMe, currentUserId, lang }: {
   lang: Language;
 }) {
   const t = translations[lang];
-  const totalVotes = poll.options?.reduce((sum: number, opt: any) => sum + (opt.voters?.length || 0), 0) || 0;
-  const userHasVoted = poll.options?.some((opt: any) => opt.voters?.includes(currentUserId));
+  const totalVotes = poll.options?.reduce((sum: number, opt: any) => sum + (Array.isArray(opt.voters) ? opt.voters.length : 0), 0) || 0;
+  const userHasVoted = poll.options?.some((opt: any) => Array.isArray(opt.voters) && opt.voters.includes(currentUserId));
 
   return (
     <div className="p-4 space-y-3 min-w-[240px] max-w-full">
@@ -541,9 +541,10 @@ function PollBubble({ poll, messageId, onVote, isMe, currentUserId, lang }: {
       </div>
       <div className="space-y-2">
         {poll.options?.map((opt: any) => {
-          const votes = opt.voters?.length || 0;
+          const voters = Array.isArray(opt.voters) ? opt.voters : [];
+          const votes = voters.length;
           const percent = totalVotes > 0 ? Math.round((votes / totalVotes) * 100) : 0;
-          const isVoted = opt.voters?.includes(currentUserId);
+          const isVoted = voters.includes(currentUserId);
           return (
             <div key={opt.id} className="relative cursor-pointer group/opt" onClick={() => onVote(messageId, opt.id)}>
               <div className={cn("relative z-10 flex items-center justify-between p-2 px-3 rounded-xl border transition-all", isVoted ? (isMe ? "bg-white/20 border-white/40" : "bg-primary/10 border-primary/30") : (isMe ? "bg-black/10 border-white/10 hover:bg-black/20" : "bg-sidebar/30 border-primary/5 hover:bg-sidebar/50"))}>
