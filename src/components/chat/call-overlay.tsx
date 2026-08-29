@@ -2,16 +2,15 @@
 "use client";
 
 import * as React from "react";
-import { Phone, PhoneOff, Mic, MicOff, Volume2, User as UserIcon, Loader2 } from "lucide-react";
+import { Phone, PhoneOff, Mic, MicOff, Volume2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useFirestore, useUser, useDoc } from "@/firebase";
+import { useFirestore, useUser } from "@/firebase";
 import { doc, collection, addDoc, updateDoc, onSnapshot, setDoc, query, where, limit, getDoc } from "firebase/firestore";
 import { UserAvatar } from "@/components/user-avatar";
 import { cn } from "@/lib/utils";
 
 /**
  * Оверлей звонка. Управляет состоянием WebRTC и UI звонка.
- * Отображает информацию о том, кто звонит.
  */
 export function CallOverlay() {
   const db = useFirestore();
@@ -23,7 +22,6 @@ export function CallOverlay() {
   
   const peerConnection = React.useRef<RTCPeerConnection | null>(null);
   const localStream = React.useRef<MediaStream | null>(null);
-  const remoteStream = React.useRef<MediaStream | null>(null);
   const remoteAudioRef = React.useRef<HTMLAudioElement | null>(null);
 
   const rtcConfig = {
@@ -32,7 +30,6 @@ export function CallOverlay() {
     ],
   };
 
-  // Слушаем входящие звонки
   React.useEffect(() => {
     if (!db || !user) return;
     
@@ -48,11 +45,8 @@ export function CallOverlay() {
         const docSnap = snapshot.docs[0];
         const callData = { id: docSnap.id, ...docSnap.data() };
         
-        // Получаем данные звонящего для отображения
         const callerSnap = await getDoc(doc(db, "users", callData.callerId));
-        if (callerSnap.exists()) {
-          setOtherUserData(callerSnap.data());
-        }
+        if (callerSnap.exists()) setOtherUserData(callerSnap.data());
         
         setActiveCall(callData);
         setCallStatus("ringing");
@@ -62,7 +56,6 @@ export function CallOverlay() {
     return () => unsubscribe();
   }, [db, user, callStatus]);
 
-  // Следим за состоянием активного звонка
   React.useEffect(() => {
     if (!db || !activeCall) return;
 
@@ -82,13 +75,14 @@ export function CallOverlay() {
     const pc = new RTCPeerConnection(rtcConfig);
     peerConnection.current = pc;
 
-    localStream.current = await navigator.mediaDevices.getUserMedia({ audio: true });
-    localStream.current.getTracks().forEach((track) => pc.addTrack(track, localStream.current!));
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    localStream.current = stream;
+    stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
-    remoteStream.current = new MediaStream();
     pc.ontrack = (event) => {
-      event.streams[0].getTracks().forEach((track) => remoteStream.current?.addTrack(track));
-      if (remoteAudioRef.current) remoteAudioRef.current.srcObject = remoteStream.current;
+      if (remoteAudioRef.current && event.streams[0]) {
+        remoteAudioRef.current.srcObject = event.streams[0];
+      }
     };
 
     return pc;
@@ -99,11 +93,8 @@ export function CallOverlay() {
     setCallStatus("dialing");
 
     try {
-      // Предварительно получаем данные того, кому звоним
       const receiverSnap = await getDoc(doc(db, "users", receiverId));
-      if (receiverSnap.exists()) {
-        setOtherUserData(receiverSnap.data());
-      }
+      if (receiverSnap.exists()) setOtherUserData(receiverSnap.data());
 
       const pc = await setupWebRTC();
       const callDoc = doc(collection(db, "calls"));
@@ -117,15 +108,10 @@ export function CallOverlay() {
       const offerDescription = await pc.createOffer();
       await pc.setLocalDescription(offerDescription);
 
-      const offer = {
-        type: offerDescription.type,
-        sdp: offerDescription.sdp,
-      };
-
       await setDoc(callDoc, {
         callerId: user.uid,
         receiverId,
-        offer,
+        offer: { type: offerDescription.type, sdp: offerDescription.sdp },
         status: "dialing",
         timestamp: Date.now()
       });
@@ -135,22 +121,17 @@ export function CallOverlay() {
       onSnapshot(callDoc, (snapshot) => {
         const data = snapshot.data();
         if (data?.answer && !pc.currentRemoteDescription) {
-          const answerDescription = new RTCSessionDescription(data.answer);
-          pc.setRemoteDescription(answerDescription);
+          pc.setRemoteDescription(new RTCSessionDescription(data.answer));
         }
       });
 
       onSnapshot(collection(db, "calls", callDoc.id, "receiverCandidates"), (snapshot) => {
         snapshot.docChanges().forEach((change) => {
-          if (change.type === "added") {
-            const candidate = new RTCIceCandidate(change.doc.data());
-            pc.addIceCandidate(candidate);
-          }
+          if (change.type === "added") pc.addIceCandidate(new RTCIceCandidate(change.doc.data()));
         });
       });
 
     } catch (e) {
-      console.error("Call start error:", e);
       handleEndCall();
     }
   };
@@ -168,28 +149,22 @@ export function CallOverlay() {
         }
       };
 
-      const callDoc = doc(db, "calls", activeCall.id);
       await pc.setRemoteDescription(new RTCSessionDescription(activeCall.offer));
-
       const answerDescription = await pc.createAnswer();
       await pc.setLocalDescription(answerDescription);
 
-      await updateDoc(callDoc, {
+      await updateDoc(doc(db, "calls", activeCall.id), {
         answer: { type: answerDescription.type, sdp: answerDescription.sdp },
         status: "connected"
       });
 
       onSnapshot(collection(db, "calls", activeCall.id, "callerCandidates"), (snapshot) => {
         snapshot.docChanges().forEach((change) => {
-          if (change.type === "added") {
-            const candidate = new RTCIceCandidate(change.doc.data());
-            pc.addIceCandidate(candidate);
-          }
+          if (change.type === "added") pc.addIceCandidate(new RTCIceCandidate(change.doc.data()));
         });
       });
 
     } catch (e) {
-      console.error("Call answer error:", e);
       handleEndCall();
     }
   };
@@ -198,13 +173,10 @@ export function CallOverlay() {
     if (db && activeCall) {
       updateDoc(doc(db, "calls", activeCall.id), { status: "ended" }).catch(() => {});
     }
-    
     peerConnection.current?.close();
     localStream.current?.getTracks().forEach(track => track.stop());
-    
     peerConnection.current = null;
     localStream.current = null;
-    remoteStream.current = null;
     setActiveCall(null);
     setCallStatus("idle");
     setOtherUserData(null);
@@ -229,73 +201,35 @@ export function CallOverlay() {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
-      <audio ref={remoteAudioRef} autoPlay className="hidden" />
-      
+      <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
       <div className="bg-card w-full max-w-sm mx-4 p-8 rounded-[3rem] shadow-2xl border border-primary/10 flex flex-col items-center gap-8 text-center">
         <div className="relative">
-          <UserAvatar 
-            userId={otherPartyId} 
-            fallback={otherUserData?.displayName} 
-            className="w-32 h-32 border-4 border-primary/20 shadow-xl" 
-          />
+          <UserAvatar userId={otherPartyId} fallback={otherUserData?.displayName} className="w-32 h-32 border-4 border-primary/20 shadow-xl" />
           {callStatus === "connected" && (
             <div className="absolute -bottom-2 -right-2 bg-green-500 p-2 rounded-full border-4 border-card animate-pulse">
               <Volume2 className="w-5 h-5 text-white" />
             </div>
           )}
         </div>
-
         <div className="space-y-2">
-          <h2 className="text-2xl font-bold font-headline tracking-tight">
-            {otherUserData?.displayName || "Пользователь"}
-          </h2>
+          <h2 className="text-2xl font-bold">{otherUserData?.displayName || "Пользователь"}</h2>
           <p className="text-sm text-primary font-bold uppercase tracking-widest opacity-80">
             {callStatus === "ringing" ? "Входящий вызов" : callStatus === "dialing" ? "Набор номера..." : "В разговоре"}
           </p>
         </div>
-
         <div className="flex items-center gap-6 mt-4">
           {callStatus === "ringing" ? (
             <>
-              <Button 
-                onClick={handleEndCall}
-                variant="destructive"
-                className="w-16 h-16 rounded-full p-0 shadow-lg shadow-destructive/20 active:scale-95 transition-transform"
-              >
-                <PhoneOff className="w-6 h-6" />
-              </Button>
-              <Button 
-                onClick={answerCall}
-                className="w-16 h-16 rounded-full p-0 bg-green-500 hover:bg-green-600 text-white shadow-lg shadow-green-500/20 active:scale-95 transition-transform"
-              >
-                <Phone className="w-6 h-6" />
-              </Button>
+              <Button onClick={handleEndCall} variant="destructive" className="w-16 h-16 rounded-full p-0 shadow-lg active:scale-95"><PhoneOff className="w-6 h-6" /></Button>
+              <Button onClick={answerCall} className="w-16 h-16 rounded-full p-0 bg-green-500 text-white shadow-lg active:scale-95"><Phone className="w-6 h-6" /></Button>
             </>
           ) : (
             <>
-              <Button 
-                variant="outline"
-                onClick={toggleMute}
-                className={cn(
-                  "w-14 h-14 rounded-full p-0 border-2 transition-all active:scale-95",
-                  isMuted ? "bg-red-500/10 border-red-500 text-red-500" : "border-primary/20 text-muted-foreground hover:text-primary"
-                )}
-              >
+              <Button variant="outline" onClick={toggleMute} className={cn("w-14 h-14 rounded-full p-0 border-2 transition-all active:scale-95", isMuted ? "bg-red-500/10 border-red-500 text-red-500" : "border-primary/20 text-muted-foreground")}>
                 {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
               </Button>
-              <Button 
-                onClick={handleEndCall}
-                variant="destructive"
-                className="w-20 h-20 rounded-full p-0 shadow-xl shadow-destructive/30 active:scale-90 transition-transform"
-              >
-                <PhoneOff className="w-8 h-8" />
-              </Button>
-              <Button 
-                variant="outline"
-                className="w-14 h-14 rounded-full p-0 border-2 border-primary/20 text-muted-foreground"
-              >
-                <Volume2 className="w-5 h-5" />
-              </Button>
+              <Button onClick={handleEndCall} variant="destructive" className="w-20 h-20 rounded-full p-0 shadow-xl active:scale-90"><PhoneOff className="w-8 h-8" /></Button>
+              <Button variant="outline" className="w-14 h-14 rounded-full p-0 border-2 border-primary/20 text-muted-foreground"><Volume2 className="w-5 h-5" /></Button>
             </>
           )}
         </div>

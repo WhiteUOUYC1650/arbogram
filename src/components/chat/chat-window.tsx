@@ -78,24 +78,15 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
   const scrollRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollIntoView({ behavior: "smooth" });
-    }
+    if (scrollRef.current) scrollRef.current.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   const handleTyping = () => {
     if (!db || !user || !chatRef) return;
-    
-    updateDoc(chatRef, {
-      [`typing.${user.uid}`]: Date.now()
-    }).catch(() => {});
-
+    updateDoc(chatRef, { [`typing.${user.uid}`]: Date.now() }).catch(() => {});
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-
     typingTimeoutRef.current = setTimeout(() => {
-      updateDoc(chatRef, {
-        [`typing.${user.uid}`]: deleteField()
-      }).catch(() => {});
+      updateDoc(chatRef, { [`typing.${user.uid}`]: deleteField() }).catch(() => {});
     }, 3000);
   };
 
@@ -129,21 +120,12 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
           let lastMsg = msgData.text || "";
           if (imageUrl) lastMsg = `📷 ${t.photo}`;
           if (audioUrl) lastMsg = `🎤 ${t.voice}`;
-          
-          updateDoc(chatRef, {
-            lastMessage: lastMsg,
-            lastMessageTime: Date.now(),
-            [`typing.${user.uid}`]: deleteField()
-          }).catch(() => {});
+          updateDoc(chatRef, { lastMessage: lastMsg, lastMessageTime: Date.now(), [`typing.${user.uid}`]: deleteField() }).catch(() => {});
         }
         if (!imageUrl && !audioUrl) setMessage("");
       })
       .catch(async (e) => {
-        const error = new FirestorePermissionError({
-          path: `chats/${chatId}/messages`,
-          operation: "create",
-          requestResourceData: msgData
-        });
+        const error = new FirestorePermissionError({ path: `chats/${chatId}/messages`, operation: "create", requestResourceData: msgData });
         (error as any).originalError = e;
         errorEmitter.emit("permission-error", error);
       })
@@ -156,29 +138,19 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) audioChunksRef.current.push(event.data);
-      };
-
+      mediaRecorder.ondataavailable = (event) => { if (event.data.size > 0) audioChunksRef.current.push(event.data); };
       mediaRecorder.onstop = async () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         const reader = new FileReader();
         reader.readAsDataURL(audioBlob);
-        reader.onloadend = () => {
-          handleSend({ audioUrl: reader.result as string, duration: recordingTime });
-          setRecordingTime(0);
-        };
+        reader.onloadend = () => { handleSend({ audioUrl: reader.result as string, duration: recordingTime }); setRecordingTime(0); };
         stream.getTracks().forEach(track => track.stop());
       };
-
       mediaRecorder.start();
       setIsRecording(true);
       setRecordingTime(0);
       timerRef.current = setInterval(() => setRecordingTime(prev => prev + 1), 1000);
-    } catch (err) {
-      toast({ variant: "destructive", title: t.error, description: t.micRequired });
-    }
+    } catch (err) { toast({ variant: "destructive", title: t.error, description: t.micRequired }); }
   };
 
   const stopRecording = () => {
@@ -192,25 +164,32 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
   const handleCall = () => {
     if (chatData?.type === 'individual' && user) {
       const otherId = chatData.participants?.find((p: string) => p !== user.uid);
-      if (otherId && (window as any).__startCall) {
-        (window as any).__startCall(otherId);
-      } else {
-        toast({ title: t.error, description: "Не удалось начать звонок." });
-      }
-    } else {
-      toast({ title: "Групповые звонки", description: "Функция будет доступна в v1.3" });
-    }
+      if (otherId && (window as any).__startCall) (window as any).__startCall(otherId);
+    } else { toast({ title: "Групповые звонки", description: "Функция будет доступна в v1.3" }); }
   };
 
   let chatName = chatData?.name || "Chat";
   let avatarTargetId = chatId; 
-  let subText = t.online;
+  let otherId = "";
 
   if (chatData?.type === 'individual' && user) {
-    const otherId = chatData.participants?.find((p: string) => p !== user.uid);
+    otherId = chatData.participants?.find((p: string) => p !== user.uid) || "";
     if (otherId && chatData.metadata?.[otherId]) {
       chatName = chatData.metadata[otherId].displayName;
       avatarTargetId = otherId;
+    }
+  }
+
+  const targetUserRef = useMemoFirebase(() => (db && otherId ? doc(db, "users", otherId) : null), [db, otherId]);
+  const { data: targetUserData } = useDoc(targetUserRef);
+
+  let subText = t.online;
+  if (chatData?.type === 'individual') {
+    if (targetUserData?.status === 'online') {
+      subText = t.online;
+    } else {
+      const timeStr = targetUserData?.lastSeen ? new Date(targetUserData.lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+      subText = `${t.offline}${timeStr ? ` (${timeStr})` : ''}`;
     }
   } else if (chatData?.type === 'group') {
     subText = `${chatData.participants?.length || 0} ${t.members}`;
@@ -240,7 +219,12 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
           <Dialog>
             <DialogTrigger asChild>
               <div className="cursor-pointer flex items-center gap-3">
-                <UserAvatar userId={avatarTargetId} fallback={chatName} className="w-10 h-10 border-2 border-primary/20 shrink-0" />
+                <div className="relative shrink-0">
+                  <UserAvatar userId={avatarTargetId} fallback={chatName} className="w-10 h-10 border-2 border-primary/20" />
+                  {targetUserData?.status === 'online' && chatData?.type === 'individual' && (
+                    <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white dark:border-zinc-900 rounded-full" />
+                  )}
+                </div>
                 <div className="min-w-0">
                   <h2 className="font-semibold text-sm leading-tight truncate max-w-[150px] sm:max-w-none flex items-center gap-1 text-foreground">
                     {chatName}
@@ -254,7 +238,7 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
             </DialogTrigger>
             <DialogContent className="rounded-3xl p-0 overflow-hidden">
               <DialogHeader className="p-6 pb-0"><DialogTitle>{t.profile}</DialogTitle></DialogHeader>
-              <ProfileDetails userId={avatarTargetId} chatData={chatData} t={t} />
+              <ProfileDetails userId={avatarTargetId} chatData={chatData} t={t} onStartChat={otherId ? () => onStartDirectChat?.(otherId) : undefined} />
             </DialogContent>
           </Dialog>
         </div>
@@ -264,9 +248,7 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
               <Phone className="w-5 h-5" />
             </Button>
           )}
-          <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-primary" onClick={() => {}}>
-            <MoreVertical className="w-5 h-5" />
-          </Button>
+          <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-primary"><MoreVertical className="w-5 h-5" /></Button>
         </div>
       </div>
 
@@ -275,10 +257,8 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
           {messages?.reduce((acc: React.ReactNode[], msg, idx) => {
             const isMe = msg.senderId === user?.uid;
             const alignLeft = chatData?.type === 'channel' || !isMe;
-            
             const msgDate = new Date(msg.timestamp).toLocaleDateString();
-            const prevMsg = idx > 0 ? messages[idx - 1] : null;
-            const prevMsgDate = prevMsg ? new Date(prevMsg.timestamp).toLocaleDateString() : null;
+            const prevMsgDate = idx > 0 ? new Date(messages[idx - 1].timestamp).toLocaleDateString() : null;
 
             if (msgDate !== prevMsgDate) {
               acc.push(
@@ -304,7 +284,7 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
                         </DialogTrigger>
                         <DialogContent className="rounded-3xl p-0 overflow-hidden">
                           <DialogHeader className="p-6 pb-0"><DialogTitle>{t.profile}</DialogTitle></DialogHeader>
-                          <ProfileDetails userId={msg.senderId} chatData={null} t={t} onStartChat={() => onStartDirectChat?.(msg.senderId)} />
+                          <ProfileDetails userId={msg.senderId} t={t} onStartChat={() => onStartDirectChat?.(msg.senderId)} />
                         </DialogContent>
                       </Dialog>
                     )}
@@ -348,13 +328,8 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
                     placeholder={t.message} 
                     className="pr-10 bg-background border-none rounded-full h-11" 
                     value={message} 
-                    onChange={(e) => {
-                      setMessage(e.target.value);
-                      handleTyping();
-                    }} 
-                    onKeyDown={(e) => { 
-                      if (e.key === 'Enter') handleSend({}); 
-                    }} 
+                    onChange={(e) => { setMessage(e.target.value); handleTyping(); }} 
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleSend({}); }} 
                   />
                 </div>
                 {message.trim() ? (
@@ -369,9 +344,7 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
           </div>
         </div>
       ) : (
-        <div className="p-4 bg-sidebar/20 text-center border-t shrink-0">
-          <p className="text-xs text-muted-foreground">{t.adminsOnly}</p>
-        </div>
+        <div className="p-4 bg-sidebar/20 text-center border-t shrink-0"><p className="text-xs text-muted-foreground">{t.adminsOnly}</p></div>
       )}
     </div>
   );
@@ -389,43 +362,16 @@ function ProfileDetails({ userId, chatData, t, onStartChat }: { userId: string, 
         <div className="text-center space-y-1">
           <h3 className="text-xl font-bold">{userData?.displayName || chatData?.name}</h3>
           <div className="flex items-center justify-center gap-2">
-            <p className="text-[10px] text-primary font-bold uppercase tracking-widest opacity-80">{userData?.username || "@cove_user"}</p>
+            <p className="text-[10px] text-primary font-bold uppercase tracking-widest opacity-80">{userData?.username || "@user"}</p>
             {userData?.status === 'online' ? (
               <span className="flex h-2 w-2 rounded-full bg-green-500" />
             ) : (
-              <span className="text-[9px] text-muted-foreground">
-                ({t.offline} {userData?.lastSeen ? new Date(userData.lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''})
-              </span>
+              <span className="text-[9px] text-muted-foreground">({t.offline} {userData?.lastSeen ? new Date(userData.lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''})</span>
             )}
           </div>
         </div>
       </div>
-      
-      {onStartChat && (
-        <Button className="rounded-2xl cove-gradient w-full h-12 gap-2" onClick={onStartChat}>
-          <MessageCircle className="w-5 h-5" />
-          {t.sendMessage}
-        </Button>
-      )}
-
-      <div className="space-y-3">
-        <div className="bg-sidebar/30 p-4 rounded-2xl border border-primary/5 flex items-center gap-3">
-          <Globe className="w-5 h-5 text-accent" />
-          <div className="flex-1">
-            <p className="text-[10px] font-bold text-muted-foreground uppercase">{t.public}</p>
-            <p className="text-sm font-medium">{chatData?.isPublic || userData?.isPublic ? "Public" : "Private"}</p>
-          </div>
-        </div>
-        <div className="bg-sidebar/30 p-4 rounded-2xl border border-primary/5 flex items-center gap-3">
-          <Calendar className="w-5 h-5 text-orange-400" />
-          <div className="flex-1">
-            <p className="text-[10px] font-bold text-muted-foreground uppercase">Joined</p>
-            <p className="text-sm font-medium">
-              {chatData?.createdAt?.seconds ? new Date(chatData.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}
-            </p>
-          </div>
-        </div>
-      </div>
+      {onStartChat && <Button className="rounded-2xl cove-gradient w-full h-12 gap-2" onClick={onStartChat}><MessageCircle className="w-5 h-5" />{t.sendMessage}</Button>}
     </div>
   );
 }
@@ -434,7 +380,6 @@ function AudioBubble({ audioUrl, duration, isMe }: { audioUrl: string; duration?
   const [isPlaying, setIsPlaying] = React.useState(false);
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
   const togglePlay = () => { if (audioRef.current) { if (isPlaying) audioRef.current.pause(); else audioRef.current.play(); setIsPlaying(!isPlaying); } };
-
   return (
     <div className="flex items-center gap-3 p-3 py-2 min-w-[200px]">
       <audio ref={audioRef} src={audioUrl} onEnded={() => setIsPlaying(false)} className="hidden" />
@@ -443,7 +388,7 @@ function AudioBubble({ audioUrl, duration, isMe }: { audioUrl: string; duration?
       </Button>
       <div className="flex-1">
         <div className={cn("w-full h-1 rounded-full", isMe ? "bg-white/20" : "bg-primary/10")} />
-        <span className={cn("text-[9px] font-bold opacity-70", isMe ? "text-white" : "text-muted-foreground")}>{Math.floor(duration||0/60)}:{String(duration||0%60).padStart(2,'0')}</span>
+        <span className={cn("text-[9px] font-bold opacity-70", isMe ? "text-white" : "text-muted-foreground")}>{Math.floor((duration||0)/60)}:{String((duration||0)%60).padStart(2,'0')}</span>
       </div>
     </div>
   );
