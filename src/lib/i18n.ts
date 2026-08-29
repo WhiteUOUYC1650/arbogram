@@ -3,7 +3,7 @@ export type Language = 'ru' | 'en';
 export const translations = {
   ru: {
     appName: 'CoveChat',
-    rebooting: 'Redirection v1.4.1',
+    rebooting: 'Redirection v1.1',
     login: 'Вход',
     registration: 'Регистрация',
     email: 'Электронная почта',
@@ -54,11 +54,11 @@ export const translations = {
     whatsNew: 'Что нового?',
     version: 'Версия',
     changelog: 'Список изменений',
-    v1_0_desc: 'Версия 1.4.1 «Redirection». Переезд на новый стабильный сервер Firebase и глобальное обновление системы роутинга.'
+    v1_0_desc: 'Версия 1.1 «Redirection». Переезд на новый стабильный сервер Firebase и глобальное обновление системы роутинга.'
   },
   en: {
     appName: 'CoveChat',
-    rebooting: 'Redirection v1.4.1',
+    rebooting: 'Redirection v1.1',
     login: 'Sign In',
     registration: 'Registration',
     email: 'Email',
@@ -109,7 +109,7 @@ export const translations = {
     whatsNew: "What's new?",
     version: 'Version',
     changelog: 'Changelog',
-    v1_0_desc: 'Version 1.4.1 "Redirection". Migration to a new stable Firebase server and global routing system update.'
+    v1_0_desc: 'Version 1.1 "Redirection". Migration to a new stable Firebase server and global routing system update.'
   }
 };
 
