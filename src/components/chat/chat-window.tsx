@@ -4,14 +4,15 @@ import * as React from "react";
 import { 
   Info, Send, Paperclip, Smile, Megaphone, X, Loader2, 
   ImageIcon, MoreVertical, Trash2, Copy, Phone,
-  Mic, Square, Play, Pause, Volume2, Globe, Calendar, User as UserIcon
+  Mic, Square, Play, Pause, Volume2, Globe, Calendar, User as UserIcon,
+  MessageCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useCollection, useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
-import { collection, query, orderBy, addDoc, doc, updateDoc, deleteDoc } from "firebase/firestore";
+import { collection, query, orderBy, addDoc, doc, updateDoc, deleteDoc, deleteField } from "firebase/firestore";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { UserAvatar } from "@/components/user-avatar";
@@ -29,21 +30,15 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { translations, Language } from "@/lib/i18n";
-
-const COMMON_EMOJIS = ["😀", "😂", "🥰", "😍", "😎", "🤔", "😊", "👍", "🔥", "❤️", "✨", "🎉", "🙌", "😭", "😮", "🙏", "🚀", "🍕", "☀️", "🌚"];
 
 interface ChatWindowProps {
   chatId: string;
   onBack?: () => void;
+  onStartDirectChat?: (targetUserId: string) => void;
 }
 
-export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
+export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProps) {
   const [message, setMessage] = React.useState("");
   const [isSending, setIsSending] = React.useState(false);
   const [isRecording, setIsRecording] = React.useState(false);
@@ -65,6 +60,7 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
   const mediaRecorderRef = React.useRef<MediaRecorder | null>(null);
   const audioChunksRef = React.useRef<Blob[]>([]);
   const timerRef = React.useRef<NodeJS.Timeout | null>(null);
+  const typingTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
   const chatRef = useMemoFirebase(() => db ? doc(db, "chats", chatId) : null, [db, chatId]);
   const { data: chatData } = useDoc(chatRef);
@@ -85,6 +81,24 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
       scrollRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages]);
+
+  // Обработка статуса печати
+  const handleTyping = () => {
+    if (!db || !user || !chatRef) return;
+    
+    // Обновляем статус в Firestore
+    updateDoc(chatRef, {
+      [`typing.${user.uid}`]: Date.now()
+    }).catch(() => {});
+
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+
+    typingTimeoutRef.current = setTimeout(() => {
+      updateDoc(chatRef, {
+        [`typing.${user.uid}`]: deleteField()
+      }).catch(() => {});
+    }, 3000);
+  };
 
   const handleSend = (options: { imageUrl?: string; audioUrl?: string; duration?: number }) => {
     const { imageUrl, audioUrl, duration } = options;
@@ -119,7 +133,8 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
           
           updateDoc(chatRef, {
             lastMessage: lastMsg,
-            lastMessageTime: Date.now()
+            lastMessageTime: Date.now(),
+            [`typing.${user.uid}`]: deleteField() // Сбрасываем статус печати после отправки
           }).catch(() => {});
         }
         if (!imageUrl && !audioUrl) setMessage("");
@@ -176,7 +191,11 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
   };
 
   const handleCall = () => {
-    toast({ title: t.calling, description: "Video/Audio calls coming soon in v1.2" });
+    if (chatData?.type === 'individual') {
+      toast({ title: t.calling, description: "Video/Audio calls coming soon in v1.2" });
+    } else {
+      toast({ title: "Групповые звонки", description: "Функция будет доступна в v1.3" });
+    }
   };
 
   let chatName = chatData?.name || "Chat";
@@ -194,6 +213,15 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
   } else if (chatData?.type === 'channel') {
     subText = t.channel;
   }
+
+  // Определяем кто печатает (кроме меня)
+  const typingUsers = React.useMemo(() => {
+    if (!chatData?.typing || !user) return [];
+    const now = Date.now();
+    return Object.entries(chatData.typing)
+      .filter(([uid, timestamp]) => uid !== user.uid && now - (timestamp as number) < 5000)
+      .map(([uid]) => chatData.metadata?.[uid]?.displayName || "Кто-то");
+  }, [chatData?.typing, user]);
 
   const canWrite = chatData?.type !== 'channel' || chatData?.ownerId === user?.uid;
 
@@ -215,7 +243,9 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
                     {chatName}
                     {chatData?.type === 'channel' && <Megaphone className="w-3 h-3 text-primary" />}
                   </h2>
-                  <p className="text-[10px] text-primary font-bold tracking-wider uppercase opacity-80">{subText}</p>
+                  <p className="text-[10px] text-primary font-bold tracking-wider uppercase opacity-80">
+                    {typingUsers.length > 0 ? `${typingUsers.join(', ')} ${t.typing}` : subText}
+                  </p>
                 </div>
               </div>
             </DialogTrigger>
@@ -226,9 +256,11 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
           </Dialog>
         </div>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-primary" onClick={handleCall}>
-            <Phone className="w-5 h-5" />
-          </Button>
+          {chatData?.type !== 'channel' && (
+            <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-primary" onClick={handleCall}>
+              <Phone className="w-5 h-5" />
+            </Button>
+          )}
           <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-primary" onClick={() => {}}>
             <MoreVertical className="w-5 h-5" />
           </Button>
@@ -260,10 +292,18 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
                 <div className="flex items-start gap-1 w-full">
                   <div className={cn("p-1 rounded-2xl text-sm shadow-sm transition-all overflow-hidden flex-1", !alignLeft ? "cove-gradient text-white rounded-tr-none" : "bg-white dark:bg-zinc-800 text-foreground rounded-tl-none border border-primary/10")}>
                     {chatData?.type === 'group' && !isMe && (
-                      <div className="flex items-center gap-2 mb-1 px-3 pt-2">
-                        <UserAvatar userId={msg.senderId} fallback={msg.senderName} className="w-4 h-4 shrink-0" />
-                        <p className="text-[9px] font-bold opacity-70">{msg.senderName}</p>
-                      </div>
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <div className="flex items-center gap-2 mb-1 px-3 pt-2 cursor-pointer hover:opacity-80 transition-opacity">
+                            <UserAvatar userId={msg.senderId} fallback={msg.senderName} className="w-4 h-4 shrink-0" />
+                            <p className="text-[9px] font-bold opacity-70">{msg.senderName}</p>
+                          </div>
+                        </DialogTrigger>
+                        <DialogContent className="rounded-3xl p-0 overflow-hidden">
+                          <DialogHeader className="p-6 pb-0"><DialogTitle>{t.profile}</DialogTitle></DialogHeader>
+                          <ProfileDetails userId={msg.senderId} chatData={null} t={t} onStartChat={() => onStartDirectChat?.(msg.senderId)} />
+                        </DialogContent>
+                      </Dialog>
                     )}
                     {msg.type === "image" && msg.imageUrl && <img src={msg.imageUrl} alt="Shared" className="w-full max-h-[300px] object-cover rounded-xl" />}
                     {msg.type === "audio" && msg.audioUrl && <AudioBubble audioUrl={msg.audioUrl} duration={msg.duration} isMe={!alignLeft} />}
@@ -301,7 +341,18 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
                 }} />
                 <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground shrink-0" onClick={() => fileInputRef.current?.click()}><Paperclip className="w-5 h-5" /></Button>
                 <div className="flex-1 relative min-w-0">
-                  <Input placeholder={t.message} className="pr-10 bg-background border-none rounded-full h-11" value={message} onChange={(e) => setMessage(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleSend({}); }} />
+                  <Input 
+                    placeholder={t.message} 
+                    className="pr-10 bg-background border-none rounded-full h-11" 
+                    value={message} 
+                    onChange={(e) => {
+                      setMessage(e.target.value);
+                      handleTyping();
+                    }} 
+                    onKeyDown={(e) => { 
+                      if (e.key === 'Enter') handleSend({}); 
+                    }} 
+                  />
                 </div>
                 {message.trim() ? (
                   <Button className="rounded-full cove-gradient text-white px-4 h-11 shrink-0" onClick={() => handleSend({})} disabled={isSending}>
@@ -323,7 +374,7 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
   );
 }
 
-function ProfileDetails({ userId, chatData, t }: { userId: string, chatData: any, t: any }) {
+function ProfileDetails({ userId, chatData, t, onStartChat }: { userId: string, chatData?: any, t: any, onStartChat?: () => void }) {
   const db = useFirestore();
   const userRef = useMemoFirebase(() => db ? doc(db, "users", userId) : null, [db, userId]);
   const { data: userData } = useDoc(userRef);
@@ -334,22 +385,41 @@ function ProfileDetails({ userId, chatData, t }: { userId: string, chatData: any
         <UserAvatar userId={userId} fallback={userData?.displayName || chatData?.name} className="w-24 h-24 border-4 border-primary/20" />
         <div className="text-center space-y-1">
           <h3 className="text-xl font-bold">{userData?.displayName || chatData?.name}</h3>
-          <p className="text-[10px] text-primary font-bold uppercase tracking-widest opacity-80">{userData?.username || "@cove_user"}</p>
+          <div className="flex items-center justify-center gap-2">
+            <p className="text-[10px] text-primary font-bold uppercase tracking-widest opacity-80">{userData?.username || "@cove_user"}</p>
+            {userData?.status === 'online' ? (
+              <span className="flex h-2 w-2 rounded-full bg-green-500" />
+            ) : (
+              <span className="text-[9px] text-muted-foreground">
+                ({t.offline} {userData?.lastSeen ? new Date(userData.lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''})
+              </span>
+            )}
+          </div>
         </div>
       </div>
+      
+      {onStartChat && (
+        <Button className="rounded-2xl cove-gradient w-full h-12 gap-2" onClick={onStartChat}>
+          <MessageCircle className="w-5 h-5" />
+          {t.sendMessage}
+        </Button>
+      )}
+
       <div className="space-y-3">
         <div className="bg-sidebar/30 p-4 rounded-2xl border border-primary/5 flex items-center gap-3">
           <Globe className="w-5 h-5 text-accent" />
           <div className="flex-1">
             <p className="text-[10px] font-bold text-muted-foreground uppercase">{t.public}</p>
-            <p className="text-sm font-medium">{chatData?.isPublic ? "Public" : "Private"}</p>
+            <p className="text-sm font-medium">{chatData?.isPublic || userData?.isPublic ? "Public" : "Private"}</p>
           </div>
         </div>
         <div className="bg-sidebar/30 p-4 rounded-2xl border border-primary/5 flex items-center gap-3">
           <Calendar className="w-5 h-5 text-orange-400" />
           <div className="flex-1">
             <p className="text-[10px] font-bold text-muted-foreground uppercase">Joined</p>
-            <p className="text-sm font-medium">{chatData?.createdAt?.seconds ? new Date(chatData.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}</p>
+            <p className="text-sm font-medium">
+              {chatData?.createdAt?.seconds ? new Date(chatData.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}
+            </p>
           </div>
         </div>
       </div>

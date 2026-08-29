@@ -1,18 +1,47 @@
-
 "use client";
 
-import { useUser } from "@/firebase";
+import { useUser, useFirestore } from "@/firebase";
+import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { redirect } from "next/navigation";
 import { useEffect } from "react";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useUser();
+  const db = useFirestore();
 
   useEffect(() => {
     if (!loading && !user) {
       redirect("/login");
     }
   }, [user, loading]);
+
+  useEffect(() => {
+    if (!user || !db) return;
+
+    const userRef = doc(db, "users", user.uid);
+
+    const updateStatus = (status: "online" | "offline") => {
+      updateDoc(userRef, {
+        status,
+        lastSeen: status === "offline" ? Date.now() : serverTimestamp()
+      }).catch(() => {});
+    };
+
+    const handleVisibilityChange = () => {
+      updateStatus(document.visibilityState === "visible" ? "online" : "offline");
+    };
+
+    updateStatus("online");
+    window.addEventListener("visibilitychange", handleVisibilityChange);
+    
+    // Также ловим закрытие вкладки
+    window.addEventListener("beforeunload", () => updateStatus("offline"));
+
+    return () => {
+      updateStatus("offline");
+      window.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [user, db]);
 
   if (loading) {
     return (

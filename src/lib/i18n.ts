@@ -28,6 +28,7 @@ export const translations = {
     create: 'Создать',
     public: 'Мировой чат',
     online: 'В сети',
+    offline: 'Не в сети',
     members: 'участников',
     adminsOnly: 'Только для админов',
     message: 'Сообщение...',
@@ -53,6 +54,8 @@ export const translations = {
     calling: 'Вызов...',
     callEnded: 'Звонок завершен',
     pushNotifications: 'Push-уведомления',
+    typing: 'печатает...',
+    sendMessage: 'Написать',
     v1_0_desc: 'Версия 1.1 «Redirection». Переезд на новый стабильный сервер Firebase и глобальное обновление системы роутинга.'
   },
   en: {
@@ -82,6 +85,7 @@ export const translations = {
     create: 'Create',
     public: 'World Chat',
     online: 'Online',
+    offline: 'Offline',
     members: 'members',
     adminsOnly: 'Admins only',
     message: 'Message...',
@@ -107,6 +111,8 @@ export const translations = {
     calling: 'Calling...',
     callEnded: 'Call ended',
     pushNotifications: 'Push Notifications',
+    typing: 'typing...',
+    sendMessage: 'Message',
     v1_0_desc: 'Version 1.1 "Redirection". Migration to a new stable Firebase server and global routing system update.'
   }
 };

@@ -6,6 +6,8 @@ import { ChatWindow } from "@/components/chat/chat-window";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ArbogramIcon } from "@/components/arbogram-icon";
 import { cn } from "@/lib/utils";
+import { useFirestore, useUser, useDoc } from "@/firebase";
+import { collection, query, where, getDocs, addDoc, serverTimestamp, doc } from "firebase/firestore";
 
 /**
  * Основной интерфейс мессенджера (SPA).
@@ -14,6 +16,54 @@ import { cn } from "@/lib/utils";
 export default function ChatPageClient() {
   const [activeChatId, setActiveChatId] = React.useState<string | null>(null);
   const isMobile = useIsMobile();
+  const db = useFirestore();
+  const { user } = useUser();
+
+  const handleStartDirectChat = async (targetUserId: string) => {
+    if (!db || !user || targetUserId === user.uid) return;
+
+    try {
+      const participants = [user.uid, targetUserId].sort();
+      const q = query(
+        collection(db, "chats"),
+        where("type", "==", "individual"),
+        where("participants", "==", participants)
+      );
+      
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        setActiveChatId(snap.docs[0].id);
+        return;
+      }
+
+      // Получаем инфу о целевом пользователе
+      const targetUserRef = doc(db, "users", targetUserId);
+      const targetUserSnap = await getDocs(query(collection(db, "users"), where("uid", "==", targetUserId)));
+      const targetUserData = targetUserSnap.docs[0]?.data();
+      
+      const currentUserRef = doc(db, "users", user.uid);
+      const currentUserSnap = await getDocs(query(collection(db, "users"), where("uid", "==", user.uid)));
+      const currentUserData = currentUserSnap.docs[0]?.data();
+
+      if (!targetUserData || !currentUserData) return;
+
+      const newChat = await addDoc(collection(db, "chats"), {
+        participants,
+        type: "individual",
+        metadata: {
+          [user.uid]: { displayName: currentUserData.displayName, photoURL: currentUserData.photoURL || "" },
+          [targetUserId]: { displayName: targetUserData.displayName, photoURL: targetUserData.photoURL || "" }
+        },
+        lastMessage: "Чат начат",
+        lastMessageTime: Date.now(),
+        createdAt: serverTimestamp()
+      });
+
+      setActiveChatId(newChat.id);
+    } catch (e) {
+      console.error("Start chat error:", e);
+    }
+  };
 
   // На мобилках: если выбран чат, показываем окно, если нет - сайдбар.
   // На десктопе: показываем и то, и другое.
@@ -42,6 +92,7 @@ export default function ChatPageClient() {
           <ChatWindow 
             chatId={activeChatId} 
             onBack={() => setActiveChatId(null)} 
+            onStartDirectChat={handleStartDirectChat}
           />
         ) : (
           <div className="hidden md:flex h-full flex-col items-center justify-center p-8 text-center space-y-6 animate-in fade-in duration-700">
