@@ -3,7 +3,7 @@
   "entities": {
     "User": {
       "title": "User",
-      "description": "Профиль пользователя мессенджера. Юзернейм должен начинаться с @. UID является обязательным полем.",
+      "description": "Профиль пользователя мессенджера.",
       "type": "object",
       "properties": {
         "uid": { "type": "string", "description": "Firebase Auth UID" },
@@ -15,94 +15,63 @@
       },
       "required": ["uid", "email", "username"]
     },
-    "Avatar": {
-      "title": "Avatar",
-      "description": "Хранилище Base64 данных аватара",
-      "type": "object",
-      "properties": {
-        "base64": { "type": "string", "description": "Сжатые данные изображения в Base64" }
-      },
-      "required": ["base64"]
-    },
     "Chat": {
       "title": "Chat",
-      "description": "Метаданные чата (личного, группового или канала)",
+      "description": "Метаданные чата",
       "type": "object",
       "properties": {
         "participants": { "type": "array", "items": { "type": "string" } },
-        "metadata": { 
-          "type": "object", 
-          "description": "Данные участников для личных чатов: { uid: { displayName, photoURL } }" 
-        },
-        "ownerId": { "type": "string", "description": "ID создателя группы или канала" },
+        "metadata": { "type": "object" },
+        "ownerId": { "type": "string" },
         "lastMessage": { "type": "string" },
         "lastMessageTime": { "type": "number" },
         "type": { "type": "string", "enum": ["individual", "group", "channel"] },
-        "name": { "type": "string", "description": "Имя группы или канала" },
-        "photoURL": { "type": "string", "description": "Фото группы или канала" },
-        "slug": { "type": "string", "description": "Уникальная ссылка канала (без префикса agc/)" },
-        "isPublic": { "type": "boolean", "description": "Является ли канал публичным" },
+        "name": { "type": "string" },
+        "isPublic": { "type": "boolean" },
         "createdAt": { "type": "object" }
       },
       "required": ["participants", "type", "lastMessageTime"]
     },
     "Message": {
       "title": "Message",
-      "description": "Сообщение в чате с поддержкой различных типов контента",
+      "description": "Сообщение в чате",
       "type": "object",
       "properties": {
         "senderId": { "type": "string" },
         "senderName": { "type": "string" },
-        "type": { "type": "string", "enum": ["text", "image", "audio", "poll"], "description": "Тип сообщения" },
-        "text": { "type": "string", "description": "Текст сообщения или подпись к медиа" },
-        "imageUrl": { "type": "string", "description": "Base64 данные изображения" },
-        "audioUrl": { "type": "string", "description": "Base64 данные голосового сообщения" },
-        "duration": { "type": "number", "description": "Длительность аудио в секундах" },
+        "type": { "type": "string", "enum": ["text", "image", "audio", "poll"] },
+        "text": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "audioUrl": { "type": "string" },
         "poll": {
           "type": "object",
           "properties": {
-            "question": { "type": "string", "description": "Вопрос опроса" },
+            "question": { "type": "string" },
             "options": {
               "type": "array",
               "items": {
                 "type": "object",
                 "properties": {
-                  "id": { "type": "string", "description": "Уникальный ID варианта" },
-                  "text": { "type": "string", "description": "Текст варианта ответа" },
-                  "voters": { "type": "array", "items": { "type": "string" }, "description": "Список UID проголосовавших" }
+                  "id": { "type": "string" },
+                  "text": { "type": "string" },
+                  "voters": { "type": "array", "items": { "type": "string" } }
                 }
               }
             },
-            "multipleChoice": { "type": "boolean", "description": "Разрешен ли выбор нескольких вариантов" }
+            "multipleChoice": { "type": "boolean" }
           }
         },
         "timestamp": { "type": "number" }
       },
       "required": ["senderId", "type", "timestamp"]
-    },
-    "Story": {
-      "title": "Story",
-      "description": "История пользователя (аналог Stories в Telegram)",
-      "type": "object",
-      "properties": {
-        "userId": { "type": "string" },
-        "userName": { "type": "string" },
-        "userPhoto": { "type": "string" },
-        "content": { "type": "string", "description": "Текст или Base64 данные изображения" },
-        "type": { "type": "string", "enum": ["text", "image"] },
-        "timestamp": { "type": "number" }
-      },
-      "required": ["userId", "content", "timestamp"]
     }
   },
   "auth": {
     "providers": ["password", "google.com"]
   },
   "firestore": {
-    "/users/{userId}": { "schema": "User", "description": "Профили пользователей" },
-    "/avatars/{userId}": { "schema": "Avatar", "description": "Base64 данные аватарок" },
-    "/chats/{chatId}": { "schema": "Chat", "description": "Список чатов" },
-    "/chats/{chatId}/messages/{messageId}": { "schema": "Message", "description": "Сообщения в чате" },
-    "/stories/{storyId}": { "schema": "Story", "description": "Истории пользователей" }
+    "/users/{userId}": { "schema": "User", "description": "Профили" },
+    "/chats/{chatId}": { "schema": "Chat", "description": "Чаты" },
+    "/chats/{chatId}/messages/{messageId}": { "schema": "Message", "description": "Сообщения" }
   }
 }
