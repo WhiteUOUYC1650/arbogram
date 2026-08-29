@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * Оверлей звонка. Управляет состоянием WebRTC и UI звонка.
- * Теперь отображает имена и фото участников.
+ * Отображает информацию о том, кто звонит.
  */
 export function CallOverlay() {
   const db = useFirestore();
@@ -45,9 +45,10 @@ export function CallOverlay() {
 
     const unsubscribe = onSnapshot(q, async (snapshot) => {
       if (!snapshot.empty && callStatus === "idle") {
-        const callData = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+        const docSnap = snapshot.docs[0];
+        const callData = { id: docSnap.id, ...docSnap.data() };
         
-        // Получаем данные звонящего
+        // Получаем данные звонящего для отображения
         const callerSnap = await getDoc(doc(db, "users", callData.callerId));
         if (callerSnap.exists()) {
           setOtherUserData(callerSnap.data());

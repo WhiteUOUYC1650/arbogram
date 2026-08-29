@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useCollection, useFirestore, useAuth, useUser, useMemoFirebase } from "@/firebase";
-import { collection, query, where, orderBy, getDocs, doc, updateDoc, arrayUnion, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, updateDoc, arrayUnion, addDoc, serverTimestamp } from "firebase/firestore";
 import { signOut } from "firebase/auth";
 import { CreateChatDialog } from "./create-chat-dialog";
 import { StoriesBar } from "@/components/stories/stories-bar";
@@ -34,18 +34,23 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
 
   const t = translations[lang];
 
-  // Запрос чатов, где пользователь является участником. 
-  // Это автоматически обнаруживает новые чаты, в которые добавили пользователя.
+  // Упрощаем запрос, чтобы не требовать составной индекс для orderBy
+  // Сортировку выполним на клиенте
   const myChatsQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return query(
       collection(db, "chats"),
-      where("participants", "array-contains", user.uid),
-      orderBy("lastMessageTime", "desc")
+      where("participants", "array-contains", user.uid)
     );
   }, [db, user?.uid]);
 
   const { data: myChats, loading: chatsLoading } = useCollection(myChatsQuery);
+
+  // Клиентская сортировка по времени последнего сообщения
+  const sortedChats = React.useMemo(() => {
+    if (!myChats) return [];
+    return [...myChats].sort((a, b) => (b.lastMessageTime || 0) - (a.lastMessageTime || 0));
+  }, [myChats]);
 
   const handleOpenGlobalChat = async () => {
     if (!db || !user) return;
@@ -115,7 +120,6 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
 
       <ScrollArea className="flex-1">
         <div className="px-2 pb-20 space-y-1">
-          {/* Общий чат всегда сверху */}
           <div 
             onClick={handleOpenGlobalChat}
             className={cn(
@@ -129,7 +133,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between">
                 <p className="font-bold text-sm text-foreground">Общий чат</p>
-                <span className="text-[10px] text-accent font-bold uppercase tracking-tighter">Public</span>
+                <span className="text-[10px] text-accent font-bold uppercase tracking-tighter">PUBLIC</span>
               </div>
               <p className="text-xs text-muted-foreground truncate overflow-hidden">Пиши и общайся со всеми!</p>
             </div>
@@ -140,13 +144,13 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
               <Loader2 className="w-6 h-6 animate-spin text-primary" />
               <p className="text-[10px] font-bold uppercase tracking-widest">Загрузка...</p>
             </div>
-          ) : (myChats || []).length === 0 ? (
+          ) : sortedChats.length === 0 ? (
             <div className="flex flex-col items-center justify-center p-8 text-center gap-2 opacity-40">
               <p className="text-xs font-medium">Нет активных чатов</p>
               <p className="text-[9px] uppercase tracking-tighter">Начни новый диалог снизу</p>
             </div>
           ) : (
-            (myChats || []).map((chat) => {
+            sortedChats.map((chat: any) => {
               const isActive = activeChatId === chat.id;
               let displayName = chat.name || "Группа";
               let targetId = chat.id; 
@@ -164,7 +168,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
                   key={chat.id} 
                   onClick={() => onChatSelect(chat.id)}
                   className={cn(
-                    "flex items-center gap-3 p-3 rounded-2xl transition-all cursor-pointer hover:bg-white/40 dark:hover:bg-black/20",
+                    "flex items-center gap-3 p-3 rounded-2xl transition-all cursor-pointer hover:bg-white/40 dark:hover:bg-black/20 animate-in fade-in slide-in-from-left-2 duration-300",
                     isActive && "bg-white dark:bg-white/10 shadow-sm ring-1 ring-primary/10"
                   )}
                 >
