@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -86,7 +87,6 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
   const handleTyping = () => {
     if (!db || !user || !chatRef) return;
     
-    // Обновляем статус в Firestore
     updateDoc(chatRef, {
       [`typing.${user.uid}`]: Date.now()
     }).catch(() => {});
@@ -134,7 +134,7 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
           updateDoc(chatRef, {
             lastMessage: lastMsg,
             lastMessageTime: Date.now(),
-            [`typing.${user.uid}`]: deleteField() // Сбрасываем статус печати после отправки
+            [`typing.${user.uid}`]: deleteField()
           }).catch(() => {});
         }
         if (!imageUrl && !audioUrl) setMessage("");
@@ -214,7 +214,6 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
     subText = t.channel;
   }
 
-  // Определяем кто печатает (кроме меня)
   const typingUsers = React.useMemo(() => {
     if (!chatData?.typing || !user) return [];
     const now = Date.now();

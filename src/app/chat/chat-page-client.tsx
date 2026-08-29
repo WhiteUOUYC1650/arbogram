@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -6,8 +7,9 @@ import { ChatWindow } from "@/components/chat/chat-window";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ArbogramIcon } from "@/components/arbogram-icon";
 import { cn } from "@/lib/utils";
-import { useFirestore, useUser, useDoc } from "@/firebase";
-import { collection, query, where, getDocs, addDoc, serverTimestamp, doc } from "firebase/firestore";
+import { useFirestore, useUser } from "@/firebase";
+import { collection, query, where, getDocs, addDoc, serverTimestamp, doc, getDoc } from "firebase/firestore";
+import { useToast } from "@/hooks/use-toast";
 
 /**
  * Основной интерфейс мессенджера (SPA).
@@ -18,12 +20,15 @@ export default function ChatPageClient() {
   const isMobile = useIsMobile();
   const db = useFirestore();
   const { user } = useUser();
+  const { toast } = useToast();
 
   const handleStartDirectChat = async (targetUserId: string) => {
     if (!db || !user || targetUserId === user.uid) return;
 
     try {
       const participants = [user.uid, targetUserId].sort();
+      
+      // 1. Проверяем, существует ли уже такой чат
       const q = query(
         collection(db, "chats"),
         where("type", "==", "individual"),
@@ -36,23 +41,27 @@ export default function ChatPageClient() {
         return;
       }
 
-      // Получаем инфу о целевом пользователе
-      const targetUserRef = doc(db, "users", targetUserId);
-      const targetUserSnap = await getDocs(query(collection(db, "users"), where("uid", "==", targetUserId)));
-      const targetUserData = targetUserSnap.docs[0]?.data();
-      
-      const currentUserRef = doc(db, "users", user.uid);
-      const currentUserSnap = await getDocs(query(collection(db, "users"), where("uid", "==", user.uid)));
-      const currentUserData = currentUserSnap.docs[0]?.data();
+      // 2. Получаем данные обоих пользователей для метаданных
+      const [userSnap, targetSnap] = await Promise.all([
+        getDoc(doc(db, "users", user.uid)),
+        getDoc(doc(db, "users", targetUserId))
+      ]);
 
-      if (!targetUserData || !currentUserData) return;
+      if (!userSnap.exists() || !targetSnap.exists()) {
+        toast({ variant: "destructive", title: "Ошибка", description: "Пользователь не найден." });
+        return;
+      }
 
+      const userData = userSnap.data();
+      const targetData = targetSnap.data();
+
+      // 3. Создаем новый чат
       const newChat = await addDoc(collection(db, "chats"), {
         participants,
         type: "individual",
         metadata: {
-          [user.uid]: { displayName: currentUserData.displayName, photoURL: currentUserData.photoURL || "" },
-          [targetUserId]: { displayName: targetUserData.displayName, photoURL: targetUserData.photoURL || "" }
+          [user.uid]: { displayName: userData.displayName, photoURL: userData.photoURL || "" },
+          [targetUserId]: { displayName: targetData.displayName, photoURL: targetData.photoURL || "" }
         },
         lastMessage: "Чат начат",
         lastMessageTime: Date.now(),
@@ -62,11 +71,11 @@ export default function ChatPageClient() {
       setActiveChatId(newChat.id);
     } catch (e) {
       console.error("Start chat error:", e);
+      toast({ variant: "destructive", title: "Ошибка", description: "Не удалось создать чат." });
     }
   };
 
   // На мобилках: если выбран чат, показываем окно, если нет - сайдбар.
-  // На десктопе: показываем и то, и другое.
   const showSidebar = !isMobile || !activeChatId;
   const showChat = activeChatId || !isMobile;
 
