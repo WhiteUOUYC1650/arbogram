@@ -1,7 +1,8 @@
+
 "use client";
 
 import * as React from "react";
-import { Search, Globe, LogOut, Settings as SettingsIcon, Pencil } from "lucide-react";
+import { Search, Globe, LogOut, Settings as SettingsIcon, Pencil, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -33,7 +34,8 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
 
   const t = translations[lang];
 
-  // Запрос моих чатов
+  // Запрос моих чатов. Сортировка по времени последнего сообщения.
+  // ВАЖНО: Если чаты не появляются, проверьте консоль (F12) на наличие ссылки для создания индекса Firestore.
   const myChatsQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return query(
@@ -43,7 +45,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
     );
   }, [db, user?.uid]);
 
-  const { data: myChats } = useCollection(myChatsQuery);
+  const { data: myChats, loading: chatsLoading } = useCollection(myChatsQuery);
 
   const handleOpenGlobalChat = async () => {
     if (!db || !user) return;
@@ -132,50 +134,62 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
             </div>
           </div>
 
-          {(myChats || []).map((chat) => {
-            const isActive = activeChatId === chat.id;
-            let displayName = chat.name || "Group";
-            let targetId = chat.id; 
+          {chatsLoading ? (
+            <div className="flex flex-col items-center justify-center p-8 gap-2 opacity-50">
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+              <p className="text-[10px] font-bold uppercase tracking-widest">Загрузка чатов...</p>
+            </div>
+          ) : (myChats || []).length === 0 ? (
+            <div className="flex flex-col items-center justify-center p-8 text-center gap-2 opacity-40">
+              <p className="text-xs font-medium">Пока пусто...</p>
+              <p className="text-[9px] uppercase tracking-tighter">Начни новый диалог снизу</p>
+            </div>
+          ) : (
+            (myChats || []).map((chat) => {
+              const isActive = activeChatId === chat.id;
+              let displayName = chat.name || "Group";
+              let targetId = chat.id; 
 
-            if (chat.type === 'individual' && user) {
-              const otherId = chat.participants.find(p => p !== user.uid);
-              if (otherId && chat.metadata?.[otherId]) {
-                displayName = chat.metadata[otherId].displayName;
-                targetId = otherId;
+              if (chat.type === 'individual' && user) {
+                const otherId = chat.participants.find(p => p !== user.uid);
+                if (otherId && chat.metadata?.[otherId]) {
+                  displayName = chat.metadata[otherId].displayName;
+                  targetId = otherId;
+                }
               }
-            }
-            
-            return (
-              <div 
-                key={chat.id} 
-                onClick={() => onChatSelect(chat.id)}
-                className={cn(
-                  "flex items-center gap-3 p-3 rounded-2xl transition-all cursor-pointer hover:bg-white/40 dark:hover:bg-black/20",
-                  isActive && "bg-white dark:bg-white/10 shadow-sm ring-1 ring-primary/10"
-                )}
-              >
-                <UserAvatar 
-                  userId={targetId} 
-                  fallback={displayName} 
-                  className="w-12 h-12 border-2 border-primary/20 shrink-0" 
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <p className="font-semibold text-sm truncate text-foreground">{displayName}</p>
-                      {chat.isPublic && <Globe className="w-3 h-3 text-accent shrink-0" />}
+              
+              return (
+                <div 
+                  key={chat.id} 
+                  onClick={() => onChatSelect(chat.id)}
+                  className={cn(
+                    "flex items-center gap-3 p-3 rounded-2xl transition-all cursor-pointer hover:bg-white/40 dark:hover:bg-black/20",
+                    isActive && "bg-white dark:bg-white/10 shadow-sm ring-1 ring-primary/10"
+                  )}
+                >
+                  <UserAvatar 
+                    userId={targetId} 
+                    fallback={displayName} 
+                    className="w-12 h-12 border-2 border-primary/20 shrink-0" 
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <p className="font-semibold text-sm truncate text-foreground">{displayName}</p>
+                        {chat.isPublic && <Globe className="w-3 h-3 text-accent shrink-0" />}
+                      </div>
+                      <span className="text-[10px] text-muted-foreground shrink-0 ml-2">
+                        {chat.lastMessageTime ? new Date(chat.lastMessageTime).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : ""}
+                      </span>
                     </div>
-                    <span className="text-[10px] text-muted-foreground shrink-0 ml-2">
-                      {chat.lastMessageTime ? new Date(chat.lastMessageTime).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : ""}
-                    </span>
+                    <p className="text-xs text-muted-foreground truncate overflow-hidden">
+                      {chat.lastMessage || "No messages"}
+                    </p>
                   </div>
-                  <p className="text-xs text-muted-foreground truncate overflow-hidden">
-                    {chat.lastMessage || "No messages"}
-                  </p>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
       </ScrollArea>
 

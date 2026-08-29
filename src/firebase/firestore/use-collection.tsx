@@ -34,7 +34,8 @@ export function useCollection<T = DocumentData>(queryRef: Query<T> | null) {
         setError(null);
       },
       (err) => {
-        // Выводим ошибку в консоль для дебага индексов
+        // КРИТИЧЕСКИ: Выводим ошибку в консоль. 
+        // Если там есть ссылка "https://console.firebase.google.com/...", по ней НУЖНО перейти, чтобы создать индекс.
         console.error("Firestore Collection Error:", err);
         
         if (err.code === 'permission-denied' || err.code === 'failed-precondition') {
@@ -42,7 +43,7 @@ export function useCollection<T = DocumentData>(queryRef: Query<T> | null) {
             path: 'collection_query',
             operation: 'list',
           });
-          // Прокидываем оригинальную ошибку для доступа к ссылке индекса
+          // Прокидываем оригинальную ошибку для доступа к ссылке индекса в консоли
           (permissionError as any).originalError = err;
           errorEmitter.emit('permission-error', permissionError);
         }
