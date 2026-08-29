@@ -1,14 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { Search, Info, MessageSquare, Users, LogOut, Megaphone, Globe, Settings as SettingsIcon, Pencil, Hash } from "lucide-react";
+import { Search, Globe, LogOut, Settings as SettingsIcon, Pencil, MessageSquare } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { useCollection, useFirestore, useAuth, useUser, useMemoFirebase } from "@/firebase";
-import { collection, query, where, orderBy, limit, doc, updateDoc, arrayUnion } from "firebase/firestore";
+import { collection, query, where, orderBy, getDocs, doc, updateDoc, arrayUnion, addDoc, serverTimestamp } from "firebase/firestore";
 import { signOut } from "firebase/auth";
 import { CreateChatDialog } from "./create-chat-dialog";
 import { StoriesBar } from "@/components/stories/stories-bar";
@@ -24,7 +23,6 @@ interface ChatSidebarProps {
 
 export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
   const [search, setSearch] = React.useState("");
-  const [activeTab, setActiveTab] = React.useState<"my" | "public">("my");
   const [lang, setLang] = React.useState<Language>('ru');
   const db = useFirestore();
   const auth = useAuth();
@@ -47,43 +45,51 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
     );
   }, [db, user?.uid]);
 
-  // Запрос публичных чатов (Мировой чат)
-  const publicChatsQuery = useMemoFirebase(() => {
-    if (!db) return null;
-    return query(
-      collection(db, "chats"),
-      where("isPublic", "==", true),
-      limit(20)
-    );
-  }, [db]);
-
   const { data: myChats } = useCollection(myChatsQuery);
-  const { data: publicChats } = useCollection(publicChatsQuery);
 
-  const displayChats = activeTab === "my" ? (myChats || []) : (publicChats || []);
-
-  const filteredChats = displayChats.filter(chat => {
+  const filteredChats = (myChats || []).filter(chat => {
     const chatName = chat.type === 'individual' && user 
       ? chat.metadata?.[chat.participants.find(p => p !== user.uid)]?.displayName
       : chat.name;
     return (chatName || "Chat").toLowerCase().includes(search.toLowerCase());
   });
 
-  const handleChatSelect = async (chat: any) => {
+  const handleOpenGlobalChat = async () => {
     if (!db || !user) return;
     
-    // Если это публичный чат и пользователь еще не участник, добавляем его
-    if (chat.isPublic && !chat.participants.includes(user.uid)) {
-      try {
-        await updateDoc(doc(db, "chats", chat.id), {
-          participants: arrayUnion(user.uid)
+    try {
+      // Ищем чат с названием "Общий чат"
+      const q = query(collection(db, "chats"), where("isPublic", "==", true), where("name", "==", "Общий чат"));
+      const snap = await getDocs(q);
+      
+      let globalChatId;
+      if (!snap.empty) {
+        const chat = snap.docs[0];
+        globalChatId = chat.id;
+        // Если пользователя нет в участниках, добавляем
+        if (!chat.data().participants.includes(user.uid)) {
+          await updateDoc(doc(db, "chats", globalChatId), {
+            participants: arrayUnion(user.uid)
+          });
+        }
+      } else {
+        // Создаем, если не нашли
+        const newChat = await addDoc(collection(db, "chats"), {
+          name: "Общий чат",
+          isPublic: true,
+          type: "group",
+          participants: [user.uid],
+          lastMessage: "Добро пожаловать в Общий чат!",
+          lastMessageTime: Date.now(),
+          createdAt: serverTimestamp()
         });
-      } catch (e) {
-        console.error("Failed to join public chat:", e);
+        globalChatId = newChat.id;
       }
+      
+      onChatSelect(globalChatId);
+    } catch (e) {
+      console.error("Global chat error:", e);
     }
-    
-    onChatSelect(chat.id);
   };
 
   return (
@@ -125,21 +131,32 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
         </div>
       </div>
 
-      <div className="px-4 py-1">
-        <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 rounded-xl bg-muted/50 h-9">
-            <TabsTrigger value="my" className="text-[10px] font-bold uppercase">{t.chats}</TabsTrigger>
-            <TabsTrigger value="public" className="text-[10px] font-bold uppercase flex items-center gap-1">
-              <Globe className="w-3 h-3" /> {t.public}
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </div>
-
       <StoriesBar />
 
       <ScrollArea className="flex-1">
         <div className="px-2 pb-20 space-y-1">
+          {/* КНОПКА ОБЩИЙ ЧАТ В СПИСКЕ */}
+          {!search && (
+            <div 
+              onClick={handleOpenGlobalChat}
+              className={cn(
+                "flex items-center gap-3 p-3 rounded-2xl transition-all cursor-pointer hover:bg-white/40 dark:hover:bg-black/20 mb-1",
+                "bg-accent/5 border border-accent/10"
+              )}
+            >
+              <div className="w-12 h-12 rounded-full cove-gradient flex items-center justify-center shrink-0 border-2 border-white shadow-sm">
+                <Globe className="w-6 h-6 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between">
+                  <p className="font-bold text-sm text-foreground">Общий чат</p>
+                  <span className="text-[10px] text-accent font-bold uppercase tracking-tighter">Public</span>
+                </div>
+                <p className="text-xs text-muted-foreground truncate">Пиши и общайся со всеми!</p>
+              </div>
+            </div>
+          )}
+
           {filteredChats.length > 0 ? (
             filteredChats.map((chat) => {
               const isActive = activeChatId === chat.id;
@@ -154,12 +171,10 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
                 }
               }
               
-              const Icon = chat.type === "group" ? Users : chat.type === "channel" ? Megaphone : chat.isPublic ? Hash : MessageSquare;
-              
               return (
                 <div 
                   key={chat.id} 
-                  onClick={() => handleChatSelect(chat)}
+                  onClick={() => onChatSelect(chat.id)}
                   className={cn(
                     "flex items-center gap-3 p-3 rounded-2xl transition-all cursor-pointer hover:bg-white/40 dark:hover:bg-black/20",
                     isActive && "bg-white dark:bg-white/10 shadow-sm ring-1 ring-primary/10"
@@ -180,20 +195,19 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
                         {chat.lastMessageTime ? new Date(chat.lastMessageTime).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : ""}
                       </span>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <Icon className="w-3 h-3 text-muted-foreground shrink-0" />
-                      <p className="text-xs text-muted-foreground truncate overflow-hidden text-ellipsis whitespace-nowrap">
-                        {chat.lastMessage || (activeTab === 'public' ? "Public Channel" : "No messages")}
-                      </p>
-                    </div>
+                    <p className="text-xs text-muted-foreground truncate overflow-hidden text-ellipsis whitespace-nowrap">
+                      {chat.lastMessage || "No messages"}
+                    </p>
                   </div>
                 </div>
               );
             })
           ) : (
-            <div className="p-8 text-center space-y-2">
-              <p className="text-xs text-muted-foreground">{activeTab === 'my' ? "No active chats" : "No public channels yet"}</p>
-            </div>
+            search && (
+              <div className="p-8 text-center space-y-2">
+                <p className="text-xs text-muted-foreground">Ничего не найдено</p>
+              </div>
+            )
           )}
         </div>
       </ScrollArea>
