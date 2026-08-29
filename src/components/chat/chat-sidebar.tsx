@@ -8,7 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { useCollection, useFirestore, useAuth, useUser, useMemoFirebase } from "@/firebase";
-import { collection, query, where, orderBy, limit } from "firebase/firestore";
+import { collection, query, where, orderBy, limit, doc, updateDoc, arrayUnion } from "firebase/firestore";
 import { signOut } from "firebase/auth";
 import { CreateChatDialog } from "./create-chat-dialog";
 import { StoriesBar } from "@/components/stories/stories-bar";
@@ -16,7 +16,6 @@ import { SettingsDialog } from "@/components/settings/settings-dialog";
 import { UserAvatar } from "@/components/user-avatar";
 import { ArbogramIcon } from "@/components/arbogram-icon";
 import { translations, Language } from "@/lib/i18n";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 interface ChatSidebarProps {
   activeChatId?: string;
@@ -69,6 +68,23 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
       : chat.name;
     return (chatName || "Chat").toLowerCase().includes(search.toLowerCase());
   });
+
+  const handleChatSelect = async (chat: any) => {
+    if (!db || !user) return;
+    
+    // Если это публичный чат и пользователь еще не участник, добавляем его
+    if (chat.isPublic && !chat.participants.includes(user.uid)) {
+      try {
+        await updateDoc(doc(db, "chats", chat.id), {
+          participants: arrayUnion(user.uid)
+        });
+      } catch (e) {
+        console.error("Failed to join public chat:", e);
+      }
+    }
+    
+    onChatSelect(chat.id);
+  };
 
   return (
     <div className="flex flex-col h-full bg-sidebar/30 relative">
@@ -143,7 +159,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
               return (
                 <div 
                   key={chat.id} 
-                  onClick={() => onChatSelect(chat.id)}
+                  onClick={() => handleChatSelect(chat)}
                   className={cn(
                     "flex items-center gap-3 p-3 rounded-2xl transition-all cursor-pointer hover:bg-white/40 dark:hover:bg-black/20",
                     isActive && "bg-white dark:bg-white/10 shadow-sm ring-1 ring-primary/10"
