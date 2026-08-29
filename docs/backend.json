@@ -1,4 +1,3 @@
-
 {
   "entities": {
     "User": {
@@ -11,7 +10,14 @@
         "username": { "type": "string", "description": "Уникальный тег пользователя, начинается с @" },
         "photoURL": { "type": "string", "description": "URL или ID аватара" },
         "email": { "type": "string", "format": "email" },
-        "lastSeen": { "type": "number" }
+        "lastSeen": { "type": "number" },
+        "settings": {
+          "type": "object",
+          "properties": {
+            "privacy": { "type": "object" },
+            "notifications": { "type": "object" }
+          }
+        }
       },
       "required": ["uid", "email", "username"]
     },
@@ -43,24 +49,6 @@
         "text": { "type": "string" },
         "imageUrl": { "type": "string" },
         "audioUrl": { "type": "string" },
-        "poll": {
-          "type": "object",
-          "properties": {
-            "question": { "type": "string" },
-            "options": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "id": { "type": "string" },
-                  "text": { "type": "string" },
-                  "voters": { "type": "array", "items": { "type": "string" } }
-                }
-              }
-            },
-            "multipleChoice": { "type": "boolean" }
-          }
-        },
         "timestamp": { "type": "number" }
       },
       "required": ["senderId", "type", "timestamp"]

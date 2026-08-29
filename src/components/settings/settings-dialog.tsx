@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Settings, Loader2, Camera, Moon, Sun, User as UserIcon, Upload, Info, Languages } from "lucide-react";
+import { Settings, Loader2, Camera, Moon, Sun, User as UserIcon, Shield, Lock, Bell, Languages, Info } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
 import { doc, updateDoc, collection, query, where, getDocs, setDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { translations, Language } from "@/lib/i18n";
 
@@ -26,7 +27,6 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
 
   const userRef = React.useMemo(() => (db && user ? doc(db, "users", user.uid) : null), [db, user]);
   const { data: userData } = useDoc(userRef);
-
   const avatarRef = useMemoFirebase(() => (db && user ? doc(db, "avatars", user.uid) : null), [db, user?.uid]);
   const { data: avatarData } = useDoc(avatarRef);
 
@@ -45,97 +45,25 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
   }, [userData]);
 
   React.useEffect(() => {
-    if (avatarData?.base64) {
-      setPhotoURL(avatarData.base64);
-    }
+    if (avatarData?.base64) setPhotoURL(avatarData.base64);
   }, [avatarData]);
 
   React.useEffect(() => {
-    const storedTheme = localStorage.getItem("theme");
-    const storedLang = localStorage.getItem("lang") as Language;
-    if (storedLang) setLang(storedLang);
-    
-    const isDark = storedTheme === "dark" || (!storedTheme && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    const isDark = localStorage.getItem("theme") === "dark" || (!localStorage.getItem("theme") && window.matchMedia("(prefers-color-scheme: dark)").matches);
     setIsDarkMode(isDark);
     if (isDark) document.documentElement.classList.add("dark");
   }, []);
 
   const toggleTheme = (checked: boolean) => {
     setIsDarkMode(checked);
-    if (checked) {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("theme", "dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("theme", "light");
-    }
-  };
-
-  const changeLanguage = (value: Language) => {
-    setLang(value);
-    localStorage.setItem("lang", value);
-    window.location.reload();
-  };
-
-  const compressImage = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = (event) => {
-        const img = new Image();
-        img.src = event.target?.result as string;
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 400;
-          const MAX_HEIGHT = 400;
-          let width = img.width;
-          let height = img.height;
-          if (width > height) {
-            if (width > MAX_WIDTH) {
-              height *= MAX_WIDTH / width;
-              width = MAX_WIDTH;
-            }
-          } else {
-            if (height > MAX_HEIGHT) {
-              width *= MAX_HEIGHT / height;
-              height = MAX_HEIGHT;
-            }
-          }
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          ctx?.drawImage(img, 0, 0, width, height);
-          resolve(canvas.toDataURL('image/jpeg', 0.7));
-        };
-      };
-      reader.onerror = error => reject(error);
-    });
-  };
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      const base64 = await compressImage(file);
-      setPhotoURL(base64);
-    } catch (err) {
-      toast({ variant: "destructive", title: t.error, description: "Error processing image." });
-    }
+    document.documentElement.classList.toggle("dark", checked);
+    localStorage.setItem("theme", checked ? "dark" : "light");
   };
 
   const handleSave = async () => {
     if (!db || !user || !userRef) return;
     setIsUpdating(true);
     try {
-      if (username !== userData?.username) {
-        const q = query(collection(db, "users"), where("username", "==", username));
-        const snap = await getDocs(q);
-        if (!snap.empty) {
-          toast({ variant: "destructive", title: t.error, description: "Username taken." });
-          setIsUpdating(false);
-          return;
-        }
-      }
       if (photoURL && photoURL.startsWith('data:image')) {
         await setDoc(doc(db, "avatars", user.uid), { base64: photoURL });
       }
@@ -152,59 +80,87 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="w-[95vw] sm:max-w-md rounded-3xl">
-        <DialogHeader><DialogTitle>{t.settings}</DialogTitle></DialogHeader>
-        <div className="space-y-6 py-4">
-          <div className="flex flex-col items-center gap-4">
-            <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-              <Avatar className="w-24 h-24 border-4 border-primary/20">
-                <AvatarImage src={photoURL} className="object-cover" />
-                <AvatarFallback className="text-2xl bg-primary/10 text-primary">{displayName[0] || <UserIcon />}</AvatarFallback>
-              </Avatar>
-              <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                <Camera className="w-8 h-8 text-white" />
-              </div>
-              <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
-            </div>
-          </div>
-          <div className="space-y-4">
-            <div className="space-y-2"><Label>{t.name}</Label><Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="rounded-xl" /></div>
-            <div className="space-y-2"><Label>{t.username}</Label><Input value={username} onChange={(e) => setUsername(e.target.value)} className="rounded-xl font-mono" /></div>
-            
-            <div className="space-y-3">
-              <div className="flex items-center justify-between p-4 bg-sidebar/20 rounded-2xl border border-primary/10">
-                <div className="flex items-center gap-3">
-                  {isDarkMode ? <Moon className="w-5 h-5 text-primary" /> : <Sun className="w-5 h-5 text-orange-400" />}
-                  <p className="text-sm font-semibold">{t.darkMode}</p>
+      <DialogContent className="w-[95vw] sm:max-w-xl rounded-3xl overflow-hidden p-0 h-[80vh] flex flex-col">
+        <DialogHeader className="p-6 pb-0 border-b"><DialogTitle>{t.settings}</DialogTitle></DialogHeader>
+        <Tabs defaultValue="profile" className="flex-1 flex flex-col overflow-hidden">
+          <TabsList className="grid grid-cols-4 mx-6 mt-4 h-12 bg-muted/50 rounded-xl">
+            <TabsTrigger value="profile"><UserIcon className="w-4 h-4" /></TabsTrigger>
+            <TabsTrigger value="privacy"><Shield className="w-4 h-4" /></TabsTrigger>
+            <TabsTrigger value="security"><Lock className="w-4 h-4" /></TabsTrigger>
+            <TabsTrigger value="notifications"><Bell className="w-4 h-4" /></TabsTrigger>
+          </TabsList>
+          
+          <div className="flex-1 overflow-y-auto p-6">
+            <TabsContent value="profile" className="mt-0 space-y-6">
+              <div className="flex flex-col items-center gap-4">
+                <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                  <Avatar className="w-24 h-24 border-4 border-primary/20">
+                    <AvatarImage src={photoURL} className="object-cover" />
+                    <AvatarFallback className="text-2xl bg-primary/10 text-primary">{displayName[0] || "U"}</AvatarFallback>
+                  </Avatar>
+                  <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Camera className="w-8 h-8 text-white" />
+                  </div>
+                  <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onload = (ev) => setPhotoURL(ev.target?.result as string);
+                      reader.readAsDataURL(file);
+                    }
+                  }} />
                 </div>
-                <Switch checked={isDarkMode} onCheckedChange={toggleTheme} />
               </div>
+              <div className="space-y-4">
+                <div className="space-y-2"><Label>{t.name}</Label><Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="rounded-xl" /></div>
+                <div className="space-y-2"><Label>{t.username}</Label><Input value={username} onChange={(e) => setUsername(e.target.value)} className="rounded-xl font-mono" /></div>
+                
+                <div className="flex items-center justify-between p-4 bg-sidebar/20 rounded-2xl border border-primary/10">
+                  <div className="flex items-center gap-3">
+                    {isDarkMode ? <Moon className="w-5 h-5 text-primary" /> : <Sun className="w-5 h-5 text-orange-400" />}
+                    <p className="text-sm font-semibold">{t.darkMode}</p>
+                  </div>
+                  <Switch checked={isDarkMode} onCheckedChange={toggleTheme} />
+                </div>
+                
+                <div className="flex items-center justify-between p-4 bg-sidebar/20 rounded-2xl border border-primary/10">
+                  <div className="flex items-center gap-3"><Languages className="w-5 h-5 text-accent" /><p className="text-sm font-semibold">{t.language}</p></div>
+                  <Select value={lang} onValueChange={(v: Language) => setLang(v)}>
+                    <SelectTrigger className="w-24 border-none bg-background/50 h-8 rounded-xl"><SelectValue /></SelectTrigger>
+                    <SelectContent className="rounded-xl"><SelectItem value="ru">RU</SelectItem><SelectItem value="en">EN</SelectItem></SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </TabsContent>
 
+            <TabsContent value="privacy" className="mt-0 space-y-4">
               <div className="flex items-center justify-between p-4 bg-sidebar/20 rounded-2xl border border-primary/10">
-                <div className="flex items-center gap-3">
-                  <Languages className="w-5 h-5 text-accent" />
-                  <p className="text-sm font-semibold">{t.language}</p>
-                </div>
-                <Select value={lang} onValueChange={(v: Language) => changeLanguage(v)}>
-                  <SelectTrigger className="w-24 rounded-xl border-none bg-background/50 h-8">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl">
-                    <SelectItem value="ru">RU</SelectItem>
-                    <SelectItem value="en">EN</SelectItem>
-                  </SelectContent>
-                </Select>
+                <p className="text-sm font-semibold">{t.showOnline}</p><Switch defaultChecked />
               </div>
-            </div>
+              <div className="flex items-center justify-between p-4 bg-sidebar/20 rounded-2xl border border-primary/10">
+                <p className="text-sm font-semibold">{t.allowCalls}</p><Switch defaultChecked />
+              </div>
+            </TabsContent>
+
+            <TabsContent value="security" className="mt-0 space-y-4">
+              <div className="flex items-center justify-between p-4 bg-sidebar/20 rounded-2xl border border-primary/10">
+                <p className="text-sm font-semibold">{t.twoStep}</p><Switch />
+              </div>
+            </TabsContent>
+
+            <TabsContent value="notifications" className="mt-0 space-y-4">
+              <div className="flex items-center justify-between p-4 bg-sidebar/20 rounded-2xl border border-primary/10">
+                <p className="text-sm font-semibold">{t.pushNotifications}</p><Switch defaultChecked />
+              </div>
+            </TabsContent>
           </div>
+        </Tabs>
+        <div className="p-6 border-t bg-muted/30">
           <Button className="w-full rounded-xl cove-gradient h-12 text-white font-bold" onClick={handleSave} disabled={isUpdating}>
             {isUpdating ? <Loader2 className="w-5 h-5 animate-spin" /> : t.save}
           </Button>
-          <div className="flex flex-col items-center gap-1 pt-2">
-            <div className="flex items-center gap-1.5 text-muted-foreground">
-              <Info className="w-3 h-3" />
-              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">CoveChat v1.1 • Redirection • 2026</span>
-            </div>
+          <div className="flex flex-col items-center gap-1 pt-4 text-muted-foreground">
+            <div className="flex items-center gap-1.5"><Info className="w-3 h-3" /><span className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">CoveChat v1.1 • Redirection • 2026</span></div>
           </div>
         </div>
       </DialogContent>
