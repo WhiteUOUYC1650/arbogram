@@ -1,10 +1,9 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     // ЯДЕРНЫЙ ВАРИАНТ ПРАВИЛ: РАЗРЕШАЕМ ВСЁ АВТОРИЗОВАННЫМ ПОЛЬЗОВАТЕЛЯМ
-    // Это гарантирует, что голосование (update) сработает немедленно.
-    // Обновлено: 2026-01-01 (Deployment Force)
+    // Это гарантирует, что любые операции (включая update) сработают немедленно.
+    // Версия: 1.4.1 "Redirection"
     match /{document=**} {
       allow read, write: if request.auth != null;
     }
