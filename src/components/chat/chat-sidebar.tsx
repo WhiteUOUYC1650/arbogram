@@ -34,8 +34,8 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
 
   const t = translations[lang];
 
-  // Запрос моих чатов. Сортировка по времени последнего сообщения.
-  // ВАЖНО: Если чаты не появляются, проверьте консоль (F12) на наличие ссылки для создания индекса Firestore.
+  // Запрос чатов, где пользователь является участником. 
+  // Это автоматически обнаруживает новые чаты, в которые добавили пользователя.
   const myChatsQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return query(
@@ -115,11 +115,12 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
 
       <ScrollArea className="flex-1">
         <div className="px-2 pb-20 space-y-1">
+          {/* Общий чат всегда сверху */}
           <div 
             onClick={handleOpenGlobalChat}
             className={cn(
               "flex items-center gap-3 p-3 rounded-2xl transition-all cursor-pointer hover:bg-white/40 dark:hover:bg-black/20 mb-1",
-              "bg-accent/5 border border-accent/10"
+              activeChatId === "global" ? "bg-white dark:bg-white/10 shadow-sm ring-1 ring-primary/10" : "bg-accent/5 border border-accent/10"
             )}
           >
             <div className="w-12 h-12 rounded-full cove-gradient flex items-center justify-center shrink-0 border-2 border-white shadow-sm">
@@ -137,21 +138,21 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
           {chatsLoading ? (
             <div className="flex flex-col items-center justify-center p-8 gap-2 opacity-50">
               <Loader2 className="w-6 h-6 animate-spin text-primary" />
-              <p className="text-[10px] font-bold uppercase tracking-widest">Загрузка чатов...</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest">Загрузка...</p>
             </div>
           ) : (myChats || []).length === 0 ? (
             <div className="flex flex-col items-center justify-center p-8 text-center gap-2 opacity-40">
-              <p className="text-xs font-medium">Пока пусто...</p>
+              <p className="text-xs font-medium">Нет активных чатов</p>
               <p className="text-[9px] uppercase tracking-tighter">Начни новый диалог снизу</p>
             </div>
           ) : (
             (myChats || []).map((chat) => {
               const isActive = activeChatId === chat.id;
-              let displayName = chat.name || "Group";
+              let displayName = chat.name || "Группа";
               let targetId = chat.id; 
 
               if (chat.type === 'individual' && user) {
-                const otherId = chat.participants.find(p => p !== user.uid);
+                const otherId = chat.participants.find((p: string) => p !== user.uid);
                 if (otherId && chat.metadata?.[otherId]) {
                   displayName = chat.metadata[otherId].displayName;
                   targetId = otherId;
@@ -183,7 +184,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground truncate overflow-hidden">
-                      {chat.lastMessage || "No messages"}
+                      {chat.lastMessage || "Нет сообщений"}
                     </p>
                   </div>
                 </div>

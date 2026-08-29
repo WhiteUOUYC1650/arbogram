@@ -4,13 +4,14 @@
 import * as React from "react";
 import { Phone, PhoneOff, Mic, MicOff, Volume2, User as UserIcon, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useFirestore, useUser, useDoc, useCollection, useMemoFirebase } from "@/firebase";
-import { doc, collection, addDoc, updateDoc, onSnapshot, setDoc, query, where, limit, deleteDoc } from "firebase/firestore";
+import { useFirestore, useUser, useDoc } from "@/firebase";
+import { doc, collection, addDoc, updateDoc, onSnapshot, setDoc, query, where, limit, getDoc } from "firebase/firestore";
 import { UserAvatar } from "@/components/user-avatar";
 import { cn } from "@/lib/utils";
 
 /**
  * Оверлей звонка. Управляет состоянием WebRTC и UI звонка.
+ * Теперь отображает имена и фото участников.
  */
 export function CallOverlay() {
   const db = useFirestore();
@@ -18,13 +19,13 @@ export function CallOverlay() {
   const [activeCall, setActiveCall] = React.useState<any>(null);
   const [callStatus, setCallStatus] = React.useState<"idle" | "dialing" | "ringing" | "connected" | "ended">("idle");
   const [isMuted, setIsMuted] = React.useState(false);
+  const [otherUserData, setOtherUserData] = React.useState<any>(null);
   
   const peerConnection = React.useRef<RTCPeerConnection | null>(null);
   const localStream = React.useRef<MediaStream | null>(null);
   const remoteStream = React.useRef<MediaStream | null>(null);
   const remoteAudioRef = React.useRef<HTMLAudioElement | null>(null);
 
-  // Конфигурация STUN серверов
   const rtcConfig = {
     iceServers: [
       { urls: ["stun:stun1.l.google.com:19302", "stun:stun2.l.google.com:19302"] },
@@ -42,9 +43,16 @@ export function CallOverlay() {
       limit(1)
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
       if (!snapshot.empty && callStatus === "idle") {
         const callData = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+        
+        // Получаем данные звонящего
+        const callerSnap = await getDoc(doc(db, "users", callData.callerId));
+        if (callerSnap.exists()) {
+          setOtherUserData(callerSnap.data());
+        }
+        
         setActiveCall(callData);
         setCallStatus("ringing");
       }
@@ -53,7 +61,7 @@ export function CallOverlay() {
     return () => unsubscribe();
   }, [db, user, callStatus]);
 
-  // Следим за состоянием активного звонка (для сброса)
+  // Следим за состоянием активного звонка
   React.useEffect(() => {
     if (!db || !activeCall) return;
 
@@ -90,6 +98,12 @@ export function CallOverlay() {
     setCallStatus("dialing");
 
     try {
+      // Предварительно получаем данные того, кому звоним
+      const receiverSnap = await getDoc(doc(db, "users", receiverId));
+      if (receiverSnap.exists()) {
+        setOtherUserData(receiverSnap.data());
+      }
+
       const pc = await setupWebRTC();
       const callDoc = doc(collection(db, "calls"));
       
@@ -117,7 +131,6 @@ export function CallOverlay() {
 
       setActiveCall({ id: callDoc.id, callerId: user.uid, receiverId });
 
-      // Ждем ответа
       onSnapshot(callDoc, (snapshot) => {
         const data = snapshot.data();
         if (data?.answer && !pc.currentRemoteDescription) {
@@ -126,7 +139,6 @@ export function CallOverlay() {
         }
       });
 
-      // Слушаем ICE кандидатов от получателя
       onSnapshot(collection(db, "calls", callDoc.id, "receiverCandidates"), (snapshot) => {
         snapshot.docChanges().forEach((change) => {
           if (change.type === "added") {
@@ -156,8 +168,6 @@ export function CallOverlay() {
       };
 
       const callDoc = doc(db, "calls", activeCall.id);
-      const callData = (await (await getDoc(callDoc)).data());
-
       await pc.setRemoteDescription(new RTCSessionDescription(activeCall.offer));
 
       const answerDescription = await pc.createAnswer();
@@ -168,7 +178,6 @@ export function CallOverlay() {
         status: "connected"
       });
 
-      // Слушаем ICE кандидатов от звонящего
       onSnapshot(collection(db, "calls", activeCall.id, "callerCandidates"), (snapshot) => {
         snapshot.docChanges().forEach((change) => {
           if (change.type === "added") {
@@ -197,6 +206,7 @@ export function CallOverlay() {
     remoteStream.current = null;
     setActiveCall(null);
     setCallStatus("idle");
+    setOtherUserData(null);
   };
 
   const toggleMute = () => {
@@ -207,7 +217,6 @@ export function CallOverlay() {
     }
   };
 
-  // Экспортируем функцию начала звонка в глобальный контекст для ChatWindow
   React.useEffect(() => {
     (window as any).__startCall = startCall;
     return () => { delete (window as any).__startCall; };
@@ -225,6 +234,7 @@ export function CallOverlay() {
         <div className="relative">
           <UserAvatar 
             userId={otherPartyId} 
+            fallback={otherUserData?.displayName} 
             className="w-32 h-32 border-4 border-primary/20 shadow-xl" 
           />
           {callStatus === "connected" && (
@@ -236,10 +246,10 @@ export function CallOverlay() {
 
         <div className="space-y-2">
           <h2 className="text-2xl font-bold font-headline tracking-tight">
-            {callStatus === "ringing" ? "Входящий вызов" : callStatus === "dialing" ? "Набор номера..." : "В разговоре"}
+            {otherUserData?.displayName || "Пользователь"}
           </h2>
-          <p className="text-sm text-muted-foreground font-medium uppercase tracking-widest opacity-60">
-            {callStatus === "connected" ? "Соединено" : "Cove Voice"}
+          <p className="text-sm text-primary font-bold uppercase tracking-widest opacity-80">
+            {callStatus === "ringing" ? "Входящий вызов" : callStatus === "dialing" ? "Набор номера..." : "В разговоре"}
           </p>
         </div>
 
