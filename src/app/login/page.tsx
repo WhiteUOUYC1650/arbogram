@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useAuth, useUser, useFirestore } from "@/firebase";
@@ -83,6 +84,7 @@ export default function LoginPage() {
           displayName: displayName || email.split('@')[0]
         });
 
+        // Явно сохраняем UID в документе пользователя
         const userData = {
           uid: newUser.uid,
           displayName: displayName || email.split('@')[0],

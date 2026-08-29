@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useCollection, useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
-import { collection, query, orderBy, addDoc, doc, updateDoc, deleteDoc } from "firebase/firestore";
+import { collection, query, orderBy, addDoc, doc, updateDoc, deleteDoc, setDoc } from "firebase/firestore";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { UserAvatar } from "@/components/user-avatar";
@@ -254,48 +254,55 @@ export function ChatWindow({ chatId, onBack }: ChatWindowProps) {
   };
 
   const handleVote = async (messageId: string, optionId: string) => {
-    if (!db || !user) return;
+    if (!db || !user || !user.uid) return;
     const msgRef = doc(db, "chats", chatId, "messages", messageId);
     
     const msg = messages?.find(m => m.id === messageId);
-    if (!msg?.poll) return;
+    if (!msg?.poll || !Array.isArray(msg.poll.options)) return;
+
+    // Используем UID из авторизации - он есть всегда
+    const myUid = user.uid;
 
     const updatedOptions = msg.poll.options.map((opt: any) => {
       const voters = Array.isArray(opt.voters) ? opt.voters : [];
-      const hasVoted = voters.includes(user.uid);
+      const hasVoted = voters.includes(myUid);
 
       if (opt.id === optionId) {
         return {
           ...opt,
           voters: hasVoted 
-            ? voters.filter((v: string) => v !== user.uid)
-            : [...voters, user.uid]
+            ? voters.filter((v: string) => v !== myUid)
+            : [...voters, myUid]
         };
       }
 
+      // Если опрос с одним выбором, убираем голос из других вариантов
       if (!msg.poll.multipleChoice) {
         return {
           ...opt,
-          voters: voters.filter((v: string) => v !== user.uid)
+          voters: voters.filter((v: string) => v !== myUid)
         };
       }
 
       return opt;
     });
 
-    const updatePayload = {
-      "poll.options": updatedOptions
+    const pollUpdate = {
+      ...msg.poll,
+      options: updatedOptions
     };
 
-    updateDoc(msgRef, updatePayload).catch(async (e) => {
-      const error = new FirestorePermissionError({
-        path: msgRef.path,
-        operation: 'update',
-        requestResourceData: updatePayload
+    // Используем setDoc с merge: true для более стабильного обновления вложенных полей
+    setDoc(msgRef, { poll: pollUpdate }, { merge: true })
+      .catch(async (e) => {
+        const error = new FirestorePermissionError({
+          path: msgRef.path,
+          operation: 'update',
+          requestResourceData: { poll: pollUpdate }
+        });
+        (error as any).originalError = e;
+        errorEmitter.emit('permission-error', error);
       });
-      (error as any).originalError = e;
-      errorEmitter.emit('permission-error', error);
-    });
   };
 
   let chatName = chatData?.name || "Chat";

@@ -3,10 +3,10 @@
   "entities": {
     "User": {
       "title": "User",
-      "description": "Профиль пользователя мессенджера. Юзернейм должен начинаться с @.",
+      "description": "Профиль пользователя мессенджера. Юзернейм должен начинаться с @. UID является обязательным полем.",
       "type": "object",
       "properties": {
-        "uid": { "type": "string" },
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
         "displayName": { "type": "string" },
         "username": { "type": "string", "description": "Уникальный тег пользователя, начинается с @" },
         "photoURL": { "type": "string", "description": "URL или ID аватара" },
@@ -69,7 +69,7 @@
                 "properties": {
                   "id": { "type": "string", "description": "Уникальный ID варианта" },
                   "text": { "type": "string", "description": "Текст варианта ответа" },
-                  "voters": { "type": "array", "items": { "type": "string" }, "description": "Список UID пользователей, выбравших этот вариант" }
+                  "voters": { "type": "array", "items": { "type": "string" }, "description": "Список UID проголосовавших" }
                 }
               }
             },
