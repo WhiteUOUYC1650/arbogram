@@ -1,20 +1,21 @@
+
 "use client";
 
 import * as React from "react";
 import { 
-  Info, Send, Paperclip, Smile, Megaphone, X, Loader2, 
-  ImageIcon, MoreVertical, Trash2, Copy, Phone,
-  Mic, Square, Play, Pause, Volume2, Globe, Calendar, User as UserIcon,
-  MessageCircle, Clock
+  Send, Paperclip, X, Loader2, 
+  MoreVertical, Trash2, Copy, 
+  Clock, Reply, Smile, ShieldBan, LogOut
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useCollection, useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
-import { collection, query, orderBy, addDoc, doc, updateDoc, deleteDoc, deleteField } from "firebase/firestore";
-import { errorEmitter } from "@/firebase/error-emitter";
-import { FirestorePermissionError } from "@/firebase/errors";
+import { 
+  collection, query, orderBy, addDoc, doc, updateDoc, 
+  deleteDoc, deleteField, arrayUnion, arrayRemove, getDoc 
+} from "firebase/firestore";
 import { UserAvatar } from "@/components/user-avatar";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -41,9 +42,8 @@ interface ChatWindowProps {
 export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProps) {
   const [message, setMessage] = React.useState("");
   const [isSending, setIsSending] = React.useState(false);
-  const [isRecording, setIsRecording] = React.useState(false);
-  const [recordingTime, setRecordingTime] = React.useState(0);
   const [lang, setLang] = React.useState<Language>('ru');
+  const [replyTo, setReplyTo] = React.useState<any>(null);
   
   const db = useFirestore();
   const { user } = useUser();
@@ -57,128 +57,98 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
   const t = translations[lang];
   
   const fileInputRef = React.useRef<HTMLInputElement>(null);
-  const mediaRecorderRef = React.useRef<MediaRecorder | null>(null);
-  const audioChunksRef = React.useRef<Blob[]>([]);
-  const timerRef = React.useRef<NodeJS.Timeout | null>(null);
-  const typingTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const scrollRef = React.useRef<HTMLDivElement>(null);
 
   const chatRef = useMemoFirebase(() => db ? doc(db, "chats", chatId) : null, [db, chatId]);
   const { data: chatData } = useDoc(chatRef);
+  const { data: currentUserData } = useDoc(user && db ? doc(db, "users", user.uid) : null);
 
   const messagesQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return query(
-      collection(db, "chats", chatId, "messages"),
-      orderBy("timestamp", "asc")
-    );
+    return query(collection(db, "chats", chatId, "messages"), orderBy("timestamp", "asc"));
   }, [db, chatId]);
 
   const { data: messages } = useCollection(messagesQuery);
-  const scrollRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  React.useEffect(() => {
-    return () => {
-      if (db && user && chatRef) {
-        updateDoc(chatRef, { [`typing.${user.uid}`]: deleteField() }).catch(() => {});
-      }
-    };
-  }, [db, user, chatRef]);
+  const handleSend = (options: { imageUrl?: string }) => {
+    const { imageUrl } = options;
+    if ((!message.trim() && !imageUrl) || !db || !user) return;
 
-  const handleTyping = () => {
-    if (!db || !user || !chatRef) return;
-    updateDoc(chatRef, { [`typing.${user.uid}`]: Date.now() }).catch(() => {});
-    
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    typingTimeoutRef.current = setTimeout(() => {
-      if (chatRef) updateDoc(chatRef, { [`typing.${user.uid}`]: deleteField() }).catch(() => {});
-    }, 3000);
-  };
-
-  const handleSend = (options: { imageUrl?: string; audioUrl?: string; duration?: number }) => {
-    const { imageUrl, audioUrl, duration } = options;
-    if ((!message.trim() && !imageUrl && !audioUrl) || !db || !user) return;
+    // Check if blocked
+    const otherId = chatData?.participants?.find((p: string) => p !== user.uid);
+    if (chatData?.type === 'individual' && otherId) {
+      // Logic for blocking would be checked here or in rules
+    }
 
     setIsSending(true);
     const msgData: any = {
       senderId: user.uid,
       senderName: user.displayName || "User",
       timestamp: Date.now(),
-      type: "text",
+      type: imageUrl ? "image" : "text",
+      text: message.trim() || null,
+      imageUrl: imageUrl || null,
+      replyTo: replyTo ? { id: replyTo.id, text: replyTo.text, senderName: replyTo.senderName } : null,
+      reactions: {}
     };
-
-    if (imageUrl) {
-      msgData.type = "image";
-      msgData.imageUrl = imageUrl;
-      msgData.text = message.trim() || null;
-    } else if (audioUrl) {
-      msgData.type = "audio";
-      msgData.audioUrl = audioUrl;
-      msgData.duration = duration;
-    } else {
-      msgData.text = message.trim();
-    }
 
     addDoc(collection(db, "chats", chatId, "messages"), msgData)
       .then(() => {
         if (chatRef) {
-          let lastMsg = msgData.text || "";
-          if (imageUrl) lastMsg = `📷 ${t.photo}`;
-          if (audioUrl) lastMsg = `🎤 ${t.voice}`;
           updateDoc(chatRef, { 
-            lastMessage: lastMsg, 
-            lastMessageTime: Date.now(), 
-            [`typing.${user.uid}`]: deleteField() 
+            lastMessage: imageUrl ? "📷 Фото" : msgData.text, 
+            lastMessageTime: Date.now() 
           }).catch(() => {});
         }
-        if (!imageUrl && !audioUrl) setMessage("");
-      })
-      .catch(async (e) => {
-        const error = new FirestorePermissionError({ path: `chats/${chatId}/messages`, operation: "create", requestResourceData: msgData });
-        (error as any).originalError = e;
-        errorEmitter.emit("permission-error", error);
+        setMessage("");
+        setReplyTo(null);
       })
       .finally(() => setIsSending(false));
   };
 
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
-      mediaRecorder.ondataavailable = (event) => { if (event.data.size > 0) audioChunksRef.current.push(event.data); };
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        const reader = new FileReader();
-        reader.readAsDataURL(audioBlob);
-        reader.onloadend = () => { handleSend({ audioUrl: reader.result as string, duration: recordingTime }); setRecordingTime(0); };
-        stream.getTracks().forEach(track => track.stop());
-      };
-      mediaRecorder.start();
-      setIsRecording(true);
-      setRecordingTime(0);
-      timerRef.current = setInterval(() => setRecordingTime(prev => prev + 1), 1000);
-    } catch (err) { toast({ variant: "destructive", title: t.error, description: t.micRequired }); }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      if (timerRef.current) clearInterval(timerRef.current);
-    }
-  };
-
-  const handleCall = () => {
-    toast({ 
-      title: t.appName, 
-      description: t.callsUpcoming,
-      className: "rounded-2xl border-primary/20 bg-card text-foreground"
+  const handleReaction = async (msgId: string, emoji: string) => {
+    if (!db || !user) return;
+    const msgRef = doc(db, "chats", chatId, "messages", msgId);
+    await updateDoc(msgRef, {
+      [`reactions.${emoji}`]: arrayUnion(user.uid)
     });
+  };
+
+  const handleDeleteChat = async () => {
+    if (!db || !chatRef) return;
+    if (chatId === 'global') return;
+    try {
+      await deleteDoc(chatRef);
+      onBack?.();
+      toast({ title: t.success });
+    } catch (e) { toast({ variant: "destructive", title: t.error }); }
+  };
+
+  const handleBlockUser = async () => {
+    if (!db || !user || chatData?.type !== 'individual') return;
+    const otherId = chatData.participants.find((p: string) => p !== user.uid);
+    if (!otherId) return;
+    
+    try {
+      await updateDoc(doc(db, "users", user.uid), {
+        blockedUsers: arrayUnion(otherId)
+      });
+      toast({ title: t.success });
+    } catch (e) { toast({ variant: "destructive", title: t.error }); }
+  };
+
+  const handleLeave = async () => {
+    if (!db || !user || !chatRef || chatId === 'global') return;
+    try {
+      await updateDoc(chatRef, {
+        participants: arrayRemove(user.uid)
+      });
+      onBack?.();
+    } catch (e) { toast({ variant: "destructive", title: t.error }); }
   };
 
   let chatName = chatData?.name || "Chat";
@@ -193,256 +163,129 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
     }
   }
 
-  const targetUserRef = useMemoFirebase(() => (db && otherId ? doc(db, "users", otherId) : null), [db, otherId]);
-  const { data: targetUserData } = useDoc(targetUserRef);
-
-  let subStatusText = t.offline;
-  if (chatData?.type === 'individual') {
-    if (targetUserData?.status === 'online') {
-      subStatusText = t.online;
-    } else if (targetUserData?.lastSeen) {
-      const timeStr = new Date(targetUserData.lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      subStatusText = `${t.offline} (${timeStr})`;
-    }
-  } else if (chatData?.type === 'group') {
-    subStatusText = `${chatData.participants?.length || 0} ${t.members}`;
-  } else if (chatData?.type === 'channel') {
-    subStatusText = t.channel;
-  }
-
-  const typingUsers = React.useMemo(() => {
-    if (!chatData?.typing || !user) return [];
-    const now = Date.now();
-    return Object.entries(chatData.typing)
-      .filter(([uid, timestamp]) => uid !== user.uid && now - (timestamp as number) < 5000)
-      .map(([uid]) => chatData.metadata?.[uid]?.displayName || "Кто-то");
-  }, [chatData?.typing, user]);
-
-  const canWrite = chatData?.type !== 'channel' || chatData?.ownerId === user?.uid;
-
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden animate-in slide-in-from-right duration-300">
       <div className="flex items-center justify-between p-4 border-b bg-white/80 dark:bg-black/40 backdrop-blur-md z-10 shrink-0">
         <div className="flex items-center gap-3">
-          {onBack && (
-            <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground shrink-0" onClick={onBack}>
-              <X className="w-5 h-5" />
-            </Button>
-          )}
-          <Dialog>
-            <DialogTrigger asChild>
-              <div className="cursor-pointer flex items-center gap-3">
-                <div className="relative shrink-0">
-                  <UserAvatar userId={avatarTargetId} fallback={chatName} className="w-10 h-10 border-2 border-primary/20" />
-                  {targetUserData?.status === 'online' && chatData?.type === 'individual' && (
-                    <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white dark:border-zinc-900 rounded-full" />
-                  )}
-                </div>
-                <div className="min-w-0">
-                  <h2 className="font-semibold text-sm leading-tight truncate max-w-[150px] sm:max-w-none flex items-center gap-1 text-foreground">
-                    {chatName}
-                    {chatData?.type === 'channel' && <Megaphone className="w-3 h-3 text-primary" />}
-                  </h2>
-                  <p className="text-[10px] text-primary font-bold tracking-wider uppercase opacity-80">
-                    {typingUsers.length > 0 ? `${typingUsers.join(', ')} ${t.typing}` : subStatusText}
-                  </p>
-                </div>
-              </div>
-            </DialogTrigger>
-            <DialogContent className="rounded-3xl p-0 overflow-hidden">
-              <DialogHeader className="p-6 pb-0"><DialogTitle>{t.profile}</DialogTitle></DialogHeader>
-              <ProfileDetails userId={avatarTargetId} chatData={chatData} t={t} onStartChat={otherId ? () => onStartDirectChat?.(otherId) : undefined} />
-            </DialogContent>
-          </Dialog>
+          {onBack && <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground" onClick={onBack}><X className="w-5 h-5" /></Button>}
+          <div className="flex items-center gap-3">
+            <UserAvatar userId={avatarTargetId} fallback={chatName} className="w-10 h-10 border-2 border-primary/20" />
+            <div className="min-w-0">
+              <h2 className="font-semibold text-sm leading-tight truncate">{chatName}</h2>
+              <p className="text-[10px] text-primary font-bold uppercase opacity-80">{chatData?.type === 'individual' ? t.personal : t.group}</p>
+            </div>
+          </div>
         </div>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-primary" onClick={handleCall}>
-            <Phone className="w-5 h-5" />
-          </Button>
-          <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-primary"><MoreVertical className="w-5 h-5" /></Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="rounded-full"><MoreVertical className="w-5 h-5" /></Button></DropdownMenuTrigger>
+            <DropdownMenuContent className="rounded-2xl" align="end">
+              {chatData?.type === 'individual' && (
+                <>
+                  <DropdownMenuItem onClick={handleBlockUser} className="text-destructive"><ShieldBan className="w-4 h-4 mr-2" />{t.block}</DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleDeleteChat} className="text-destructive"><Trash2 className="w-4 h-4 mr-2" />{t.deleteChat}</DropdownMenuItem>
+                </>
+              )}
+              {chatData?.type !== 'individual' && chatId !== 'global' && (
+                <DropdownMenuItem onClick={handleLeave} className="text-destructive"><LogOut className="w-4 h-4 mr-2" />{t.leave}</DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
-      <ScrollArea className="flex-1 min-h-0 bg-sidebar/5">
+      <ScrollArea className="flex-1 bg-sidebar/5">
         <div className="p-4 flex flex-col gap-4 max-w-4xl mx-auto">
-          {messages?.reduce((acc: React.ReactNode[], msg, idx) => {
+          {messages?.map((msg, idx) => {
             const isMe = msg.senderId === user?.uid;
-            const alignLeft = chatData?.type === 'channel' || !isMe;
-            const msgDate = new Date(msg.timestamp).toLocaleDateString();
-            const prevMsgDate = idx > 0 ? new Date(messages[idx - 1].timestamp).toLocaleDateString() : null;
-
-            if (msgDate !== prevMsgDate) {
-              acc.push(
-                <div key={`date-${msg.timestamp}`} className="flex justify-center my-6">
-                  <div className="px-4 py-1.5 bg-sidebar/50 backdrop-blur-md rounded-2xl border border-primary/10 shadow-sm">
-                     <span className="text-[10px] font-black text-primary uppercase tracking-[0.2em]">{msgDate}</span>
-                  </div>
-                </div>
-              );
-            }
-
-            acc.push(
-              <div key={msg.id} className={cn("flex flex-col group/msg max-w-[85%] sm:max-w-[75%]", alignLeft ? "mr-auto items-start" : "ml-auto items-end")}>
-                <div className="flex items-start gap-1 w-full">
-                  <div className={cn("p-1 rounded-2xl text-sm shadow-sm transition-all overflow-hidden flex-1", !alignLeft ? "cove-gradient text-white rounded-tr-none" : "bg-white dark:bg-zinc-800 text-foreground rounded-tl-none border border-primary/10")}>
-                    {chatData?.type === 'group' && !isMe && (
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <div className="flex items-center gap-2 mb-1 px-3 pt-2 cursor-pointer hover:opacity-80 transition-opacity">
-                            <UserAvatar userId={msg.senderId} fallback={msg.senderName} className="w-4 h-4 shrink-0" />
-                            <p className="text-[9px] font-bold opacity-70">{msg.senderName}</p>
-                          </div>
-                        </DialogTrigger>
-                        <DialogContent className="rounded-3xl p-0 overflow-hidden">
-                          <DialogHeader className="p-6 pb-0"><DialogTitle>{t.profile}</DialogTitle></DialogHeader>
-                          <ProfileDetails userId={msg.senderId} t={t} onStartChat={() => onStartDirectChat?.(msg.senderId)} />
-                        </DialogContent>
-                      </Dialog>
+            return (
+              <div key={msg.id} className={cn("flex flex-col group/msg max-w-[85%]", isMe ? "ml-auto items-end" : "mr-auto items-start")}>
+                <div className="flex items-start gap-2 w-full">
+                  {isMe && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="w-6 h-6 opacity-0 group-hover/msg:opacity-100 transition-opacity rounded-full"><MoreVertical className="w-3 h-3" /></Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent className="rounded-xl">
+                        {msg.text && <DropdownMenuItem onClick={() => navigator.clipboard.writeText(msg.text)}><Copy className="w-4 h-4 mr-2" />{t.copy}</DropdownMenuItem>}
+                        {msg.imageUrl && <DropdownMenuItem onClick={() => window.open(msg.imageUrl, '_blank')}><Smile className="w-4 h-4 mr-2" />{t.save}</DropdownMenuItem>}
+                        <DropdownMenuItem onClick={() => deleteDoc(doc(db!, "chats", chatId, "messages", msg.id))} className="text-destructive"><Trash2 className="w-4 h-4 mr-2" />{t.delete}</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                  <div className={cn("p-2 px-3 rounded-2xl text-sm shadow-sm relative", isMe ? "cove-gradient text-white rounded-tr-none" : "bg-white dark:bg-zinc-800 text-foreground rounded-tl-none border")}>
+                    {msg.replyTo && (
+                      <div className="mb-2 p-2 rounded-lg bg-black/10 border-l-2 border-primary text-[10px] opacity-80">
+                        <p className="font-bold">{msg.replyTo.senderName}</p>
+                        <p className="truncate">{msg.replyTo.text}</p>
+                      </div>
                     )}
-                    {msg.type === "image" && msg.imageUrl && <img src={msg.imageUrl} alt="Shared" className="w-full max-h-[300px] object-cover rounded-xl" />}
-                    {msg.type === "audio" && msg.audioUrl && <AudioBubble audioUrl={msg.audioUrl} duration={msg.duration} isMe={!alignLeft} />}
-                    {msg.text && <div className={cn("px-3 py-2", (msg.imageUrl || msg.audioUrl) && "pt-1")}>{msg.text}</div>}
+                    {msg.imageUrl && <img src={msg.imageUrl} className="w-full max-h-[300px] object-cover rounded-xl mb-1" />}
+                    {msg.text && <p>{msg.text}</p>}
+                    
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {msg.reactions && Object.entries(msg.reactions).map(([emoji, uids]: any) => (
+                        <div key={emoji} className="px-1.5 py-0.5 bg-black/10 rounded-full text-[10px] flex items-center gap-1">
+                          {emoji} {uids.length}
+                        </div>
+                      ))}
+                    </div>
                   </div>
+                  {!isMe && (
+                    <Button variant="ghost" size="icon" className="w-6 h-6 opacity-0 group-hover/msg:opacity-100 transition-opacity rounded-full" onClick={() => setReplyTo(msg)}><Reply className="w-3 h-3" /></Button>
+                  )}
                 </div>
-                <span className="text-[10px] text-muted-foreground mt-1 px-1">{new Date(msg.timestamp).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span>
+                <div className="flex items-center gap-2 mt-1 px-1">
+                  <span className="text-[9px] text-muted-foreground">{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  {!isMe && (
+                    <div className="flex gap-1 opacity-0 group-hover/msg:opacity-100 transition-opacity">
+                      {['❤️', '👍', '😂', '🔥'].map(emoji => (
+                        <button key={emoji} onClick={() => handleReaction(msg.id, emoji)} className="hover:scale-125 transition-transform">{emoji}</button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             );
-            return acc;
-          }, [])}
-          <div ref={scrollRef} className="h-2" />
+          })}
+          <div ref={scrollRef} className="h-4" />
         </div>
       </ScrollArea>
 
-      {canWrite ? (
-        <div className="p-4 bg-white/80 dark:bg-black/40 backdrop-blur-md border-t shrink-0">
-          <div className="max-w-4xl mx-auto flex items-center gap-2">
-            {isRecording ? (
-              <div className="flex-1 flex items-center gap-3 bg-red-500/10 p-2 px-4 rounded-full animate-pulse border border-red-500/20">
-                <div className="w-2 h-2 rounded-full bg-red-500" />
-                <span className="text-xs font-bold text-red-500 font-mono">{Math.floor(recordingTime/60)}:{String(recordingTime%60).padStart(2,'0')}</span>
-                <div className="flex-1" />
-                <Button variant="ghost" size="icon" className="rounded-full text-red-500" onClick={stopRecording}><Square className="w-5 h-5 fill-current" /></Button>
-              </div>
-            ) : (
-              <>
-                <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    const reader = new FileReader();
-                    reader.onload = (ev) => handleSend({ imageUrl: ev.target?.result as string });
-                    reader.readAsDataURL(file);
-                  }
-                }} />
-                <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground shrink-0" onClick={() => fileInputRef.current?.click()}><Paperclip className="w-5 h-5" /></Button>
-                <div className="flex-1 relative min-w-0">
-                  <Input 
-                    placeholder={t.message} 
-                    className="pr-10 bg-background border-none rounded-full h-11" 
-                    value={message} 
-                    onChange={(e) => { setMessage(e.target.value); handleTyping(); }} 
-                    onKeyDown={(e) => { if (e.key === 'Enter') handleSend({}); }} 
-                  />
-                </div>
-                {message.trim() ? (
-                  <Button className="rounded-full cove-gradient text-white px-4 h-11 shrink-0" onClick={() => handleSend({})} disabled={isSending}>
-                    {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                  </Button>
-                ) : (
-                  <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground shrink-0" onClick={startRecording}><Mic className="w-5 h-5" /></Button>
-                )}
-              </>
-            )}
+      {replyTo && (
+        <div className="px-4 py-2 bg-muted/30 border-t flex items-center justify-between animate-in slide-in-from-bottom duration-200">
+          <div className="flex items-center gap-2 min-w-0">
+            <Reply className="w-4 h-4 text-primary" />
+            <div className="text-[10px] truncate">
+              <p className="font-bold">{replyTo.senderName}</p>
+              <p className="text-muted-foreground truncate">{replyTo.text || "Фото"}</p>
+            </div>
           </div>
+          <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setReplyTo(null)}><X className="w-4 h-4" /></Button>
         </div>
-      ) : (
-        <div className="p-4 bg-sidebar/20 text-center border-t shrink-0"><p className="text-xs text-muted-foreground">{t.adminsOnly}</p></div>
       )}
-    </div>
-  );
-}
 
-function ProfileDetails({ userId, chatData, t, onStartChat }: { userId: string, chatData?: any, t: any, onStartChat?: () => void }) {
-  const db = useFirestore();
-  const userRef = useMemoFirebase(() => db ? doc(db, "users", userId) : null, [db, userId]);
-  const { data: userData } = useDoc(userRef);
-
-  return (
-    <div className="flex flex-col gap-6 p-6">
-      <div className="flex flex-col items-center gap-4">
-        <UserAvatar userId={userId} fallback={userData?.displayName || chatData?.name} className="w-24 h-24 border-4 border-primary/20" />
-        <div className="text-center space-y-1">
-          <h3 className="text-xl font-bold">{userData?.displayName || chatData?.name}</h3>
-          <div className="flex items-center justify-center gap-2">
-            <p className="text-[10px] text-primary font-bold uppercase tracking-widest opacity-80">{userData?.username || "@user"}</p>
-            {userData?.status === 'online' ? (
-              <span className="flex h-2 w-2 rounded-full bg-green-500" />
-            ) : (
-              <span className="text-[9px] text-muted-foreground">({t.offline} {userData?.lastSeen ? new Date(userData.lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''})</span>
-            )}
-          </div>
-        </div>
-      </div>
-      {onStartChat && <Button className="rounded-2xl cove-gradient w-full h-12 gap-2" onClick={onStartChat}><MessageCircle className="w-5 h-5" />{t.sendMessage}</Button>}
-    </div>
-  );
-}
-
-function AudioBubble({ audioUrl, duration, isMe }: { audioUrl: string; duration?: number; isMe: boolean }) {
-  const [isPlaying, setIsPlaying] = React.useState(false);
-  const audioRef = React.useRef<HTMLAudioElement | null>(null);
-  
-  const togglePlay = (e: React.MouseEvent) => { 
-    e.stopPropagation();
-    if (audioRef.current) { 
-      if (isPlaying) audioRef.current.pause(); 
-      else audioRef.current.play(); 
-      setIsPlaying(!isPlaying); 
-    } 
-  };
-
-  const formatTime = (s: number) => {
-    const min = Math.floor(s / 60);
-    const sec = Math.floor(s % 60);
-    return `${min}:${sec.toString().padStart(2, '0')}`;
-  };
-
-  return (
-    <div className="flex items-center gap-3 p-3 py-2 min-w-[180px] sm:min-w-[220px]">
-      <audio ref={audioRef} src={audioUrl} onEnded={() => setIsPlaying(false)} className="hidden" />
-      <Button 
-        variant="ghost" 
-        size="icon" 
-        className={cn(
-          "w-9 h-9 rounded-full shrink-0 transition-transform active:scale-90", 
-          isMe ? "bg-white/20 text-white hover:bg-white/30" : "bg-primary/10 text-primary hover:bg-primary/20"
-        )} 
-        onClick={togglePlay}
-      >
-        {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
-      </Button>
-      <div className="flex-1 space-y-1.5">
-        <div className="flex items-center justify-between">
-          <div className="flex gap-0.5 h-3 items-center">
-            {[...Array(12)].map((_, i) => (
-              <div 
-                key={i} 
-                className={cn(
-                  "w-0.5 rounded-full", 
-                  isMe ? "bg-white/40" : "bg-primary/30",
-                  i % 3 === 0 ? "h-3" : i % 2 === 0 ? "h-2" : "h-1.5"
-                )} 
-              />
-            ))}
-          </div>
-          <div className="flex items-center gap-1 opacity-70">
-            <Clock className={cn("w-2.5 h-2.5", isMe ? "text-white" : "text-muted-foreground")} />
-            <span className={cn("text-[10px] font-bold font-mono", isMe ? "text-white" : "text-muted-foreground")}>
-              {formatTime(duration || 0)}
-            </span>
-          </div>
-        </div>
-        <div className={cn("w-full h-1 rounded-full", isMe ? "bg-white/20" : "bg-primary/5")}>
-           <div className={cn("h-full rounded-full w-0 transition-all", isMe ? "bg-white" : "bg-primary")} style={{ width: isPlaying ? '100%' : '0%' }} />
+      <div className="p-4 bg-white/80 dark:bg-black/40 backdrop-blur-md border-t shrink-0">
+        <div className="max-w-4xl mx-auto flex items-center gap-2">
+          <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) {
+              const reader = new FileReader();
+              reader.onload = (ev) => handleSend({ imageUrl: ev.target?.result as string });
+              reader.readAsDataURL(file);
+            }
+          }} />
+          <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground" onClick={() => fileInputRef.current?.click()}><Paperclip className="w-5 h-5" /></Button>
+          <Input 
+            placeholder={t.message} 
+            className="rounded-full bg-background border-none" 
+            value={message} 
+            onChange={(e) => setMessage(e.target.value)} 
+            onKeyDown={(e) => e.key === 'Enter' && handleSend({})} 
+          />
+          <Button className="rounded-full cove-gradient text-white h-10 w-10 p-0" onClick={() => handleSend({})} disabled={isSending}>
+            {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+          </Button>
         </div>
       </div>
     </div>

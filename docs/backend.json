@@ -3,38 +3,33 @@
   "entities": {
     "User": {
       "title": "User",
-      "description": "Профиль пользователя мессенджера.",
+      "description": "Профіль користувача.",
       "type": "object",
       "properties": {
-        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "uid": { "type": "string" },
         "displayName": { "type": "string" },
-        "username": { "type": "string", "description": "Уникальный тег пользователя, начинается с @" },
-        "photoURL": { "type": "string", "description": "URL или ID аватара" },
-        "email": { "type": "string", "format": "email" },
+        "username": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "email": { "type": "string" },
         "lastSeen": { "type": "number" },
         "status": { "type": "string", "enum": ["online", "offline"] },
-        "settings": {
-          "type": "object",
-          "properties": {
-            "privacy": { "type": "object" },
-            "notifications": { "type": "object" }
-          }
-        }
+        "isBanned": { "type": "boolean" },
+        "blockedUsers": { "type": "array", "items": { "type": "string" } }
       },
       "required": ["uid", "email", "username"]
     },
     "Chat": {
       "title": "Chat",
-      "description": "Метаданные чата",
+      "description": "Метадані чату",
       "type": "object",
       "properties": {
         "participants": { "type": "array", "items": { "type": "string" } },
-        "metadata": { "type": "object" },
         "ownerId": { "type": "string" },
         "lastMessage": { "type": "string" },
         "lastMessageTime": { "type": "number" },
         "type": { "type": "string", "enum": ["individual", "group", "channel"] },
         "name": { "type": "string" },
+        "slug": { "type": "string" },
         "isPublic": { "type": "boolean" },
         "createdAt": { "type": "object" },
         "typing": { "type": "object" }
@@ -43,41 +38,28 @@
     },
     "Message": {
       "title": "Message",
-      "description": "Сообщение в чате",
+      "description": "Повідомлення",
       "type": "object",
       "properties": {
         "senderId": { "type": "string" },
         "senderName": { "type": "string" },
-        "type": { "type": "string", "enum": ["text", "image", "audio", "poll"] },
+        "type": { "type": "string", "enum": ["text", "image", "audio"] },
         "text": { "type": "string" },
         "imageUrl": { "type": "string" },
         "audioUrl": { "type": "string" },
-        "duration": { "type": "number" },
-        "timestamp": { "type": "number" }
+        "timestamp": { "type": "number" },
+        "reactions": { "type": "object" },
+        "replyTo": { "type": "object" }
       },
       "required": ["senderId", "type", "timestamp"]
-    },
-    "Call": {
-      "title": "Call",
-      "description": "Сигнальные данные звонка WebRTC",
-      "type": "object",
-      "properties": {
-        "callerId": { "type": "string" },
-        "receiverId": { "type": "string" },
-        "status": { "type": "string", "enum": ["dialing", "ringing", "connected", "ended"] },
-        "offer": { "type": "object" },
-        "answer": { "type": "object" },
-        "timestamp": { "type": "number" }
-      }
     }
   },
   "auth": {
     "providers": ["password", "google.com"]
   },
   "firestore": {
-    "/users/{userId}": { "schema": "User", "description": "Профили" },
-    "/chats/{chatId}": { "schema": "Chat", "description": "Чаты" },
-    "/chats/{chatId}/messages/{messageId}": { "schema": "Message", "description": "Сообщения" },
-    "/calls/{callId}": { "schema": "Call", "description": "Сигналинг звонков" }
+    "/users/{userId}": { "schema": "User", "description": "Профілі" },
+    "/chats/{chatId}": { "schema": "Chat", "description": "Чати" },
+    "/chats/{chatId}/messages/{messageId}": { "schema": "Message", "description": "Повідомлення" }
   }
 }
