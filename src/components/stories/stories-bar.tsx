@@ -1,15 +1,17 @@
 "use client";
 
 import * as React from "react";
-import { Plus, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, X, Trash2, Loader2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection, query, orderBy, where } from "firebase/firestore";
+import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
+import { collection, query, orderBy, where, deleteDoc, doc } from "firebase/firestore";
 import { CreateStoryDialog } from "./create-story-dialog";
-import { Dialog, DialogContent, DialogTrigger, DialogTitle, DialogHeader } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTrigger, DialogTitle, DialogHeader, DialogClose } from "@/components/ui/dialog";
 import { UserAvatar } from "@/components/user-avatar";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 
 export function StoriesBar() {
   const db = useFirestore();
@@ -75,7 +77,13 @@ export function StoriesBar() {
 
 function StoryViewer({ group }: { group: any }) {
   const [currentIndex, setCurrentIndex] = React.useState(0);
+  const [isDeleting, setIsDeleting] = React.useState(false);
+  const { user } = useUser();
+  const db = useFirestore();
+  const { toast } = useToast();
+  
   const currentStory = group.stories[currentIndex];
+  const isOwner = user?.uid === group.userId;
 
   const handleNext = (e?: React.MouseEvent) => {
     e?.stopPropagation();
@@ -88,6 +96,29 @@ function StoryViewer({ group }: { group: any }) {
     e?.stopPropagation();
     if (currentIndex > 0) {
       setCurrentIndex(currentIndex - 1);
+    }
+  };
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!db || !currentStory.id || !isOwner) return;
+    
+    setIsDeleting(true);
+    try {
+      await deleteDoc(doc(db, "stories", currentStory.id));
+      toast({ title: "Удалено", description: "История была удалена." });
+      
+      if (group.stories.length === 1) {
+        // Если была одна история, просто закрываем (произойдет при рендере списка)
+      } else if (currentIndex > 0) {
+        setCurrentIndex(currentIndex - 1);
+      } else {
+        // Если это была первая история и есть другие
+      }
+    } catch (err) {
+      toast({ variant: "destructive", title: "Ошибка", description: "Не удалось удалить историю." });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -108,11 +139,12 @@ function StoryViewer({ group }: { group: any }) {
           <span className="text-[10px] font-medium truncate max-w-[60px]">{group.userName}</span>
         </div>
       </DialogTrigger>
-      <DialogContent className="w-[95vw] sm:max-w-md p-0 overflow-hidden bg-black rounded-3xl border-none h-[80vh] flex flex-col items-center justify-center select-none">
+      <DialogContent className="w-[95vw] sm:max-w-md p-0 overflow-hidden bg-black rounded-3xl border-none h-[85vh] flex flex-col items-center justify-center select-none">
         <DialogHeader className="sr-only">
           <DialogTitle>Истории от {group.userName}</DialogTitle>
         </DialogHeader>
         
+        {/* Progress Bars */}
         <div className="absolute top-2 left-2 right-2 z-30 flex gap-1">
           {group.stories.map((_: any, idx: number) => (
             <div 
@@ -125,28 +157,54 @@ function StoryViewer({ group }: { group: any }) {
           ))}
         </div>
 
-        <div className="absolute top-6 left-4 z-20 flex items-center gap-2">
-          <UserAvatar 
-            userId={group.userId} 
-            fallback={group.userName} 
-            className="w-8 h-8 border border-white/20" 
-          />
-          <div className="flex flex-col">
-            <span className="text-white text-sm font-semibold shadow-black drop-shadow-md">
-              {group.userName}
-            </span>
-            <span className="text-white/60 text-[8px]">
-              {new Date(currentStory.timestamp).toLocaleString('ru-RU', { 
-                day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' 
-              })}
-            </span>
+        {/* User Info Bar */}
+        <div className="absolute top-6 left-4 right-4 z-40 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <UserAvatar 
+              userId={group.userId} 
+              fallback={group.userName} 
+              className="w-8 h-8 border border-white/20" 
+            />
+            <div className="flex flex-col">
+              <span className="text-white text-sm font-semibold shadow-black drop-shadow-md">
+                {group.userName}
+              </span>
+              <span className="text-white/60 text-[8px]">
+                {new Date(currentStory.timestamp).toLocaleString('ru-RU', { 
+                  day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' 
+                })}
+              </span>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            {isOwner && (
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="rounded-full w-8 h-8 bg-black/20 text-white hover:bg-destructive transition-colors"
+                onClick={handleDelete}
+                disabled={isDeleting}
+              >
+                {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+              </Button>
+            )}
+            <DialogClose asChild>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="rounded-full w-8 h-8 bg-black/20 text-white hover:bg-white/10"
+              >
+                <X className="w-5 h-5" />
+              </Button>
+            </DialogClose>
           </div>
         </div>
 
+        {/* Navigation Layers */}
         <div className="absolute inset-0 z-10 flex">
-          <div className="w-1/3 h-full cursor-west-resize" onClick={handlePrev} />
-          <div className="w-1/3 h-full" />
-          <div className="w-1/3 h-full cursor-east-resize" onClick={handleNext} />
+          <div className="w-1/2 h-full cursor-west-resize" onClick={handlePrev} />
+          <div className="w-1/2 h-full cursor-east-resize" onClick={handleNext} />
         </div>
         
         {currentStory.type === 'image' ? (
@@ -163,12 +221,14 @@ function StoryViewer({ group }: { group: any }) {
           </div>
         )}
 
+        {/* Footer info */}
         <div className="absolute bottom-6 left-0 right-0 text-center z-20">
-           <span className="text-white/40 text-[9px]">
-             История {currentIndex + 1} из {group.stories.length}
+           <span className="text-white/40 text-[9px] font-bold uppercase tracking-widest">
+             {currentIndex + 1} / {group.stories.length}
            </span>
         </div>
 
+        {/* Desktop Navigation Buttons */}
         {currentIndex > 0 && (
           <button 
             onClick={handlePrev}

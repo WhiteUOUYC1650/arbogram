@@ -5,7 +5,7 @@ import {
   Info, Send, Paperclip, Smile, Megaphone, X, Loader2, 
   ImageIcon, MoreVertical, Trash2, Copy, Phone,
   Mic, Square, Play, Pause, Volume2, Globe, Calendar, User as UserIcon,
-  MessageCircle
+  MessageCircle, Clock
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -174,7 +174,6 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
   };
 
   const handleCall = () => {
-    // Звонки отложены до v1.2
     toast({ 
       title: t.appName, 
       description: t.callsUpcoming,
@@ -391,16 +390,60 @@ function ProfileDetails({ userId, chatData, t, onStartChat }: { userId: string, 
 function AudioBubble({ audioUrl, duration, isMe }: { audioUrl: string; duration?: number; isMe: boolean }) {
   const [isPlaying, setIsPlaying] = React.useState(false);
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
-  const togglePlay = () => { if (audioRef.current) { if (isPlaying) audioRef.current.pause(); else audioRef.current.play(); setIsPlaying(!isPlaying); } };
+  
+  const togglePlay = (e: React.MouseEvent) => { 
+    e.stopPropagation();
+    if (audioRef.current) { 
+      if (isPlaying) audioRef.current.pause(); 
+      else audioRef.current.play(); 
+      setIsPlaying(!isPlaying); 
+    } 
+  };
+
+  const formatTime = (s: number) => {
+    const min = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return `${min}:${sec.toString().padStart(2, '0')}`;
+  };
+
   return (
-    <div className="flex items-center gap-3 p-3 py-2 min-w-[200px]">
+    <div className="flex items-center gap-3 p-3 py-2 min-w-[180px] sm:min-w-[220px]">
       <audio ref={audioRef} src={audioUrl} onEnded={() => setIsPlaying(false)} className="hidden" />
-      <Button variant="ghost" size="icon" className={cn("w-8 h-8 rounded-full", isMe ? "bg-white/20 text-white" : "bg-primary/10 text-primary")} onClick={togglePlay}>
-        {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current" />}
+      <Button 
+        variant="ghost" 
+        size="icon" 
+        className={cn(
+          "w-9 h-9 rounded-full shrink-0 transition-transform active:scale-90", 
+          isMe ? "bg-white/20 text-white hover:bg-white/30" : "bg-primary/10 text-primary hover:bg-primary/20"
+        )} 
+        onClick={togglePlay}
+      >
+        {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
       </Button>
-      <div className="flex-1">
-        <div className={cn("w-full h-1 rounded-full", isMe ? "bg-white/20" : "bg-primary/10")} />
-        <span className={cn("text-[9px] font-bold opacity-70", isMe ? "text-white" : "text-muted-foreground")}>{Math.floor((duration||0)/60)}:{String((duration||0)%60).padStart(2,'0')}</span>
+      <div className="flex-1 space-y-1.5">
+        <div className="flex items-center justify-between">
+          <div className="flex gap-0.5 h-3 items-center">
+            {[...Array(12)].map((_, i) => (
+              <div 
+                key={i} 
+                className={cn(
+                  "w-0.5 rounded-full", 
+                  isMe ? "bg-white/40" : "bg-primary/30",
+                  i % 3 === 0 ? "h-3" : i % 2 === 0 ? "h-2" : "h-1.5"
+                )} 
+              />
+            ))}
+          </div>
+          <div className="flex items-center gap-1 opacity-70">
+            <Clock className={cn("w-2.5 h-2.5", isMe ? "text-white" : "text-muted-foreground")} />
+            <span className={cn("text-[10px] font-bold font-mono", isMe ? "text-white" : "text-muted-foreground")}>
+              {formatTime(duration || 0)}
+            </span>
+          </div>
+        </div>
+        <div className={cn("w-full h-1 rounded-full", isMe ? "bg-white/20" : "bg-primary/5")}>
+           <div className={cn("h-full rounded-full w-0 transition-all", isMe ? "bg-white" : "bg-primary")} style={{ width: isPlaying ? '100%' : '0%' }} />
+        </div>
       </div>
     </div>
   );

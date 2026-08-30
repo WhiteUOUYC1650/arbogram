@@ -1,8 +1,7 @@
-
 "use client";
 
 import * as React from "react";
-import { Search, Globe, LogOut, Settings as SettingsIcon, Pencil, Loader2 } from "lucide-react";
+import { Search, Globe, LogOut, Settings as SettingsIcon, Pencil, Loader2, Info, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -15,6 +14,13 @@ import { SettingsDialog } from "@/components/settings/settings-dialog";
 import { UserAvatar } from "@/components/user-avatar";
 import { ArbogramIcon } from "@/components/arbogram-icon";
 import { translations, Language } from "@/lib/i18n";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 interface ChatSidebarProps {
   activeChatId?: string;
@@ -85,10 +91,39 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
             <ArbogramIcon className="w-10 h-10 shadow-md" />
             <div className="flex flex-col">
               <h1 className="text-xl font-bold font-headline text-primary leading-none">CoveChat</h1>
-              <span className="text-[10px] text-muted-foreground font-bold tracking-[0.2em] uppercase">{t.appName}</span>
+              <span className="text-[10px] text-muted-foreground font-bold tracking-[0.2em] uppercase">{t.messenger}</span>
             </div>
           </div>
           <div className="flex gap-0.5">
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="ghost" size="icon" className="rounded-full h-9 w-9">
+                  <Info className="w-5 h-5 text-muted-foreground" />
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="rounded-3xl max-w-sm">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <ArbogramIcon className="w-6 h-6 rounded-lg" />
+                    {t.whatsNew}
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="p-4 bg-primary/5 rounded-2xl border border-primary/10">
+                    <p className="text-[10px] font-bold text-primary uppercase tracking-widest mb-1">{t.rebooting}</p>
+                    <p className="text-xs text-muted-foreground leading-relaxed">{t.v1_1_desc}</p>
+                  </div>
+                  <ul className="space-y-2">
+                    {['Stories deletion', 'Improved Sidebar Header', 'Real-time Statuses', 'Voice Duration Fix'].map((item, i) => (
+                      <li key={i} className="flex items-center gap-2 text-[11px] font-medium text-foreground">
+                        <ChevronRight className="w-3 h-3 text-primary" /> {item}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-[9px] text-center text-muted-foreground pt-2">CoveChat • 2026 • Build 1.1.24</p>
+                </div>
+              </DialogContent>
+            </Dialog>
             <SettingsDialog>
               <Button variant="ghost" size="icon" className="rounded-full h-9 w-9"><SettingsIcon className="w-5 h-5 text-muted-foreground" /></Button>
             </SettingsDialog>

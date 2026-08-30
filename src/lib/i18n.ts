@@ -3,6 +3,8 @@ export type Language = 'ru' | 'en';
 export const translations = {
   ru: {
     appName: 'CoveChat',
+    messenger: 'Messenger',
+    whatsNew: 'Что нового?',
     rebooting: 'Redirection v1.1',
     login: 'Вход',
     registration: 'Регистрация',
@@ -57,10 +59,12 @@ export const translations = {
     typing: 'печатает...',
     sendMessage: 'Написать',
     callsUpcoming: 'Аудиозвонки будут доступны в версии 1.2 «Relay»',
-    v1_0_desc: 'Версия 1.1 «Redirection». Переезд на новый стабильный сервер Firebase и глобальное обновление системы роутинга.'
+    v1_1_desc: 'Версия 1.1 «Redirection». Переезд на новый стабильный сервер Firebase, глобальное обновление системы роутинга и улучшение интерфейса историй.'
   },
   en: {
     appName: 'CoveChat',
+    messenger: 'Messenger',
+    whatsNew: "What's new?",
     rebooting: 'Redirection v1.1',
     login: 'Sign In',
     registration: 'Registration',
@@ -115,7 +119,7 @@ export const translations = {
     typing: 'typing...',
     sendMessage: 'Message',
     callsUpcoming: 'Audio calls will be available in version 1.2 "Relay"',
-    v1_0_desc: 'Version 1.1 "Redirection". Migration to a new stable Firebase server and global routing system update.'
+    v1_1_desc: 'Version 1.1 "Redirection". Migration to a new stable Firebase server, global routing system update, and stories UI improvements.'
   }
 };
 
