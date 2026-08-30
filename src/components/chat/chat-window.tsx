@@ -24,6 +24,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { translations, Language } from "@/lib/i18n";
+import { UserProfileDialog } from "./user-profile-dialog";
 
 const GLOBAL_CHAT_ID = "p7gSC3o9OxVezsjDbrFq";
 const MAX_IMAGES = 10;
@@ -77,34 +78,19 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
     if (scrollRef.current) scrollRef.current.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleMentionClick = async (username: string) => {
-    if (!db) return;
-    const formattedUsername = username.startsWith("@") ? username : "@" + username;
-    try {
-      const q = query(collection(db, "users"), where("username", "==", formattedUsername.toLowerCase()), limit(1));
-      const snap = await getDocs(q);
-      if (!snap.empty) {
-        onStartDirectChat?.(snap.docs[0].id);
-      } else {
-        toast({ title: "Пользователь не найден", description: formattedUsername });
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
   const renderTextWithMentions = (text: string) => {
     const parts = text.split(/(@\w+)/g);
     return parts.map((part, i) => {
       if (part.startsWith("@")) {
+        // Мы не знаем ID по юзернейму сразу здесь, поэтому ProfileDialog 
+        // потребует поиска внутри себя или мы используем обертку.
+        // Для MVP: нажатие на упоминание выполняет поиск и открывает профиль.
         return (
-          <span 
-            key={i} 
-            onClick={(e) => { e.stopPropagation(); handleMentionClick(part); }}
-            className="text-white bg-white/20 px-1 rounded-md cursor-pointer hover:bg-white/40 transition-colors font-bold"
-          >
-            {part}
-          </span>
+          <MentionTrigger key={i} username={part} onStartChat={onStartDirectChat}>
+            <span className="text-white bg-white/20 px-1 rounded-md cursor-pointer hover:bg-white/40 transition-colors font-bold">
+              {part}
+            </span>
+          </MentionTrigger>
         );
       }
       return part;
@@ -225,29 +211,25 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
       <div className="flex items-center justify-between p-4 border-b bg-white/80 dark:bg-black/40 backdrop-blur-md z-10 shrink-0">
         <div className="flex items-center gap-3">
           {onBack && <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground" onClick={onBack}><X className="w-5 h-5" /></Button>}
-          <div 
-            className={cn(
-              "flex items-center gap-3",
-              chatId !== GLOBAL_CHAT_ID && chatData?.type === 'individual' && "cursor-pointer hover:opacity-80 transition-opacity"
-            )}
-            onClick={() => {
-              if (chatId !== GLOBAL_CHAT_ID && chatData?.type === 'individual' && otherId) {
-                onStartDirectChat?.(otherId);
-              }
-            }}
-          >
-            {chatId === GLOBAL_CHAT_ID ? (
-               <div className="w-10 h-10 rounded-full cove-gradient flex items-center justify-center border-2 border-primary/20 shadow-sm"><Globe className="w-6 h-6 text-white" /></div>
-            ) : (
-              <UserAvatar userId={avatarTargetId} fallback={chatName} className="w-10 h-10 border-2 border-primary/20" />
-            )}
-            <div className="min-w-0">
-              <h2 className="font-semibold text-sm leading-tight truncate">{chatName}</h2>
-              <p className={cn("text-[10px] font-bold uppercase opacity-80", isOnline || chatId === GLOBAL_CHAT_ID ? "text-primary" : "text-muted-foreground")}>
-                {headerStatus}
-              </p>
+          <UserProfileDialog userId={avatarTargetId} onStartChat={onStartDirectChat}>
+            <div className={cn(
+                "flex items-center gap-3",
+                chatId !== GLOBAL_CHAT_ID && chatData?.type === 'individual' && "cursor-pointer hover:opacity-80 transition-opacity"
+              )}
+            >
+              {chatId === GLOBAL_CHAT_ID ? (
+                 <div className="w-10 h-10 rounded-full cove-gradient flex items-center justify-center border-2 border-primary/20 shadow-sm"><Globe className="w-6 h-6 text-white" /></div>
+              ) : (
+                <UserAvatar userId={avatarTargetId} fallback={chatName} className="w-10 h-10 border-2 border-primary/20" />
+              )}
+              <div className="min-w-0">
+                <h2 className="font-semibold text-sm leading-tight truncate">{chatName}</h2>
+                <p className={cn("text-[10px] font-bold uppercase opacity-80", isOnline || chatId === GLOBAL_CHAT_ID ? "text-primary" : "text-muted-foreground")}>
+                  {headerStatus}
+                </p>
+              </div>
             </div>
-          </div>
+          </UserProfileDialog>
         </div>
         <div className="flex items-center gap-1">
           <DropdownMenu>
@@ -288,12 +270,11 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
             return (
               <div key={msg.id} className={cn("flex items-start gap-2 max-w-[85%] group/msg", isMe ? "ml-auto flex-row-reverse" : "mr-auto flex-row")}>
                 {!isMe && (
-                  <div 
-                    className="cursor-pointer hover:opacity-80 transition-opacity shrink-0" 
-                    onClick={() => onStartDirectChat?.(msg.senderId)}
-                  >
-                    <UserAvatar userId={msg.senderId} fallback={msg.senderName} className="w-8 h-8 mt-1" />
-                  </div>
+                  <UserProfileDialog userId={msg.senderId} onStartChat={onStartDirectChat}>
+                    <div className="cursor-pointer hover:opacity-80 transition-opacity shrink-0">
+                      <UserAvatar userId={msg.senderId} fallback={msg.senderName} className="w-8 h-8 mt-1" />
+                    </div>
+                  </UserProfileDialog>
                 )}
                 
                 <div className={cn("flex flex-col", isMe ? "items-end" : "items-start")}>
@@ -317,12 +298,7 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
                       isMe ? "cove-gradient text-white rounded-tr-none" : "bg-white dark:bg-zinc-800 text-foreground rounded-tl-none border"
                     )}>
                       {msg.replyTo && (
-                        <div 
-                          className="mb-2 p-2 rounded-lg bg-black/10 border-l-2 border-primary text-[10px] opacity-80 cursor-pointer"
-                          onClick={() => {
-                            // Логика скролла к оригинальному сообщению может быть добавлена здесь
-                          }}
-                        >
+                        <div className="mb-2 p-2 rounded-lg bg-black/10 border-l-2 border-primary text-[10px] opacity-80 cursor-pointer">
                           <p className="font-bold">{msg.replyTo.senderName}</p>
                           <p className="truncate">{msg.replyTo.text}</p>
                         </div>
@@ -479,5 +455,43 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Вспомогательный компонент для триггера упоминания.
+ * Ищет пользователя по юзернейму и открывает UserProfileDialog.
+ */
+function MentionTrigger({ username, onStartChat, children }: { username: string; onStartChat?: (id: string) => void; children: React.ReactNode }) {
+  const db = useFirestore();
+  const [resolvedUserId, setResolvedUserId] = React.useState<string | null>(null);
+
+  const handleTrigger = async () => {
+    if (!db || resolvedUserId) return;
+    try {
+      const q = query(
+        collection(db, "users"), 
+        where("username", "==", username.toLowerCase()), 
+        limit(1)
+      );
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        setResolvedUserId(snap.docs[0].id);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  return (
+    <span onMouseEnter={handleTrigger} onClick={handleTrigger}>
+      {resolvedUserId ? (
+        <UserProfileDialog userId={resolvedUserId} onStartChat={onStartChat}>
+          {children}
+        </UserProfileDialog>
+      ) : (
+        children
+      )}
+    </span>
   );
 }

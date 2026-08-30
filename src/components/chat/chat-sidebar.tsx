@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -24,6 +23,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import Link from "next/link";
+import { UserProfileDialog } from "./user-profile-dialog";
 
 const GLOBAL_CHAT_ID = "p7gSC3o9OxVezsjDbrFq";
 
@@ -79,7 +79,6 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
 
     setIsSearching(true);
     try {
-      // Поиск пользователей
       const userQ = query(
         collection(db, "users"),
         where("username", ">=", val.startsWith("@") ? val : "@" + val),
@@ -87,7 +86,6 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
         limit(5)
       );
       
-      // Поиск публичных чатов
       const chatQ = query(
         collection(db, "chats"),
         where("isPublic", "==", true),
@@ -202,14 +200,16 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
                     <div className="space-y-1">
                       <p className="text-[10px] font-bold text-muted-foreground uppercase px-2 mb-2 tracking-widest">Люди</p>
                       {searchResults.users.map(u => (
-                        <div key={u.id} onClick={() => onChatSelect(u.uid)} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-white/40 dark:hover:bg-black/20 cursor-pointer">
-                          <UserAvatar userId={u.uid} fallback={u.displayName} className="w-10 h-10" />
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-bold truncate">{u.displayName}</p>
-                            <p className="text-xs text-primary font-mono truncate">{u.username}</p>
+                        <UserProfileDialog key={u.id} userId={u.uid} onStartChat={onChatSelect}>
+                          <div className="flex items-center gap-3 p-3 rounded-2xl hover:bg-white/40 dark:hover:bg-black/20 cursor-pointer">
+                            <UserAvatar userId={u.uid} fallback={u.displayName} className="w-10 h-10" />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-bold truncate">{u.displayName}</p>
+                              <p className="text-xs text-primary font-mono truncate">{u.username}</p>
+                            </div>
+                            <MessageSquare className="w-4 h-4 text-muted-foreground" />
                           </div>
-                          <MessageSquare className="w-4 h-4 text-muted-foreground" />
-                        </div>
+                        </UserProfileDialog>
                       ))}
                     </div>
                   )}
@@ -226,9 +226,6 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
                         </div>
                       ))}
                     </div>
-                  )}
-                  {searchResults.users.length === 0 && searchResults.chats.length === 0 && (
-                    <p className="text-center text-xs text-muted-foreground py-8">Ничего не найдено</p>
                   )}
                 </>
               )}
