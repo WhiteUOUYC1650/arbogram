@@ -1,10 +1,11 @@
+
 "use client";
 
 import * as React from "react";
 import { 
   Send, Paperclip, X, Loader2, 
   MoreVertical, Trash2, Copy, 
-  Clock, Reply, Smile, ShieldBan, LogOut, CheckCheck, Download, Globe
+  Clock, Reply, Smile, ShieldBan, LogOut, CheckCheck, Download, Globe, Image as ImageIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +27,7 @@ import {
 import { translations, Language } from "@/lib/i18n";
 
 const GLOBAL_CHAT_ID = "p7gSC3o9OxVezsjDbrFq";
+const MAX_IMAGES = 10;
 
 interface ChatWindowProps {
   chatId: string;
@@ -38,6 +40,7 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
   const [isSending, setIsSending] = React.useState(false);
   const [lang, setLang] = React.useState<Language>('ru');
   const [replyTo, setReplyTo] = React.useState<any>(null);
+  const [selectedImages, setSelectedImages] = React.useState<string[]>([]);
   
   const db = useFirestore();
   const { user } = useUser();
@@ -75,9 +78,39 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
     if (scrollRef.current) scrollRef.current.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleSend = async (options: { imageUrl?: string; audioUrl?: string; duration?: number }) => {
-    const { imageUrl, audioUrl, duration } = options;
-    if ((!message.trim() && !imageUrl && !audioUrl) || !db || !user) return;
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    if (selectedImages.length + files.length > MAX_IMAGES) {
+      toast({ variant: "destructive", title: t.error, description: `Максимум ${MAX_IMAGES} изображений.` });
+      return;
+    }
+
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const result = ev.target?.result as string;
+        setSelectedImages(prev => [...prev, result]);
+      };
+      reader.readAsDataURL(file);
+    });
+    
+    // Clear input
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const removeImage = (index: number) => {
+    setSelectedImages(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSend = async (options: { audioUrl?: string; duration?: number } = {}) => {
+    const { audioUrl, duration } = options;
+    const hasText = message.trim().length > 0;
+    const hasImages = selectedImages.length > 0;
+    
+    if (!hasText && !hasImages && !audioUrl) return;
+    if (!db || !user) return;
 
     if (chatData?.type === 'individual' && otherUserData?.blockedUsers?.includes(user.uid)) {
       toast({ variant: "destructive", title: t.error, description: "Вы заблокированы этим пользователем." });
@@ -89,24 +122,29 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
       senderId: user.uid,
       senderName: user.displayName || "User",
       timestamp: Date.now(),
-      type: audioUrl ? "audio" : imageUrl ? "image" : "text",
+      type: audioUrl ? "audio" : (hasImages ? "image" : "text"),
       text: message.trim() || null,
-      imageUrl: imageUrl || null,
+      imageUrls: hasImages ? selectedImages : null,
       audioUrl: audioUrl || null,
       duration: duration || null,
-      replyTo: replyTo ? { id: replyTo.id, text: replyTo.text || (replyTo.type === 'image' ? '📷 Фото' : '🎤 Голос'), senderName: replyTo.senderName } : null,
+      replyTo: replyTo ? { id: replyTo.id, text: replyTo.text || (replyTo.imageUrls ? '📷 Фото' : '🎤 Голос'), senderName: replyTo.senderName } : null,
       reactions: {}
     };
 
     try {
       await addDoc(collection(db, "chats", chatId, "messages"), msgData);
       if (chatRef) {
+        let lastMsg = msgData.text;
+        if (audioUrl) lastMsg = "🎤 Голосовое";
+        else if (hasImages) lastMsg = hasText ? `📷 ${msgData.text}` : "📷 Фото";
+        
         await updateDoc(chatRef, { 
-          lastMessage: audioUrl ? "🎤 Голосовое" : imageUrl ? "📷 Фото" : msgData.text, 
+          lastMessage: lastMsg, 
           lastMessageTime: Date.now() 
         });
       }
       setMessage("");
+      setSelectedImages([]);
       setReplyTo(null);
     } catch (e) {
       toast({ variant: "destructive", title: t.error, description: "Не удалось отправить." });
@@ -151,6 +189,7 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
 
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden animate-in slide-in-from-right duration-300">
+      {/* Header */}
       <div className="flex items-center justify-between p-4 border-b bg-white/80 dark:bg-black/40 backdrop-blur-md z-10 shrink-0">
         <div className="flex items-center gap-3">
           {onBack && <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground" onClick={onBack}><X className="w-5 h-5" /></Button>}
@@ -198,18 +237,19 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
         </div>
       </div>
 
+      {/* Messages */}
       <ScrollArea className="flex-1 bg-sidebar/5">
         <div className="p-4 flex flex-col gap-4 max-w-4xl mx-auto">
           {messages?.map((msg, idx) => {
             const isMe = msg.senderId === user?.uid;
+            const hasMultipleImages = msg.imageUrls && msg.imageUrls.length > 1;
+
             return (
               <div key={msg.id} className={cn("flex items-start gap-2 max-w-[85%] group/msg", isMe ? "ml-auto flex-row-reverse" : "mr-auto flex-row")}>
-                {/* Аватарка ТОЛЬКО для других слева */}
                 {!isMe && <UserAvatar userId={msg.senderId} fallback={msg.senderName} className="w-8 h-8 mt-1 shrink-0" />}
                 
                 <div className={cn("flex flex-col", isMe ? "items-end" : "items-start")}>
                   <div className="flex items-center gap-1 group">
-                    {/* Меню действий СЛЕВА для МОИХ сообщений */}
                     {isMe && (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -218,7 +258,7 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
                         <DropdownMenuContent className="rounded-xl" align="start">
                           <DropdownMenuItem onClick={() => setReplyTo(msg)}><Reply className="w-4 h-4 mr-2" />{t.reply}</DropdownMenuItem>
                           {msg.text && <DropdownMenuItem onClick={() => handleCopy(msg.text)}><Copy className="w-4 h-4 mr-2" />{t.copy}</DropdownMenuItem>}
-                          {msg.imageUrl && <DropdownMenuItem onClick={() => handleSaveImage(msg.imageUrl)}><Download className="w-4 h-4 mr-2" />{t.save}</DropdownMenuItem>}
+                          {msg.imageUrls && <DropdownMenuItem onClick={() => handleSaveImage(msg.imageUrls[0])}><Download className="w-4 h-4 mr-2" />{t.save}</DropdownMenuItem>}
                           <DropdownMenuItem onClick={() => deleteDoc(doc(db!, "chats", chatId, "messages", msg.id))} className="text-destructive"><Trash2 className="w-4 h-4 mr-2" />{t.delete}</DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -234,7 +274,26 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
                           <p className="truncate">{msg.replyTo.text}</p>
                         </div>
                       )}
-                      {msg.imageUrl && <img src={msg.imageUrl} className="w-full max-h-[300px] object-cover rounded-xl mb-1" alt="Chat content" />}
+                      
+                      {/* Grid for multiple images or single image */}
+                      {msg.imageUrls && (
+                        <div className={cn(
+                          "grid gap-1 mb-2",
+                          msg.imageUrls.length === 1 ? "grid-cols-1" : "grid-cols-2",
+                          msg.imageUrls.length >= 3 ? "grid-cols-3" : ""
+                        )}>
+                          {msg.imageUrls.map((url: string, i: number) => (
+                            <img 
+                              key={i}
+                              src={url} 
+                              className="w-full h-24 sm:h-32 object-cover rounded-lg cursor-pointer hover:opacity-90 transition-opacity" 
+                              alt="Chat content" 
+                              onClick={() => handleSaveImage(url)}
+                            />
+                          ))}
+                        </div>
+                      )}
+
                       {msg.audioUrl && (
                         <div className="flex items-center gap-3 py-1 min-w-[180px]">
                           <div className="w-10 h-10 rounded-full bg-black/10 flex items-center justify-center shrink-0">
@@ -248,6 +307,7 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
                           </div>
                         </div>
                       )}
+
                       {msg.text && <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>}
                       
                       <div className="flex flex-wrap gap-1 mt-1.5">
@@ -259,7 +319,6 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
                       </div>
                     </div>
 
-                    {/* Меню действий СПРАВА для ЧУЖИХ сообщений */}
                     {!isMe && (
                       <div className="flex items-center gap-0.5 opacity-0 group-hover/msg:opacity-100 transition-opacity">
                          <DropdownMenu>
@@ -269,7 +328,7 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
                           <DropdownMenuContent className="rounded-xl" align="end">
                             <DropdownMenuItem onClick={() => setReplyTo(msg)}><Reply className="w-4 h-4 mr-2" />{t.reply}</DropdownMenuItem>
                             {msg.text && <DropdownMenuItem onClick={() => handleCopy(msg.text)}><Copy className="w-4 h-4 mr-2" />{t.copy}</DropdownMenuItem>}
-                            {msg.imageUrl && <DropdownMenuItem onClick={() => handleSaveImage(msg.imageUrl)}><Download className="w-4 h-4 mr-2" />{t.save}</DropdownMenuItem>}
+                            {msg.imageUrls && <DropdownMenuItem onClick={() => handleSaveImage(msg.imageUrls[0])}><Download className="w-4 h-4 mr-2" />{t.save}</DropdownMenuItem>}
                             <div className="flex p-1 border-t mt-1 gap-1">
                               {['❤️', '👍', '😂', '🔥'].map(emoji => (
                                 <button key={emoji} onClick={() => handleReaction(msg.id, emoji)} className="hover:scale-125 transition-transform p-1">{emoji}</button>
@@ -294,38 +353,75 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
         </div>
       </ScrollArea>
 
-      {replyTo && (
-        <div className="px-4 py-2 bg-muted/30 border-t flex items-center justify-between animate-in slide-in-from-bottom duration-200">
-          <div className="flex items-center gap-2 min-w-0">
-            <Reply className="w-4 h-4 text-primary" />
-            <div className="text-[10px] truncate">
-              <p className="font-bold">{replyTo.senderName}</p>
-              <p className="text-muted-foreground truncate">{replyTo.text || (replyTo.type === 'image' ? '📷 Фото' : '🎤 Голос')}</p>
+      {/* Previews and Reply Context */}
+      <div className="shrink-0">
+        {replyTo && (
+          <div className="px-4 py-2 bg-muted/30 border-t flex items-center justify-between animate-in slide-in-from-bottom duration-200">
+            <div className="flex items-center gap-2 min-w-0">
+              <Reply className="w-4 h-4 text-primary" />
+              <div className="text-[10px] truncate">
+                <p className="font-bold">{replyTo.senderName}</p>
+                <p className="text-muted-foreground truncate">{replyTo.text || (replyTo.imageUrls ? '📷 Фото' : '🎤 Голос')}</p>
+              </div>
             </div>
+            <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setReplyTo(null)}><X className="w-4 h-4" /></Button>
           </div>
-          <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setReplyTo(null)}><X className="w-4 h-4" /></Button>
-        </div>
-      )}
+        )}
 
+        {selectedImages.length > 0 && (
+          <div className="px-4 py-3 bg-muted/20 border-t flex flex-wrap gap-2 animate-in slide-in-from-bottom duration-200">
+            {selectedImages.map((img, i) => (
+              <div key={i} className="relative w-16 h-16 group">
+                <img src={img} className="w-full h-full object-cover rounded-lg border shadow-sm" alt="Selected" />
+                <button 
+                  onClick={() => removeImage(i)}
+                  className="absolute -top-2 -right-2 bg-destructive text-white rounded-full w-5 h-5 flex items-center justify-center shadow-lg"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+            {selectedImages.length < MAX_IMAGES && (
+              <button 
+                onClick={() => fileInputRef.current?.click()}
+                className="w-16 h-16 rounded-lg border-2 border-dashed border-primary/20 flex flex-col items-center justify-center gap-1 text-muted-foreground hover:bg-primary/5 transition-colors"
+              >
+                <ImageIcon className="w-5 h-5" />
+                <span className="text-[8px] font-bold">{selectedImages.length}/{MAX_IMAGES}</span>
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Input Area */}
       <div className="p-4 bg-white/80 dark:bg-black/40 backdrop-blur-md border-t shrink-0">
         <div className="max-w-4xl mx-auto flex items-center gap-2">
-          <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) {
-              const reader = new FileReader();
-              reader.onload = (ev) => handleSend({ imageUrl: ev.target?.result as string });
-              reader.readAsDataURL(file);
-            }
-          }} />
-          <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground" onClick={() => fileInputRef.current?.click()}><Paperclip className="w-5 h-5" /></Button>
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            className="hidden" 
+            accept="image/*" 
+            multiple 
+            onChange={handleFileChange} 
+          />
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="rounded-full text-muted-foreground" 
+            onClick={() => fileInputRef.current?.click()}
+            disabled={selectedImages.length >= MAX_IMAGES}
+          >
+            <Paperclip className="w-5 h-5" />
+          </Button>
           <Input 
-            placeholder={t.message} 
+            placeholder={selectedImages.length > 0 ? "Добавьте подпись..." : t.message} 
             className="rounded-full bg-background border-none h-11" 
             value={message} 
             onChange={(e) => setMessage(e.target.value)} 
-            onKeyDown={(e) => e.key === 'Enter' && handleSend({})} 
+            onKeyDown={(e) => e.key === 'Enter' && handleSend()} 
           />
-          <Button className="rounded-full cove-gradient text-white h-11 w-11 p-0 shadow-lg shadow-primary/20" onClick={() => handleSend({})} disabled={isSending}>
+          <Button className="rounded-full cove-gradient text-white h-11 w-11 p-0 shadow-lg shadow-primary/20" onClick={() => handleSend()} disabled={isSending}>
             {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
           </Button>
         </div>

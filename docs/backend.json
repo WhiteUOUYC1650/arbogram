@@ -45,7 +45,7 @@
         "senderName": { "type": "string" },
         "type": { "type": "string", "enum": ["text", "image", "audio"] },
         "text": { "type": "string" },
-        "imageUrl": { "type": "string" },
+        "imageUrls": { "type": "array", "items": { "type": "string" } },
         "audioUrl": { "type": "string" },
         "timestamp": { "type": "number" },
         "reactions": { "type": "object" },
