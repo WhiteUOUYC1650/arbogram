@@ -5,7 +5,7 @@ import * as React from "react";
 import { 
   Send, Paperclip, X, Loader2, 
   MoreVertical, Trash2, Copy, 
-  Clock, Reply, Smile, ShieldBan, LogOut, CheckCheck
+  Clock, Reply, Smile, ShieldBan, LogOut, CheckCheck, Download
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,15 +56,12 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
   const { data: chatData } = useDoc(chatRef);
   
   const otherId = React.useMemo(() => {
-    if (!chatData || !user) return "";
+    if (!chatData || !user || chatData.type !== 'individual') return "";
     return chatData.participants?.find((p: string) => p !== user.uid) || "";
   }, [chatData, user]);
 
   const otherUserRef = useMemoFirebase(() => (db && otherId ? doc(db, "users", otherId) : null), [db, otherId]);
   const { data: otherUserData } = useDoc(otherUserRef);
-  
-  const currentUserRef = useMemoFirebase(() => (db && user ? doc(db, "users", user.uid) : null), [db, user]);
-  const { data: currentUserData } = useDoc(currentUserRef);
 
   const messagesQuery = useMemoFirebase(() => {
     if (!db) return null;
@@ -81,7 +78,6 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
     const { imageUrl, audioUrl, duration } = options;
     if ((!message.trim() && !imageUrl && !audioUrl) || !db || !user) return;
 
-    // Проверка блокировки
     if (chatData?.type === 'individual' && otherUserData?.blockedUsers?.includes(user.uid)) {
       toast({ variant: "destructive", title: t.error, description: "Вы заблокированы этим пользователем." });
       return;
@@ -97,7 +93,7 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
       imageUrl: imageUrl || null,
       audioUrl: audioUrl || null,
       duration: duration || null,
-      replyTo: replyTo ? { id: replyTo.id, text: replyTo.text || "Медиа", senderName: replyTo.senderName } : null,
+      replyTo: replyTo ? { id: replyTo.id, text: replyTo.text || (replyTo.type === 'image' ? '📷 Фото' : '🎤 Голос'), senderName: replyTo.senderName } : null,
       reactions: {}
     };
 
@@ -126,46 +122,31 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
     });
   };
 
-  const handleDeleteChat = async () => {
-    if (!db || !chatRef || chatId === 'global') return;
-    try {
-      await deleteDoc(chatRef);
-      onBack?.();
-      toast({ title: t.success });
-    } catch (e) { toast({ variant: "destructive", title: t.error }); }
+  const handleCopy = (text?: string) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    toast({ title: t.copy });
   };
 
-  const handleBlockUser = async () => {
-    if (!db || !user || !otherId) return;
-    try {
-      await updateDoc(doc(db, "users", user.uid), {
-        blockedUsers: arrayUnion(otherId)
-      });
-      toast({ title: t.success, description: "Пользователь заблокирован" });
-    } catch (e) { toast({ variant: "destructive", title: t.error }); }
-  };
-
-  const handleLeave = async () => {
-    if (!db || !user || !chatRef || chatId === 'global') return;
-    try {
-      await updateDoc(chatRef, {
-        participants: arrayRemove(user.uid)
-      });
-      onBack?.();
-    } catch (e) { toast({ variant: "destructive", title: t.error }); }
+  const handleSaveImage = (url?: string) => {
+    if (!url) return;
+    window.open(url, '_blank');
   };
 
   let chatName = chatData?.name || "Chat";
   let avatarTargetId = chatId; 
 
-  if (chatData?.type === 'individual') {
-    if (otherId && chatData.metadata?.[otherId]) {
+  if (chatData?.type === 'individual' && otherId) {
+    if (chatData.metadata?.[otherId]) {
       chatName = chatData.metadata[otherId].displayName;
       avatarTargetId = otherId;
     }
   }
 
-  const isOnline = otherUserData?.status === 'online';
+  const isOnline = chatData?.type === 'individual' && otherUserData?.status === 'online';
+  const headerStatus = chatData?.type === 'individual' 
+    ? (isOnline ? t.online : t.offline)
+    : `${chatData?.participants?.length || 0} ${t.members}`;
 
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden animate-in slide-in-from-right duration-300">
@@ -177,7 +158,7 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
             <div className="min-w-0">
               <h2 className="font-semibold text-sm leading-tight truncate">{chatName}</h2>
               <p className={cn("text-[10px] font-bold uppercase opacity-80", isOnline ? "text-primary" : "text-muted-foreground")}>
-                {isOnline ? t.online : t.offline}
+                {headerStatus}
               </p>
             </div>
           </div>
@@ -188,12 +169,24 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
             <DropdownMenuContent className="rounded-2xl" align="end">
               {chatData?.type === 'individual' && (
                 <>
-                  <DropdownMenuItem onClick={handleBlockUser} className="text-destructive"><ShieldBan className="w-4 h-4 mr-2" />{t.block}</DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleDeleteChat} className="text-destructive"><Trash2 className="w-4 h-4 mr-2" />{t.deleteChat}</DropdownMenuItem>
+                  <DropdownMenuItem onClick={async () => {
+                    if (!db || !user || !otherId) return;
+                    await updateDoc(doc(db, "users", user.uid), { blockedUsers: arrayUnion(otherId) });
+                    toast({ title: "Заблокирован" });
+                  }} className="text-destructive"><ShieldBan className="w-4 h-4 mr-2" />{t.block}</DropdownMenuItem>
+                  <DropdownMenuItem onClick={async () => {
+                    if (!db || !chatRef) return;
+                    await deleteDoc(chatRef);
+                    onBack?.();
+                  }} className="text-destructive"><Trash2 className="w-4 h-4 mr-2" />{t.deleteChat}</DropdownMenuItem>
                 </>
               )}
               {chatData?.type !== 'individual' && chatId !== 'global' && (
-                <DropdownMenuItem onClick={handleLeave} className="text-destructive"><LogOut className="w-4 h-4 mr-2" />{t.leave}</DropdownMenuItem>
+                <DropdownMenuItem onClick={async () => {
+                  if (!db || !user || !chatRef) return;
+                  await updateDoc(chatRef, { participants: arrayRemove(user.uid) });
+                  onBack?.();
+                }} className="text-destructive"><LogOut className="w-4 h-4 mr-2" />{t.leave}</DropdownMenuItem>
               )}
             </DropdownMenuContent>
           </DropdownMenu>
@@ -205,71 +198,86 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
           {messages?.map((msg, idx) => {
             const isMe = msg.senderId === user?.uid;
             return (
-              <div key={msg.id} className={cn("flex flex-col group/msg max-w-[85%]", isMe ? "ml-auto items-end" : "mr-auto items-start")}>
-                <div className="flex items-start gap-2 w-full flex-row-reverse">
-                  {isMe && (
-                    <div className="relative">
+              <div key={msg.id} className={cn("flex items-start gap-2 max-w-[85%] group/msg", isMe ? "ml-auto flex-row-reverse" : "mr-auto flex-row")}>
+                {!isMe && <UserAvatar userId={msg.senderId} fallback={msg.senderName} className="w-8 h-8 mt-1 shrink-0" />}
+                
+                <div className={cn("flex flex-col", isMe ? "items-end" : "items-start")}>
+                  <div className="flex items-center gap-1 group">
+                    {isMe && (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="w-6 h-6 opacity-0 group-hover/msg:opacity-100 transition-opacity rounded-full mr-1"><MoreVertical className="w-3 h-3" /></Button>
+                          <Button variant="ghost" size="icon" className="w-7 h-7 opacity-0 group-hover/msg:opacity-100 transition-opacity rounded-full"><MoreVertical className="w-4 h-4" /></Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent className="rounded-xl" align="end">
-                          {msg.text && <DropdownMenuItem onClick={() => navigator.clipboard.writeText(msg.text)}><Copy className="w-4 h-4 mr-2" />{t.copy}</DropdownMenuItem>}
-                          {msg.imageUrl && <DropdownMenuItem onClick={() => window.open(msg.imageUrl, '_blank')}><Smile className="w-4 h-4 mr-2" />{t.save}</DropdownMenuItem>}
+                        <DropdownMenuContent className="rounded-xl" align="start">
+                          <DropdownMenuItem onClick={() => setReplyTo(msg)}><Reply className="w-4 h-4 mr-2" />{t.reply}</DropdownMenuItem>
+                          {msg.text && <DropdownMenuItem onClick={() => handleCopy(msg.text)}><Copy className="w-4 h-4 mr-2" />{t.copy}</DropdownMenuItem>}
+                          {msg.imageUrl && <DropdownMenuItem onClick={() => handleSaveImage(msg.imageUrl)}><Download className="w-4 h-4 mr-2" />{t.save}</DropdownMenuItem>}
                           <DropdownMenuItem onClick={() => deleteDoc(doc(db!, "chats", chatId, "messages", msg.id))} className="text-destructive"><Trash2 className="w-4 h-4 mr-2" />{t.delete}</DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
-                    </div>
-                  )}
-                  <div className={cn("p-2 px-3 rounded-2xl text-sm shadow-sm relative", isMe ? "cove-gradient text-white rounded-tr-none" : "bg-white dark:bg-zinc-800 text-foreground rounded-tl-none border")}>
-                    {msg.replyTo && (
-                      <div className="mb-2 p-2 rounded-lg bg-black/10 border-l-2 border-primary text-[10px] opacity-80">
-                        <p className="font-bold">{msg.replyTo.senderName}</p>
-                        <p className="truncate">{msg.replyTo.text}</p>
-                      </div>
                     )}
-                    {msg.imageUrl && <img src={msg.imageUrl} className="w-full max-h-[300px] object-cover rounded-xl mb-1" alt="Chat content" />}
-                    {msg.audioUrl && (
-                      <div className="flex items-center gap-3 py-1 min-w-[180px]">
-                        <div className="w-10 h-10 rounded-full bg-black/10 flex items-center justify-center shrink-0">
-                          <Clock className="w-5 h-5 text-white/70" />
+
+                    <div className={cn(
+                      "p-3 rounded-2xl text-sm shadow-sm relative min-w-[60px]", 
+                      isMe ? "cove-gradient text-white rounded-tr-none" : "bg-white dark:bg-zinc-800 text-foreground rounded-tl-none border"
+                    )}>
+                      {msg.replyTo && (
+                        <div className="mb-2 p-2 rounded-lg bg-black/10 border-l-2 border-primary text-[10px] opacity-80">
+                          <p className="font-bold">{msg.replyTo.senderName}</p>
+                          <p className="truncate">{msg.replyTo.text}</p>
                         </div>
-                        <div className="flex flex-col">
-                          <div className="h-1.5 w-24 bg-white/20 rounded-full overflow-hidden">
-                            <div className="h-full bg-white w-1/3" />
+                      )}
+                      {msg.imageUrl && <img src={msg.imageUrl} className="w-full max-h-[300px] object-cover rounded-xl mb-1" alt="Chat content" />}
+                      {msg.audioUrl && (
+                        <div className="flex items-center gap-3 py-1 min-w-[180px]">
+                          <div className="w-10 h-10 rounded-full bg-black/10 flex items-center justify-center shrink-0">
+                            <Clock className="w-5 h-5 text-white/70" />
                           </div>
-                          <span className="text-[10px] font-bold mt-1 opacity-80">{msg.duration ? `${Math.floor(msg.duration / 60)}:${(msg.duration % 60).toString().padStart(2, '0')}` : "0:00"}</span>
+                          <div className="flex flex-col flex-1">
+                            <div className="h-1.5 w-full bg-white/20 rounded-full overflow-hidden">
+                              <div className="h-full bg-white w-1/3" />
+                            </div>
+                            <span className="text-[11px] font-bold mt-1.5 opacity-90">{msg.duration ? `${Math.floor(msg.duration / 60)}:${(msg.duration % 60).toString().padStart(2, '0')}` : "0:00"}</span>
+                          </div>
                         </div>
+                      )}
+                      {msg.text && <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>}
+                      
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {msg.reactions && Object.entries(msg.reactions).map(([emoji, uids]: any) => (
+                          <div key={emoji} className="px-1.5 py-0.5 bg-black/10 rounded-full text-[10px] flex items-center gap-1">
+                            {emoji} {uids.length}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {!isMe && (
+                      <div className="flex items-center gap-0.5 opacity-0 group-hover/msg:opacity-100 transition-opacity">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="w-7 h-7 rounded-full"><MoreVertical className="w-4 h-4" /></Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent className="rounded-xl" align="end">
+                            <DropdownMenuItem onClick={() => setReplyTo(msg)}><Reply className="w-4 h-4 mr-2" />{t.reply}</DropdownMenuItem>
+                            {msg.text && <DropdownMenuItem onClick={() => handleCopy(msg.text)}><Copy className="w-4 h-4 mr-2" />{t.copy}</DropdownMenuItem>}
+                            {msg.imageUrl && <DropdownMenuItem onClick={() => handleSaveImage(msg.imageUrl)}><Download className="w-4 h-4 mr-2" />{t.save}</DropdownMenuItem>}
+                            <div className="flex p-1 border-t mt-1 gap-1">
+                              {['❤️', '👍', '😂', '🔥'].map(emoji => (
+                                <button key={emoji} onClick={() => handleReaction(msg.id, emoji)} className="hover:scale-125 transition-transform p-1">{emoji}</button>
+                              ))}
+                            </div>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     )}
-                    {msg.text && <p className="whitespace-pre-wrap">{msg.text}</p>}
-                    
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {msg.reactions && Object.entries(msg.reactions).map(([emoji, uids]: any) => (
-                        <div key={emoji} className="px-1.5 py-0.5 bg-black/10 rounded-full text-[10px] flex items-center gap-1">
-                          {emoji} {uids.length}
-                        </div>
-                      ))}
-                    </div>
                   </div>
-                  {!isMe && (
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" className="w-6 h-6 opacity-0 group-hover/msg:opacity-100 transition-opacity rounded-full" onClick={() => setReplyTo(msg)}><Reply className="w-3 h-3" /></Button>
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 mt-1 px-1">
-                  <span className="text-[9px] text-muted-foreground flex items-center gap-1">
-                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    {isMe && <CheckCheck className="w-3 h-3 text-primary" />}
-                  </span>
-                  {!isMe && (
-                    <div className="flex gap-1 opacity-0 group-hover/msg:opacity-100 transition-opacity">
-                      {['❤️', '👍', '😂', '🔥'].map(emoji => (
-                        <button key={emoji} onClick={() => handleReaction(msg.id, emoji)} className="hover:scale-125 transition-transform text-xs">{emoji}</button>
-                      ))}
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2 mt-1 px-1">
+                    <span className="text-[9px] text-muted-foreground flex items-center gap-1">
+                      {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {isMe && <CheckCheck className="w-3 h-3 text-primary" />}
+                    </span>
+                  </div>
                 </div>
               </div>
             );
@@ -284,7 +292,7 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
             <Reply className="w-4 h-4 text-primary" />
             <div className="text-[10px] truncate">
               <p className="font-bold">{replyTo.senderName}</p>
-              <p className="text-muted-foreground truncate">{replyTo.text || "Медиа"}</p>
+              <p className="text-muted-foreground truncate">{replyTo.text || (replyTo.type === 'image' ? '📷 Фото' : '🎤 Голос')}</p>
             </div>
           </div>
           <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setReplyTo(null)}><X className="w-4 h-4" /></Button>
