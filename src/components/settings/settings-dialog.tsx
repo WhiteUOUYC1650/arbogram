@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
-import { doc, updateDoc, setDoc } from "firebase/firestore";
+import { doc, updateDoc, setDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -68,11 +68,26 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
     if (!db || !user || !userRef) return;
     setIsUpdating(true);
     try {
+      const normalizedPhone = phoneNumber ? normalizePhoneNumber(phoneNumber) : "";
+
+      // Проверка уникальности номера телефона
+      if (normalizedPhone) {
+        const q = query(
+          collection(db, "users"), 
+          where("phoneNumber", "==", normalizedPhone)
+        );
+        const snap = await getDocs(q);
+        const otherUser = snap.docs.find(d => d.id !== user.uid);
+        if (otherUser) {
+          toast({ variant: "destructive", title: t.error, description: "Этот номер телефона уже привязан к другому аккаунту." });
+          setIsUpdating(false);
+          return;
+        }
+      }
+
       if (photoURL && photoURL.startsWith('data:image')) {
         await setDoc(doc(db, "avatars", user.uid), { base64: photoURL });
       }
-
-      const normalizedPhone = phoneNumber ? normalizePhoneNumber(phoneNumber) : "";
 
       await updateDoc(userRef, { 
         displayName, 

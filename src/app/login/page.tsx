@@ -17,7 +17,7 @@ import { doc, setDoc, collection, query, where, getDocs, limit } from "firebase/
 import { useToast } from "@/hooks/use-toast";
 import { ArbogramIcon } from "@/components/arbogram-icon";
 import { translations, Language } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
+import { normalizePhoneNumber } from "@/lib/phone-utils";
 
 type AuthStep = "email" | "password" | "setup";
 
@@ -76,25 +76,44 @@ export default function LoginPage() {
 
     setIsSubmitting(true);
     try {
-      let targetEmail = emailOrUser.toLowerCase().trim();
-      
-      // Если введен юзернейм
-      if (targetEmail.startsWith("@")) {
-        const q = query(collection(db, "users"), where("username", "==", targetEmail), limit(1));
+      let input = emailOrUser.trim();
+      let targetEmail = "";
+
+      // 1. Поиск по юзернейму
+      if (input.startsWith("@")) {
+        const q = query(collection(db, "users"), where("username", "==", input.toLowerCase()), limit(1));
         const snap = await getDocs(q);
-        if (!snap.empty) {
-          targetEmail = snap.docs[0].data().email;
-        } else {
-          // Если аккаунт не найден по юзернейму, возможно это новый пользователь
-          setIsNewUser(true);
-        }
+        if (!snap.empty) targetEmail = snap.docs[0].data().email;
+      } 
+      // 2. Поиск по номеру телефона
+      else if (/^[\d+]+$/.test(input.replace(/[\s-()]/g, ""))) {
+        const normalized = normalizePhoneNumber(input);
+        const q = query(collection(db, "users"), where("phoneNumber", "==", normalized), limit(1));
+        const snap = await getDocs(q);
+        if (!snap.empty) targetEmail = snap.docs[0].data().email;
+      }
+      // 3. Прямой ввод email
+      else if (input.includes("@")) {
+        targetEmail = input.toLowerCase();
       }
 
-      setResolvedEmail(targetEmail);
-      setStep("password");
+      if (targetEmail) {
+        setResolvedEmail(targetEmail);
+        setIsNewUser(false);
+        setStep("password");
+      } else {
+        // Если ничего не найдено, предполагаем регистрацию по почте
+        if (input.includes("@") && !input.startsWith("@")) {
+          setResolvedEmail(input.toLowerCase());
+          setIsNewUser(true);
+          setStep("password");
+        } else {
+          toast({ variant: "destructive", title: t.error, description: "Аккаунт не найден. Для регистрации введите email." });
+        }
+      }
     } catch (e) {
       console.error(e);
-      toast({ variant: "destructive", title: t.error, description: "Ошибка поиска аккаунта." });
+      toast({ variant: "destructive", title: t.error, description: "Ошибка при поиске аккаунта." });
     } finally {
       setIsSubmitting(false);
     }
@@ -106,39 +125,21 @@ export default function LoginPage() {
 
     setIsSubmitting(true);
     try {
-      try {
+      if (isNewUser) {
+        if (password !== confirmPassword) {
+          toast({ variant: "destructive", title: t.error, description: "Пароли не совпадают." });
+          setIsSubmitting(false);
+          return;
+        }
+        await createUserWithEmailAndPassword(auth, resolvedEmail, password);
+      } else {
         await signInWithEmailAndPassword(auth, resolvedEmail, password);
         router.push("/");
-      } catch (loginError: any) {
-        if (loginError.code === 'auth/user-not-found' || loginError.code === 'auth/invalid-credential') {
-          if (!isNewUser) {
-            setIsNewUser(true);
-            setIsSubmitting(false);
-            return;
-          }
-          
-          if (password !== confirmPassword) {
-            toast({ variant: "destructive", title: t.error, description: "Пароли не совпадают." });
-            setIsSubmitting(false);
-            return;
-          }
-
-          // Если это новый юзер, resolvedEmail должен быть валидной почтой
-          if (!resolvedEmail.includes("@") || resolvedEmail.startsWith("@")) {
-             toast({ variant: "destructive", title: t.error, description: "Для регистрации используйте почту." });
-             setIsSubmitting(false);
-             return;
-          }
-
-          await createUserWithEmailAndPassword(auth, resolvedEmail, password);
-        } else {
-          throw loginError;
-        }
       }
     } catch (error: any) {
-      let message = "Произошла ошибка.";
+      let message = "Неверный пароль или ошибка входа.";
       if (error.code === 'auth/wrong-password') message = "Неверный пароль.";
-      if (error.code === 'auth/invalid-email') message = "Некорректный email.";
+      if (error.code === 'auth/user-not-found') message = "Пользователь не найден.";
       toast({ variant: "destructive", title: t.error, description: message });
     } finally {
       setIsSubmitting(false);
@@ -208,12 +209,12 @@ export default function LoginPage() {
           {step === "email" && (
             <form onSubmit={handleProceedToPassword} className="space-y-6 animate-in slide-in-from-right duration-300">
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-[10px] uppercase font-bold ml-1 opacity-70 tracking-widest">{t.email} / {t.username}</Label>
+                <Label htmlFor="email" className="text-[10px] uppercase font-bold ml-1 opacity-70 tracking-widest">Email / @username / Телефон</Label>
                 <div className="relative">
                   <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input 
                     id="email"
-                    placeholder="email@example.com или @username" 
+                    placeholder="email, @user или номер" 
                     required
                     value={emailOrUser}
                     onChange={(e) => setEmailOrUser(e.target.value)}
