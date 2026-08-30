@@ -199,18 +199,19 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
   const targetUserRef = useMemoFirebase(() => (db && otherId ? doc(db, "users", otherId) : null), [db, otherId]);
   const { data: targetUserData } = useDoc(targetUserRef);
 
-  let subText = t.offline;
+  // Исправленная логика заголовка
+  let subStatusText = t.offline;
   if (chatData?.type === 'individual') {
     if (targetUserData?.status === 'online') {
-      subText = t.online;
-    } else {
-      const timeStr = targetUserData?.lastSeen ? new Date(targetUserData.lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-      subText = `${t.offline}${timeStr ? ` (${timeStr})` : ''}`;
+      subStatusText = t.online;
+    } else if (targetUserData?.lastSeen) {
+      const timeStr = new Date(targetUserData.lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      subStatusText = `${t.offline} (${timeStr})`;
     }
   } else if (chatData?.type === 'group') {
-    subText = `${chatData.participants?.length || 0} ${t.members}`;
+    subStatusText = `${chatData.participants?.length || 0} ${t.members}`;
   } else if (chatData?.type === 'channel') {
-    subText = t.channel;
+    subStatusText = t.channel;
   }
 
   const typingUsers = React.useMemo(() => {
@@ -247,7 +248,7 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
                     {chatData?.type === 'channel' && <Megaphone className="w-3 h-3 text-primary" />}
                   </h2>
                   <p className="text-[10px] text-primary font-bold tracking-wider uppercase opacity-80">
-                    {typingUsers.length > 0 ? `${typingUsers.join(', ')} ${t.typing}` : subText}
+                    {typingUsers.length > 0 ? `${typingUsers.join(', ')} ${t.typing}` : subStatusText}
                   </p>
                 </div>
               </div>
