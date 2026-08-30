@@ -1,7 +1,8 @@
+
 "use client";
 
 import * as React from "react";
-import { Search, Globe, LogOut, Settings as SettingsIcon, Pencil, Loader2, Info, ChevronRight } from "lucide-react";
+import { Search, Globe, LogOut, Settings as SettingsIcon, Pencil, Loader2, Info, ChevronRight, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -21,6 +22,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import Link from "next/link";
 
 interface ChatSidebarProps {
   activeChatId?: string;
@@ -39,6 +41,10 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
   }, []);
 
   const t = translations[lang];
+
+  const userRef = useMemoFirebase(() => (db && user ? doc(db, "users", user.uid) : null), [db, user?.uid]);
+  const { data: userData } = useDoc(userRef);
+  const isAdmin = userData?.username === "@nexus90kyt" || userData?.username === "@white";
 
   const myChatsQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
@@ -95,6 +101,11 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
             </div>
           </div>
           <div className="flex gap-0.5">
+            {isAdmin && (
+              <Button variant="ghost" size="icon" asChild className="rounded-full h-9 w-9 text-destructive">
+                <Link href="/admin"><ShieldAlert className="w-5 h-5" /></Link>
+              </Button>
+            )}
             <Dialog>
               <DialogTrigger asChild>
                 <Button variant="ghost" size="icon" className="rounded-full h-9 w-9">
@@ -114,7 +125,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
                     <p className="text-xs text-muted-foreground leading-relaxed">{t.v1_1_desc}</p>
                   </div>
                   <ul className="space-y-2">
-                    {['Stories deletion', 'Improved Sidebar Header', 'Real-time Statuses', 'Voice Duration Fix'].map((item, i) => (
+                    {['Reactions & Replies', 'Admin Panel', 'User Blocking', 'Chat Deletion'].map((item, i) => (
                       <li key={i} className="flex items-center gap-2 text-[11px] font-medium text-foreground">
                         <ChevronRight className="w-3 h-3 text-primary" /> {item}
                       </li>
@@ -132,7 +143,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
         </div>
       </div>
 
-      <StoriesBar />
+      <StoriesBar onStartChat={onChatSelect} />
 
       <ScrollArea className="flex-1">
         <div className="px-2 pb-20 space-y-1">

@@ -5,7 +5,7 @@ import * as React from "react";
 import { 
   Send, Paperclip, X, Loader2, 
   MoreVertical, Trash2, Copy, 
-  Clock, Reply, Smile, ShieldBan, LogOut
+  Clock, Reply, Smile, ShieldBan, LogOut, CheckCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 import { useCollection, useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
 import { 
   collection, query, orderBy, addDoc, doc, updateDoc, 
-  deleteDoc, deleteField, arrayUnion, arrayRemove, getDoc 
+  deleteDoc, arrayUnion, arrayRemove, getDoc 
 } from "firebase/firestore";
 import { UserAvatar } from "@/components/user-avatar";
 import { useToast } from "@/hooks/use-toast";
@@ -24,13 +24,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { translations, Language } from "@/lib/i18n";
 
 interface ChatWindowProps {
@@ -61,7 +54,17 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
 
   const chatRef = useMemoFirebase(() => db ? doc(db, "chats", chatId) : null, [db, chatId]);
   const { data: chatData } = useDoc(chatRef);
-  const { data: currentUserData } = useDoc(user && db ? doc(db, "users", user.uid) : null);
+  
+  const otherId = React.useMemo(() => {
+    if (!chatData || !user) return "";
+    return chatData.participants?.find((p: string) => p !== user.uid) || "";
+  }, [chatData, user]);
+
+  const otherUserRef = useMemoFirebase(() => (db && otherId ? doc(db, "users", otherId) : null), [db, otherId]);
+  const { data: otherUserData } = useDoc(otherUserRef);
+  
+  const currentUserRef = useMemoFirebase(() => (db && user ? doc(db, "users", user.uid) : null), [db, user]);
+  const { data: currentUserData } = useDoc(currentUserRef);
 
   const messagesQuery = useMemoFirebase(() => {
     if (!db) return null;
@@ -74,14 +77,14 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
     if (scrollRef.current) scrollRef.current.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleSend = (options: { imageUrl?: string }) => {
-    const { imageUrl } = options;
-    if ((!message.trim() && !imageUrl) || !db || !user) return;
+  const handleSend = async (options: { imageUrl?: string; audioUrl?: string; duration?: number }) => {
+    const { imageUrl, audioUrl, duration } = options;
+    if ((!message.trim() && !imageUrl && !audioUrl) || !db || !user) return;
 
-    // Check if blocked
-    const otherId = chatData?.participants?.find((p: string) => p !== user.uid);
-    if (chatData?.type === 'individual' && otherId) {
-      // Logic for blocking would be checked here or in rules
+    // Проверка блокировки
+    if (chatData?.type === 'individual' && otherUserData?.blockedUsers?.includes(user.uid)) {
+      toast({ variant: "destructive", title: t.error, description: "Вы заблокированы этим пользователем." });
+      return;
     }
 
     setIsSending(true);
@@ -89,25 +92,30 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
       senderId: user.uid,
       senderName: user.displayName || "User",
       timestamp: Date.now(),
-      type: imageUrl ? "image" : "text",
+      type: audioUrl ? "audio" : imageUrl ? "image" : "text",
       text: message.trim() || null,
       imageUrl: imageUrl || null,
-      replyTo: replyTo ? { id: replyTo.id, text: replyTo.text, senderName: replyTo.senderName } : null,
+      audioUrl: audioUrl || null,
+      duration: duration || null,
+      replyTo: replyTo ? { id: replyTo.id, text: replyTo.text || "Медиа", senderName: replyTo.senderName } : null,
       reactions: {}
     };
 
-    addDoc(collection(db, "chats", chatId, "messages"), msgData)
-      .then(() => {
-        if (chatRef) {
-          updateDoc(chatRef, { 
-            lastMessage: imageUrl ? "📷 Фото" : msgData.text, 
-            lastMessageTime: Date.now() 
-          }).catch(() => {});
-        }
-        setMessage("");
-        setReplyTo(null);
-      })
-      .finally(() => setIsSending(false));
+    try {
+      await addDoc(collection(db, "chats", chatId, "messages"), msgData);
+      if (chatRef) {
+        await updateDoc(chatRef, { 
+          lastMessage: audioUrl ? "🎤 Голосовое" : imageUrl ? "📷 Фото" : msgData.text, 
+          lastMessageTime: Date.now() 
+        });
+      }
+      setMessage("");
+      setReplyTo(null);
+    } catch (e) {
+      toast({ variant: "destructive", title: t.error, description: "Не удалось отправить." });
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const handleReaction = async (msgId: string, emoji: string) => {
@@ -119,8 +127,7 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
   };
 
   const handleDeleteChat = async () => {
-    if (!db || !chatRef) return;
-    if (chatId === 'global') return;
+    if (!db || !chatRef || chatId === 'global') return;
     try {
       await deleteDoc(chatRef);
       onBack?.();
@@ -129,15 +136,12 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
   };
 
   const handleBlockUser = async () => {
-    if (!db || !user || chatData?.type !== 'individual') return;
-    const otherId = chatData.participants.find((p: string) => p !== user.uid);
-    if (!otherId) return;
-    
+    if (!db || !user || !otherId) return;
     try {
       await updateDoc(doc(db, "users", user.uid), {
         blockedUsers: arrayUnion(otherId)
       });
-      toast({ title: t.success });
+      toast({ title: t.success, description: "Пользователь заблокирован" });
     } catch (e) { toast({ variant: "destructive", title: t.error }); }
   };
 
@@ -153,15 +157,15 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
 
   let chatName = chatData?.name || "Chat";
   let avatarTargetId = chatId; 
-  let otherId = "";
 
-  if (chatData?.type === 'individual' && user) {
-    otherId = chatData.participants?.find((p: string) => p !== user.uid) || "";
+  if (chatData?.type === 'individual') {
     if (otherId && chatData.metadata?.[otherId]) {
       chatName = chatData.metadata[otherId].displayName;
       avatarTargetId = otherId;
     }
   }
+
+  const isOnline = otherUserData?.status === 'online';
 
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden animate-in slide-in-from-right duration-300">
@@ -172,7 +176,9 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
             <UserAvatar userId={avatarTargetId} fallback={chatName} className="w-10 h-10 border-2 border-primary/20" />
             <div className="min-w-0">
               <h2 className="font-semibold text-sm leading-tight truncate">{chatName}</h2>
-              <p className="text-[10px] text-primary font-bold uppercase opacity-80">{chatData?.type === 'individual' ? t.personal : t.group}</p>
+              <p className={cn("text-[10px] font-bold uppercase opacity-80", isOnline ? "text-primary" : "text-muted-foreground")}>
+                {isOnline ? t.online : t.offline}
+              </p>
             </div>
           </div>
         </div>
@@ -200,18 +206,20 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
             const isMe = msg.senderId === user?.uid;
             return (
               <div key={msg.id} className={cn("flex flex-col group/msg max-w-[85%]", isMe ? "ml-auto items-end" : "mr-auto items-start")}>
-                <div className="flex items-start gap-2 w-full">
+                <div className="flex items-start gap-2 w-full flex-row-reverse">
                   {isMe && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="w-6 h-6 opacity-0 group-hover/msg:opacity-100 transition-opacity rounded-full"><MoreVertical className="w-3 h-3" /></Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent className="rounded-xl">
-                        {msg.text && <DropdownMenuItem onClick={() => navigator.clipboard.writeText(msg.text)}><Copy className="w-4 h-4 mr-2" />{t.copy}</DropdownMenuItem>}
-                        {msg.imageUrl && <DropdownMenuItem onClick={() => window.open(msg.imageUrl, '_blank')}><Smile className="w-4 h-4 mr-2" />{t.save}</DropdownMenuItem>}
-                        <DropdownMenuItem onClick={() => deleteDoc(doc(db!, "chats", chatId, "messages", msg.id))} className="text-destructive"><Trash2 className="w-4 h-4 mr-2" />{t.delete}</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <div className="relative">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="w-6 h-6 opacity-0 group-hover/msg:opacity-100 transition-opacity rounded-full mr-1"><MoreVertical className="w-3 h-3" /></Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent className="rounded-xl" align="end">
+                          {msg.text && <DropdownMenuItem onClick={() => navigator.clipboard.writeText(msg.text)}><Copy className="w-4 h-4 mr-2" />{t.copy}</DropdownMenuItem>}
+                          {msg.imageUrl && <DropdownMenuItem onClick={() => window.open(msg.imageUrl, '_blank')}><Smile className="w-4 h-4 mr-2" />{t.save}</DropdownMenuItem>}
+                          <DropdownMenuItem onClick={() => deleteDoc(doc(db!, "chats", chatId, "messages", msg.id))} className="text-destructive"><Trash2 className="w-4 h-4 mr-2" />{t.delete}</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   )}
                   <div className={cn("p-2 px-3 rounded-2xl text-sm shadow-sm relative", isMe ? "cove-gradient text-white rounded-tr-none" : "bg-white dark:bg-zinc-800 text-foreground rounded-tl-none border")}>
                     {msg.replyTo && (
@@ -220,8 +228,21 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
                         <p className="truncate">{msg.replyTo.text}</p>
                       </div>
                     )}
-                    {msg.imageUrl && <img src={msg.imageUrl} className="w-full max-h-[300px] object-cover rounded-xl mb-1" />}
-                    {msg.text && <p>{msg.text}</p>}
+                    {msg.imageUrl && <img src={msg.imageUrl} className="w-full max-h-[300px] object-cover rounded-xl mb-1" alt="Chat content" />}
+                    {msg.audioUrl && (
+                      <div className="flex items-center gap-3 py-1 min-w-[180px]">
+                        <div className="w-10 h-10 rounded-full bg-black/10 flex items-center justify-center shrink-0">
+                          <Clock className="w-5 h-5 text-white/70" />
+                        </div>
+                        <div className="flex flex-col">
+                          <div className="h-1.5 w-24 bg-white/20 rounded-full overflow-hidden">
+                            <div className="h-full bg-white w-1/3" />
+                          </div>
+                          <span className="text-[10px] font-bold mt-1 opacity-80">{msg.duration ? `${Math.floor(msg.duration / 60)}:${(msg.duration % 60).toString().padStart(2, '0')}` : "0:00"}</span>
+                        </div>
+                      </div>
+                    )}
+                    {msg.text && <p className="whitespace-pre-wrap">{msg.text}</p>}
                     
                     <div className="flex flex-wrap gap-1 mt-1">
                       {msg.reactions && Object.entries(msg.reactions).map(([emoji, uids]: any) => (
@@ -232,15 +253,20 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
                     </div>
                   </div>
                   {!isMe && (
-                    <Button variant="ghost" size="icon" className="w-6 h-6 opacity-0 group-hover/msg:opacity-100 transition-opacity rounded-full" onClick={() => setReplyTo(msg)}><Reply className="w-3 h-3" /></Button>
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="icon" className="w-6 h-6 opacity-0 group-hover/msg:opacity-100 transition-opacity rounded-full" onClick={() => setReplyTo(msg)}><Reply className="w-3 h-3" /></Button>
+                    </div>
                   )}
                 </div>
                 <div className="flex items-center gap-2 mt-1 px-1">
-                  <span className="text-[9px] text-muted-foreground">{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  <span className="text-[9px] text-muted-foreground flex items-center gap-1">
+                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {isMe && <CheckCheck className="w-3 h-3 text-primary" />}
+                  </span>
                   {!isMe && (
                     <div className="flex gap-1 opacity-0 group-hover/msg:opacity-100 transition-opacity">
                       {['❤️', '👍', '😂', '🔥'].map(emoji => (
-                        <button key={emoji} onClick={() => handleReaction(msg.id, emoji)} className="hover:scale-125 transition-transform">{emoji}</button>
+                        <button key={emoji} onClick={() => handleReaction(msg.id, emoji)} className="hover:scale-125 transition-transform text-xs">{emoji}</button>
                       ))}
                     </div>
                   )}
@@ -258,7 +284,7 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
             <Reply className="w-4 h-4 text-primary" />
             <div className="text-[10px] truncate">
               <p className="font-bold">{replyTo.senderName}</p>
-              <p className="text-muted-foreground truncate">{replyTo.text || "Фото"}</p>
+              <p className="text-muted-foreground truncate">{replyTo.text || "Медиа"}</p>
             </div>
           </div>
           <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setReplyTo(null)}><X className="w-4 h-4" /></Button>
@@ -278,12 +304,12 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
           <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground" onClick={() => fileInputRef.current?.click()}><Paperclip className="w-5 h-5" /></Button>
           <Input 
             placeholder={t.message} 
-            className="rounded-full bg-background border-none" 
+            className="rounded-full bg-background border-none h-11" 
             value={message} 
             onChange={(e) => setMessage(e.target.value)} 
             onKeyDown={(e) => e.key === 'Enter' && handleSend({})} 
           />
-          <Button className="rounded-full cove-gradient text-white h-10 w-10 p-0" onClick={() => handleSend({})} disabled={isSending}>
+          <Button className="rounded-full cove-gradient text-white h-11 w-11 p-0 shadow-lg shadow-primary/20" onClick={() => handleSend({})} disabled={isSending}>
             {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
           </Button>
         </div>
