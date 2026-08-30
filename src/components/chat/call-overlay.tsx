@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * Оверлей звонка. Управляет состоянием WebRTC и UI звонка.
- * CoveChat v1.1 Audio Engine
+ * CoveChat v1.1 Audio Engine - Optimized for Audio stability.
  */
 export function CallOverlay() {
   const db = useFirestore();
@@ -72,7 +72,7 @@ export function CallOverlay() {
     return () => unsubscribe();
   }, [db, user, callStatus]);
 
-  // Слушатель изменений текущего звонка (сброс, подключение)
+  // Слушатель изменений текущего звонка
   React.useEffect(() => {
     if (!db || !activeCall) return;
 
@@ -88,25 +88,24 @@ export function CallOverlay() {
     return () => unsubscribe();
   }, [db, activeCall]);
 
-  const setupWebRTC = async () => {
-    if (peerConnection.current) peerConnection.current.close();
-    
+  const initPeerConnection = () => {
+    if (peerConnection.current) {
+      peerConnection.current.close();
+    }
     const pc = new RTCPeerConnection(rtcConfig);
     peerConnection.current = pc;
 
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-      localStream.current = stream;
-      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
-    } catch (e) {
-      console.error("Mic access denied:", e);
-    }
-
     pc.ontrack = (event) => {
-      if (remoteAudioRef.current) {
+      console.log("Remote track received");
+      if (remoteAudioRef.current && event.streams[0]) {
         remoteAudioRef.current.srcObject = event.streams[0];
-        // Принудительно запускаем воспроизведение, так как браузеры могут блокировать автоплей
-        remoteAudioRef.current.play().catch(err => console.error("Audio play blocked:", err));
+        // Важно: принудительный запуск
+        const playPromise = remoteAudioRef.current.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(error => {
+            console.error("Auto-play was prevented. Click to play.", error);
+          });
+        }
       }
     };
 
@@ -121,7 +120,13 @@ export function CallOverlay() {
       const receiverSnap = await getDoc(doc(db, "users", receiverId));
       if (receiverSnap.exists()) setOtherUserData(receiverSnap.data());
 
-      const pc = await setupWebRTC();
+      const pc = initPeerConnection();
+      
+      // Захватываем микрофон ПЕРЕД созданием оффера
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      localStream.current = stream;
+      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+
       const callDoc = doc(collection(db, "calls"));
       
       pc.onicecandidate = (event) => {
@@ -133,22 +138,16 @@ export function CallOverlay() {
       const offerDescription = await pc.createOffer();
       await pc.setLocalDescription(offerDescription);
 
-      const offer = {
-        sdp: offerDescription.sdp,
-        type: offerDescription.type,
-      };
-
       await setDoc(callDoc, {
         callerId: user.uid,
         receiverId,
-        offer,
+        offer: { sdp: offerDescription.sdp, type: offerDescription.type },
         status: "dialing",
         timestamp: Date.now()
       });
 
       setActiveCall({ id: callDoc.id, callerId: user.uid, receiverId });
 
-      // Ждем ответ от получателя
       onSnapshot(callDoc, (snapshot) => {
         const data = snapshot.data();
         if (data?.answer && !pc.currentRemoteDescription) {
@@ -156,12 +155,10 @@ export function CallOverlay() {
         }
       });
 
-      // Слушаем кандидатов от получателя
       onSnapshot(collection(db, "calls", callDoc.id, "receiverCandidates"), (snapshot) => {
         snapshot.docChanges().forEach((change) => {
           if (change.type === "added") {
-            const candidate = new RTCIceCandidate(change.doc.data());
-            pc.addIceCandidate(candidate).catch(e => console.error("ICE error:", e));
+            pc.addIceCandidate(new RTCIceCandidate(change.doc.data()));
           }
         });
       });
@@ -173,11 +170,16 @@ export function CallOverlay() {
   };
 
   const answerCall = async () => {
-    if (!db || !activeCall) return;
+    if (!db || !activeCall || !user) return;
     setCallStatus("connected");
 
     try {
-      const pc = await setupWebRTC();
+      const pc = initPeerConnection();
+
+      // Сначала захватываем микрофон
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      localStream.current = stream;
+      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
       pc.onicecandidate = (event) => {
         if (event.candidate && activeCall.id) {
@@ -185,28 +187,22 @@ export function CallOverlay() {
         }
       };
 
-      const offerDescription = activeCall.offer;
-      await pc.setRemoteDescription(new RTCSessionDescription(offerDescription));
+      // Устанавливаем удаленное описание (оффер)
+      await pc.setRemoteDescription(new RTCSessionDescription(activeCall.offer));
 
+      // Создаем ответ
       const answerDescription = await pc.createAnswer();
       await pc.setLocalDescription(answerDescription);
 
-      const answer = {
-        type: answerDescription.type,
-        sdp: answerDescription.sdp,
-      };
-
       await updateDoc(doc(db, "calls", activeCall.id), {
-        answer,
+        answer: { type: answerDescription.type, sdp: answerDescription.sdp },
         status: "connected"
       });
 
-      // Слушаем кандидатов от звонящего
       onSnapshot(collection(db, "calls", activeCall.id, "callerCandidates"), (snapshot) => {
         snapshot.docChanges().forEach((change) => {
           if (change.type === "added") {
-            const candidate = new RTCIceCandidate(change.doc.data());
-            pc.addIceCandidate(candidate).catch(e => console.error("ICE error:", e));
+            pc.addIceCandidate(new RTCIceCandidate(change.doc.data()));
           }
         });
       });
@@ -260,11 +256,11 @@ export function CallOverlay() {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-xl animate-in fade-in duration-300">
-      {/* Элемент аудио должен быть в DOM и иметь autoplay */}
       <audio 
         ref={remoteAudioRef} 
         autoPlay 
         playsInline 
+        controls={false}
         className="hidden"
       />
       
