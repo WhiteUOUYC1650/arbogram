@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -143,9 +144,9 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
   }
 
   const isOnline = chatData?.type === 'individual' && otherUserData?.status === 'online';
-  const headerStatus = chatData?.type === 'individual' 
-    ? (isOnline ? t.online : t.offline)
-    : `${chatData?.participants?.length || 0} ${t.members}`;
+  const headerStatus = chatData?.isPublic || chatId === 'global'
+    ? `${chatData?.participants?.length || 0} ${t.members}`
+    : (isOnline ? t.online : t.offline);
 
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden animate-in slide-in-from-right duration-300">
@@ -153,7 +154,11 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
         <div className="flex items-center gap-3">
           {onBack && <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground" onClick={onBack}><X className="w-5 h-5" /></Button>}
           <div className="flex items-center gap-3">
-            <UserAvatar userId={avatarTargetId} fallback={chatName} className="w-10 h-10 border-2 border-primary/20" />
+            {chatId === 'global' ? (
+               <div className="w-10 h-10 rounded-full cove-gradient flex items-center justify-center border-2 border-primary/20 shadow-sm"><Globe className="w-6 h-6 text-white" /></div>
+            ) : (
+              <UserAvatar userId={avatarTargetId} fallback={chatName} className="w-10 h-10 border-2 border-primary/20" />
+            )}
             <div className="min-w-0">
               <h2 className="font-semibold text-sm leading-tight truncate">{chatName}</h2>
               <p className={cn("text-[10px] font-bold uppercase opacity-80", isOnline ? "text-primary" : "text-muted-foreground")}>
@@ -202,6 +207,7 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
                 
                 <div className={cn("flex flex-col", isMe ? "items-end" : "items-start")}>
                   <div className="flex items-center gap-1 group">
+                    {/* Меню действий слева для моих сообщений */}
                     {isMe && (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -251,9 +257,10 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
                       </div>
                     </div>
 
+                    {/* Меню действий справа для чужих сообщений */}
                     {!isMe && (
                       <div className="flex items-center gap-0.5 opacity-0 group-hover/msg:opacity-100 transition-opacity">
-                        <DropdownMenu>
+                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="w-7 h-7 rounded-full"><MoreVertical className="w-4 h-4" /></Button>
                           </DropdownMenuTrigger>

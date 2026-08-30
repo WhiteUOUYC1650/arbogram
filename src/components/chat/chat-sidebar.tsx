@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useCollection, useFirestore, useAuth, useUser, useMemoFirebase, useDoc } from "@/firebase";
-import { collection, query, where, getDocs, doc, updateDoc, arrayUnion, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, updateDoc, arrayUnion, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import { signOut } from "firebase/auth";
 import { CreateChatDialog } from "./create-chat-dialog";
 import { StoriesBar } from "@/components/stories/stories-bar";
@@ -64,17 +64,16 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
   const handleOpenGlobalChat = async () => {
     if (!db || !user) return;
     try {
-      const q = query(collection(db, "chats"), where("isPublic", "==", true), where("name", "==", "Общий чат"));
-      const snap = await getDocs(q);
-      let globalChatId;
-      if (!snap.empty) {
-        const chat = snap.docs[0];
-        globalChatId = chat.id;
-        if (!chat.data().participants.includes(user.uid)) {
-          await updateDoc(doc(db, "chats", globalChatId), { participants: arrayUnion(user.uid) });
+      const globalChatRef = doc(db, "chats", "global");
+      const snap = await getDoc(globalChatRef);
+      
+      if (snap.exists()) {
+        const data = snap.data();
+        if (!data.participants.includes(user.uid)) {
+          await updateDoc(globalChatRef, { participants: arrayUnion(user.uid) });
         }
       } else {
-        const newChat = await addDoc(collection(db, "chats"), {
+        await setDoc(globalChatRef, {
           name: "Общий чат",
           isPublic: true,
           type: "group",
@@ -83,9 +82,8 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
           lastMessageTime: Date.now(),
           createdAt: serverTimestamp()
         });
-        globalChatId = newChat.id;
       }
-      onChatSelect(globalChatId);
+      onChatSelect("global");
     } catch (e) { console.error(e); }
   };
 
@@ -194,7 +192,7 @@ function ChatItem({ chat, user, isActive, onSelect }: { chat: any; user: any; is
     }
   }
 
-  const userRef = useMemoFirebase(() => (db && targetId !== chat.id ? doc(db, "users", targetId) : null), [db, targetId, chat.id]);
+  const userRef = useMemoFirebase(() => (db && targetId !== chat.id && targetId !== 'global' ? doc(db, "users", targetId) : null), [db, targetId, chat.id]);
   const { data: targetUserData } = useDoc(userRef);
 
   return (
@@ -206,8 +204,12 @@ function ChatItem({ chat, user, isActive, onSelect }: { chat: any; user: any; is
       )}
     >
       <div className="relative shrink-0">
-        <UserAvatar userId={targetId} fallback={displayName} className="w-12 h-12 border-2 border-primary/20" />
-        {targetUserData?.status === 'online' && (
+        {chat.id === 'global' ? (
+          <div className="w-12 h-12 rounded-full cove-gradient flex items-center justify-center border-2 border-white shadow-sm"><Globe className="w-6 h-6 text-white" /></div>
+        ) : (
+          <UserAvatar userId={targetId} fallback={displayName} className="w-12 h-12 border-2 border-primary/20" />
+        )}
+        {targetUserData?.status === 'online' && chat.id !== 'global' && (
           <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-white dark:border-zinc-900 rounded-full" />
         )}
       </div>
