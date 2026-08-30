@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * Оверлей звонка. Управляет состоянием WebRTC и UI звонка.
- * CoveChat v1.1 Audio Engine - Optimized for Audio stability.
+ * CoveChat v1.1 Audio Engine - Optimized for User-Triggered Audio.
  */
 export function CallOverlay() {
   const db = useFirestore();
@@ -96,14 +96,14 @@ export function CallOverlay() {
     peerConnection.current = pc;
 
     pc.ontrack = (event) => {
-      console.log("Remote track received");
+      console.log("Remote track received:", event.streams[0]);
       if (remoteAudioRef.current && event.streams[0]) {
         remoteAudioRef.current.srcObject = event.streams[0];
-        // Важно: принудительный запуск
+        // Принудительный запуск звука после привязки потока
         const playPromise = remoteAudioRef.current.play();
         if (playPromise !== undefined) {
           playPromise.catch(error => {
-            console.error("Auto-play was prevented. Click to play.", error);
+            console.warn("Auto-play was prevented, waiting for interaction or connection stabilization.", error);
           });
         }
       }
@@ -122,7 +122,7 @@ export function CallOverlay() {
 
       const pc = initPeerConnection();
       
-      // Захватываем микрофон ПЕРЕД созданием оффера
+      // ЗАХВАТ МИКРОФОНА ПОСЛЕ НАЖАТИЯ "ПОЗВОНИТЬ"
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
       localStream.current = stream;
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
@@ -148,6 +148,7 @@ export function CallOverlay() {
 
       setActiveCall({ id: callDoc.id, callerId: user.uid, receiverId });
 
+      // Ждем ответ от получателя
       onSnapshot(callDoc, (snapshot) => {
         const data = snapshot.data();
         if (data?.answer && !pc.currentRemoteDescription) {
@@ -155,6 +156,7 @@ export function CallOverlay() {
         }
       });
 
+      // Слушаем ICE-кандидатов от получателя
       onSnapshot(collection(db, "calls", callDoc.id, "receiverCandidates"), (snapshot) => {
         snapshot.docChanges().forEach((change) => {
           if (change.type === "added") {
@@ -171,12 +173,12 @@ export function CallOverlay() {
 
   const answerCall = async () => {
     if (!db || !activeCall || !user) return;
-    setCallStatus("connected");
-
+    
     try {
+      // Инициализируем соединение
       const pc = initPeerConnection();
 
-      // Сначала захватываем микрофон
+      // ЗАХВАТ МИКРОФОНА ТОЛЬКО ПОСЛЕ НАЖАТИЯ "ОТВЕТИТЬ"
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
       localStream.current = stream;
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
@@ -187,18 +189,22 @@ export function CallOverlay() {
         }
       };
 
-      // Устанавливаем удаленное описание (оффер)
+      // Устанавливаем оффер
       await pc.setRemoteDescription(new RTCSessionDescription(activeCall.offer));
 
-      // Создаем ответ
+      // Создаем ансфер
       const answerDescription = await pc.createAnswer();
       await pc.setLocalDescription(answerDescription);
 
+      // Обновляем статус в базе
       await updateDoc(doc(db, "calls", activeCall.id), {
         answer: { type: answerDescription.type, sdp: answerDescription.sdp },
         status: "connected"
       });
 
+      setCallStatus("connected");
+
+      // Слушаем ICE-кандидатов от звонящего
       onSnapshot(collection(db, "calls", activeCall.id, "callerCandidates"), (snapshot) => {
         snapshot.docChanges().forEach((change) => {
           if (change.type === "added") {
@@ -235,6 +241,7 @@ export function CallOverlay() {
     setActiveCall(null);
     setCallStatus("idle");
     setOtherUserData(null);
+    setIsMuted(false);
   };
 
   const toggleMute = () => {
@@ -260,13 +267,12 @@ export function CallOverlay() {
         ref={remoteAudioRef} 
         autoPlay 
         playsInline 
-        controls={false}
         className="hidden"
       />
       
       <div className="bg-card w-full max-w-sm mx-4 p-8 rounded-[3.5rem] shadow-2xl border border-primary/10 flex flex-col items-center gap-8 text-center">
         <div className="relative">
-          <div className="absolute inset-0 bg-primary/20 rounded-full animate-ping duration-1000" />
+          <div className={cn("absolute inset-0 bg-primary/20 rounded-full", callStatus !== "idle" && "animate-ping duration-1000")} />
           <UserAvatar userId={otherPartyId} fallback={otherUserData?.displayName} className="w-32 h-32 border-4 border-primary/20 shadow-xl relative z-10" />
           {callStatus === "connected" && (
             <div className="absolute -bottom-2 -right-2 bg-green-500 p-2 rounded-full border-4 border-card z-20">
