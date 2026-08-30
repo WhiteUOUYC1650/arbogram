@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 import { useCollection, useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
 import { 
   collection, query, orderBy, addDoc, doc, updateDoc, 
-  deleteDoc, arrayUnion, arrayRemove, getDoc 
+  deleteDoc, arrayUnion, arrayRemove, getDoc, getDocs, where, limit 
 } from "firebase/firestore";
 import { UserAvatar } from "@/components/user-avatar";
 import { useToast } from "@/hooks/use-toast";
@@ -78,6 +78,40 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
     if (scrollRef.current) scrollRef.current.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  const handleMentionClick = async (username: string) => {
+    if (!db) return;
+    const formattedUsername = username.startsWith("@") ? username : "@" + username;
+    try {
+      const q = query(collection(db, "users"), where("username", "==", formattedUsername.toLowerCase()), limit(1));
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        onStartDirectChat?.(snap.docs[0].id);
+      } else {
+        toast({ title: "Пользователь не найден", description: formattedUsername });
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const renderTextWithMentions = (text: string) => {
+    const parts = text.split(/(@\w+)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith("@")) {
+        return (
+          <span 
+            key={i} 
+            onClick={() => handleMentionClick(part)}
+            className="text-white bg-white/20 px-1 rounded-md cursor-pointer hover:bg-white/40 transition-colors font-bold"
+          >
+            {part}
+          </span>
+        );
+      }
+      return part;
+    });
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
@@ -96,7 +130,6 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
       reader.readAsDataURL(file);
     });
     
-    // Clear input
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -242,7 +275,6 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
         <div className="p-4 flex flex-col gap-4 max-w-4xl mx-auto">
           {messages?.map((msg, idx) => {
             const isMe = msg.senderId === user?.uid;
-            const hasMultipleImages = msg.imageUrls && msg.imageUrls.length > 1;
 
             return (
               <div key={msg.id} className={cn("flex items-start gap-2 max-w-[85%] group/msg", isMe ? "ml-auto flex-row-reverse" : "mr-auto flex-row")}>
@@ -275,7 +307,6 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
                         </div>
                       )}
                       
-                      {/* Grid for multiple images or single image */}
                       {msg.imageUrls && (
                         <div className={cn(
                           "grid gap-1 mb-2",
@@ -308,7 +339,7 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
                         </div>
                       )}
 
-                      {msg.text && <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>}
+                      {msg.text && <p className="whitespace-pre-wrap leading-relaxed">{renderTextWithMentions(msg.text)}</p>}
                       
                       <div className="flex flex-wrap gap-1 mt-1.5">
                         {msg.reactions && Object.entries(msg.reactions).map(([emoji, uids]: any) => (

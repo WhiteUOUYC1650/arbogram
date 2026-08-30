@@ -1,12 +1,14 @@
+
 "use client";
 
 import * as React from "react";
-import { Search, Globe, LogOut, Settings as SettingsIcon, Pencil, Loader2, Info, ChevronRight, ShieldAlert } from "lucide-react";
+import { Search, Globe, LogOut, Settings as SettingsIcon, Pencil, Loader2, Info, ChevronRight, ShieldAlert, User as UserIcon, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useCollection, useFirestore, useAuth, useUser, useMemoFirebase, useDoc } from "@/firebase";
-import { collection, query, where, getDocs, doc, updateDoc, arrayUnion, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, updateDoc, arrayUnion, setDoc, getDoc, serverTimestamp, limit, orderBy } from "firebase/firestore";
 import { signOut } from "firebase/auth";
 import { CreateChatDialog } from "./create-chat-dialog";
 import { StoriesBar } from "@/components/stories/stories-bar";
@@ -32,6 +34,10 @@ interface ChatSidebarProps {
 
 export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
   const [lang, setLang] = React.useState<Language>('ru');
+  const [searchTerm, setSearchTerm] = React.useState("");
+  const [searchResults, setSearchResults] = React.useState<{ users: any[], chats: any[] }>({ users: [], chats: [] });
+  const [isSearching, setIsSearching] = React.useState(false);
+  
   const db = useFirestore();
   const auth = useAuth();
   const { user } = useUser();
@@ -59,11 +65,49 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
 
   const sortedChats = React.useMemo(() => {
     if (!myChats) return [];
-    // Исключаем общий чат из основного списка, так как он вынесен наверх
     return [...myChats]
       .filter(c => c.id !== GLOBAL_CHAT_ID)
       .sort((a, b) => (b.lastMessageTime || 0) - (a.lastMessageTime || 0));
   }, [myChats]);
+
+  const handleGlobalSearch = async (val: string) => {
+    setSearchTerm(val);
+    if (!db || val.length < 2) {
+      setSearchResults({ users: [], chats: [] });
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      // Поиск пользователей
+      const userQ = query(
+        collection(db, "users"),
+        where("username", ">=", val.startsWith("@") ? val : "@" + val),
+        where("username", "<=", (val.startsWith("@") ? val : "@" + val) + "\uf8ff"),
+        limit(5)
+      );
+      
+      // Поиск публичных чатов
+      const chatQ = query(
+        collection(db, "chats"),
+        where("isPublic", "==", true),
+        where("name", ">=", val),
+        where("name", "<=", val + "\uf8ff"),
+        limit(5)
+      );
+
+      const [userSnap, chatSnap] = await Promise.all([getDocs(userQ), getDocs(chatQ)]);
+      
+      setSearchResults({
+        users: userSnap.docs.map(d => ({ ...d.data(), id: d.id })).filter(u => u.uid !== user?.uid),
+        chats: chatSnap.docs.map(d => ({ ...d.data(), id: d.id }))
+      });
+    } catch (e) {
+      console.error("Search error:", e);
+    } finally {
+      setIsSearching(false);
+    }
+  };
 
   const handleOpenGlobalChat = async () => {
     if (!db || !user) return;
@@ -76,17 +120,6 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
         if (!data.participants.includes(user.uid)) {
           await updateDoc(globalChatRef, { participants: arrayUnion(user.uid) });
         }
-      } else {
-        // Если чата нет, создаем его с нужным ID
-        await setDoc(globalChatRef, {
-          name: "Общий чат",
-          isPublic: true,
-          type: "group",
-          participants: [user.uid],
-          lastMessage: "Добро пожаловать в Общий чат!",
-          lastMessageTime: Date.now(),
-          createdAt: serverTimestamp()
-        });
       }
       onChatSelect(GLOBAL_CHAT_ID);
     } catch (e) { console.error(e); }
@@ -128,13 +161,12 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
                     <p className="text-xs text-muted-foreground leading-relaxed">{t.v1_1_desc}</p>
                   </div>
                   <ul className="space-y-2">
-                    {['Reactions & Replies', 'Admin Panel', 'User Blocking', 'Chat Deletion'].map((item, i) => (
+                    {['Mentions & Global Search', 'Multiple Images (up to 10)', 'Reactions & Replies', 'Admin Panel'].map((item, i) => (
                       <li key={i} className="flex items-center gap-2 text-[11px] font-medium text-foreground">
                         <ChevronRight className="w-3 h-3 text-primary" /> {item}
                       </li>
                     ))}
                   </ul>
-                  <p className="text-[9px] text-center text-muted-foreground pt-2">CoveChat • 2026 • Build 1.1.1</p>
                 </div>
               </DialogContent>
             </Dialog>
@@ -144,34 +176,89 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
             <Button variant="ghost" size="icon" className="rounded-full h-9 w-9" onClick={() => auth && signOut(auth)}><LogOut className="w-4 h-4 text-muted-foreground/60" /></Button>
           </div>
         </div>
+
+        <div className="relative group">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+          <Input 
+            placeholder={t.search} 
+            value={searchTerm}
+            onChange={(e) => handleGlobalSearch(e.target.value)}
+            className="h-10 pl-10 rounded-2xl bg-white/50 dark:bg-black/20 border-none focus-visible:ring-primary shadow-sm" 
+          />
+        </div>
       </div>
 
-      <StoriesBar onStartChat={onChatSelect} />
+      {!searchTerm && <StoriesBar onStartChat={onChatSelect} />}
 
       <ScrollArea className="flex-1">
         <div className="px-2 pb-20 space-y-1">
-          <div 
-            onClick={handleOpenGlobalChat}
-            className={cn(
-              "flex items-center gap-3 p-3 rounded-2xl transition-all cursor-pointer hover:bg-white/40 dark:hover:bg-black/20 mb-1",
-              activeChatId === GLOBAL_CHAT_ID ? "bg-white dark:bg-white/10 shadow-sm" : "bg-accent/5 border border-accent/10"
-            )}
-          >
-            <div className="w-12 h-12 rounded-full cove-gradient flex items-center justify-center shrink-0 border-2 border-white shadow-sm"><Globe className="w-6 h-6 text-white" /></div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between">
-                <p className="font-bold text-sm text-foreground">Общий чат</p>
-                <span className="text-[10px] text-accent font-bold uppercase">PUBLIC</span>
-              </div>
-              <p className="text-xs text-muted-foreground truncate">Пиши и общайся со всеми!</p>
+          {searchTerm ? (
+            <div className="space-y-4 p-2 animate-in fade-in duration-300">
+              {isSearching ? (
+                <div className="flex flex-col items-center justify-center p-8 gap-2 opacity-50"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+              ) : (
+                <>
+                  {searchResults.users.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase px-2 mb-2 tracking-widest">Люди</p>
+                      {searchResults.users.map(u => (
+                        <div key={u.id} onClick={() => onChatSelect(u.uid)} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-white/40 dark:hover:bg-black/20 cursor-pointer">
+                          <UserAvatar userId={u.uid} fallback={u.displayName} className="w-10 h-10" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-bold truncate">{u.displayName}</p>
+                            <p className="text-xs text-primary font-mono truncate">{u.username}</p>
+                          </div>
+                          <MessageSquare className="w-4 h-4 text-muted-foreground" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {searchResults.chats.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase px-2 mb-2 tracking-widest">Каналы и Группы</p>
+                      {searchResults.chats.map(c => (
+                        <div key={c.id} onClick={() => onChatSelect(c.id)} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-white/40 dark:hover:bg-black/20 cursor-pointer">
+                          <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-accent"><Globe className="w-5 h-5" /></div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-bold truncate">{c.name}</p>
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-tighter">{c.type}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {searchResults.users.length === 0 && searchResults.chats.length === 0 && (
+                    <p className="text-center text-xs text-muted-foreground py-8">Ничего не найдено</p>
+                  )}
+                </>
+              )}
             </div>
-          </div>
+          ) : (
+            <>
+              <div 
+                onClick={handleOpenGlobalChat}
+                className={cn(
+                  "flex items-center gap-3 p-3 rounded-2xl transition-all cursor-pointer hover:bg-white/40 dark:hover:bg-black/20 mb-1",
+                  activeChatId === GLOBAL_CHAT_ID ? "bg-white dark:bg-white/10 shadow-sm" : "bg-accent/5 border border-accent/10"
+                )}
+              >
+                <div className="w-12 h-12 rounded-full cove-gradient flex items-center justify-center shrink-0 border-2 border-white shadow-sm"><Globe className="w-6 h-6 text-white" /></div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <p className="font-bold text-sm text-foreground">Общий чат</p>
+                    <span className="text-[10px] text-accent font-bold uppercase">PUBLIC</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate">Пиши и общайся со всеми!</p>
+                </div>
+              </div>
 
-          {chatsLoading ? (
-            <div className="flex flex-col items-center justify-center p-8 gap-2 opacity-50"><Loader2 className="w-6 h-6 animate-spin text-primary" /><p className="text-[10px] font-bold uppercase">Загрузка...</p></div>
-          ) : sortedChats.map((chat: any) => (
-            <ChatItem key={chat.id} chat={chat} user={user} isActive={activeChatId === chat.id} onSelect={() => onChatSelect(chat.id)} />
-          ))}
+              {chatsLoading ? (
+                <div className="flex flex-col items-center justify-center p-8 gap-2 opacity-50"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+              ) : sortedChats.map((chat: any) => (
+                <ChatItem key={chat.id} chat={chat} user={user} isActive={activeChatId === chat.id} onSelect={() => onChatSelect(chat.id)} />
+              ))}
+            </>
+          )}
         </div>
       </ScrollArea>
 
