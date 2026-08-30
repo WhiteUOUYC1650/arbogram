@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -81,7 +80,6 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
     if (scrollRef.current) scrollRef.current.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Очистка статуса печатает при размонтировании
   React.useEffect(() => {
     return () => {
       if (db && user && chatRef) {
@@ -176,12 +174,12 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
   };
 
   const handleCall = () => {
-    if (chatData?.type === 'individual' && user) {
-      const otherId = chatData.participants?.find((p: string) => p !== user.uid);
-      if (otherId && (window as any).__startCall) (window as any).__startCall(otherId);
-    } else { 
-      toast({ title: "Групповые звонки", description: "Функция будет доступна в v1.3" }); 
-    }
+    // Звонки отложены до v1.2
+    toast({ 
+      title: t.appName, 
+      description: t.callsUpcoming,
+      className: "rounded-2xl border-primary/20 bg-card text-foreground"
+    });
   };
 
   let chatName = chatData?.name || "Chat";
@@ -199,7 +197,6 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
   const targetUserRef = useMemoFirebase(() => (db && otherId ? doc(db, "users", otherId) : null), [db, otherId]);
   const { data: targetUserData } = useDoc(targetUserRef);
 
-  // Исправленная логика заголовка
   let subStatusText = t.offline;
   if (chatData?.type === 'individual') {
     if (targetUserData?.status === 'online') {
@@ -260,11 +257,9 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
           </Dialog>
         </div>
         <div className="flex items-center gap-1">
-          {chatData?.type === 'individual' && (
-            <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-primary" onClick={handleCall}>
-              <Phone className="w-5 h-5" />
-            </Button>
-          )}
+          <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-primary" onClick={handleCall}>
+            <Phone className="w-5 h-5" />
+          </Button>
           <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-primary"><MoreVertical className="w-5 h-5" /></Button>
         </div>
       </div>

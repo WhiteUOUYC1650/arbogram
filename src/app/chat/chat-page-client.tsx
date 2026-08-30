@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -10,7 +9,6 @@ import { cn } from "@/lib/utils";
 import { useFirestore, useUser } from "@/firebase";
 import { collection, query, where, getDocs, addDoc, serverTimestamp, doc, getDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
-import { CallOverlay } from "@/components/chat/call-overlay";
 
 /**
  * Основной интерфейс мессенджера (SPA).
@@ -78,8 +76,6 @@ export default function ChatPageClient() {
 
   return (
     <div className="flex h-[100dvh] overflow-hidden bg-background">
-      <CallOverlay />
-      
       <div className={cn(
         "w-full md:w-80 flex-shrink-0 border-r bg-sidebar/50 backdrop-blur-sm transition-all duration-300",
         !showSidebar && "hidden md:block"
