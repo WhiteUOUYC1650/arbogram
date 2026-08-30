@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -101,7 +100,7 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
         return (
           <span 
             key={i} 
-            onClick={() => handleMentionClick(part)}
+            onClick={(e) => { e.stopPropagation(); handleMentionClick(part); }}
             className="text-white bg-white/20 px-1 rounded-md cursor-pointer hover:bg-white/40 transition-colors font-bold"
           >
             {part}
@@ -226,7 +225,17 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
       <div className="flex items-center justify-between p-4 border-b bg-white/80 dark:bg-black/40 backdrop-blur-md z-10 shrink-0">
         <div className="flex items-center gap-3">
           {onBack && <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground" onClick={onBack}><X className="w-5 h-5" /></Button>}
-          <div className="flex items-center gap-3">
+          <div 
+            className={cn(
+              "flex items-center gap-3",
+              chatId !== GLOBAL_CHAT_ID && chatData?.type === 'individual' && "cursor-pointer hover:opacity-80 transition-opacity"
+            )}
+            onClick={() => {
+              if (chatId !== GLOBAL_CHAT_ID && chatData?.type === 'individual' && otherId) {
+                onStartDirectChat?.(otherId);
+              }
+            }}
+          >
             {chatId === GLOBAL_CHAT_ID ? (
                <div className="w-10 h-10 rounded-full cove-gradient flex items-center justify-center border-2 border-primary/20 shadow-sm"><Globe className="w-6 h-6 text-white" /></div>
             ) : (
@@ -278,7 +287,14 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
 
             return (
               <div key={msg.id} className={cn("flex items-start gap-2 max-w-[85%] group/msg", isMe ? "ml-auto flex-row-reverse" : "mr-auto flex-row")}>
-                {!isMe && <UserAvatar userId={msg.senderId} fallback={msg.senderName} className="w-8 h-8 mt-1 shrink-0" />}
+                {!isMe && (
+                  <div 
+                    className="cursor-pointer hover:opacity-80 transition-opacity shrink-0" 
+                    onClick={() => onStartDirectChat?.(msg.senderId)}
+                  >
+                    <UserAvatar userId={msg.senderId} fallback={msg.senderName} className="w-8 h-8 mt-1" />
+                  </div>
+                )}
                 
                 <div className={cn("flex flex-col", isMe ? "items-end" : "items-start")}>
                   <div className="flex items-center gap-1 group">
@@ -301,7 +317,12 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
                       isMe ? "cove-gradient text-white rounded-tr-none" : "bg-white dark:bg-zinc-800 text-foreground rounded-tl-none border"
                     )}>
                       {msg.replyTo && (
-                        <div className="mb-2 p-2 rounded-lg bg-black/10 border-l-2 border-primary text-[10px] opacity-80">
+                        <div 
+                          className="mb-2 p-2 rounded-lg bg-black/10 border-l-2 border-primary text-[10px] opacity-80 cursor-pointer"
+                          onClick={() => {
+                            // Логика скролла к оригинальному сообщению может быть добавлена здесь
+                          }}
+                        >
                           <p className="font-bold">{msg.replyTo.senderName}</p>
                           <p className="truncate">{msg.replyTo.text}</p>
                         </div>
