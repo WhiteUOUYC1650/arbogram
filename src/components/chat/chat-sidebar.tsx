@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -23,6 +22,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import Link from "next/link";
+
+const GLOBAL_CHAT_ID = "p7gSC3o9OxVezsjDbrFq";
 
 interface ChatSidebarProps {
   activeChatId?: string;
@@ -58,13 +59,16 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
 
   const sortedChats = React.useMemo(() => {
     if (!myChats) return [];
-    return [...myChats].sort((a, b) => (b.lastMessageTime || 0) - (a.lastMessageTime || 0));
+    // Исключаем общий чат из основного списка, так как он вынесен наверх
+    return [...myChats]
+      .filter(c => c.id !== GLOBAL_CHAT_ID)
+      .sort((a, b) => (b.lastMessageTime || 0) - (a.lastMessageTime || 0));
   }, [myChats]);
 
   const handleOpenGlobalChat = async () => {
     if (!db || !user) return;
     try {
-      const globalChatRef = doc(db, "chats", "global");
+      const globalChatRef = doc(db, "chats", GLOBAL_CHAT_ID);
       const snap = await getDoc(globalChatRef);
       
       if (snap.exists()) {
@@ -73,6 +77,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
           await updateDoc(globalChatRef, { participants: arrayUnion(user.uid) });
         }
       } else {
+        // Если чата нет, создаем его с нужным ID
         await setDoc(globalChatRef, {
           name: "Общий чат",
           isPublic: true,
@@ -83,7 +88,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
           createdAt: serverTimestamp()
         });
       }
-      onChatSelect("global");
+      onChatSelect(GLOBAL_CHAT_ID);
     } catch (e) { console.error(e); }
   };
 
@@ -149,7 +154,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
             onClick={handleOpenGlobalChat}
             className={cn(
               "flex items-center gap-3 p-3 rounded-2xl transition-all cursor-pointer hover:bg-white/40 dark:hover:bg-black/20 mb-1",
-              activeChatId === "global" ? "bg-white dark:bg-white/10 shadow-sm" : "bg-accent/5 border border-accent/10"
+              activeChatId === GLOBAL_CHAT_ID ? "bg-white dark:bg-white/10 shadow-sm" : "bg-accent/5 border border-accent/10"
             )}
           >
             <div className="w-12 h-12 rounded-full cove-gradient flex items-center justify-center shrink-0 border-2 border-white shadow-sm"><Globe className="w-6 h-6 text-white" /></div>
@@ -192,7 +197,7 @@ function ChatItem({ chat, user, isActive, onSelect }: { chat: any; user: any; is
     }
   }
 
-  const userRef = useMemoFirebase(() => (db && targetId !== chat.id && targetId !== 'global' ? doc(db, "users", targetId) : null), [db, targetId, chat.id]);
+  const userRef = useMemoFirebase(() => (db && targetId !== chat.id && targetId !== GLOBAL_CHAT_ID ? doc(db, "users", targetId) : null), [db, targetId, chat.id]);
   const { data: targetUserData } = useDoc(userRef);
 
   return (
@@ -204,12 +209,12 @@ function ChatItem({ chat, user, isActive, onSelect }: { chat: any; user: any; is
       )}
     >
       <div className="relative shrink-0">
-        {chat.id === 'global' ? (
+        {chat.id === GLOBAL_CHAT_ID ? (
           <div className="w-12 h-12 rounded-full cove-gradient flex items-center justify-center border-2 border-white shadow-sm"><Globe className="w-6 h-6 text-white" /></div>
         ) : (
           <UserAvatar userId={targetId} fallback={displayName} className="w-12 h-12 border-2 border-primary/20" />
         )}
-        {targetUserData?.status === 'online' && chat.id !== 'global' && (
+        {targetUserData?.status === 'online' && chat.id !== GLOBAL_CHAT_ID && (
           <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-white dark:border-zinc-900 rounded-full" />
         )}
       </div>

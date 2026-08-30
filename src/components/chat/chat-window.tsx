@@ -1,11 +1,10 @@
-
 "use client";
 
 import * as React from "react";
 import { 
   Send, Paperclip, X, Loader2, 
   MoreVertical, Trash2, Copy, 
-  Clock, Reply, Smile, ShieldBan, LogOut, CheckCheck, Download
+  Clock, Reply, Smile, ShieldBan, LogOut, CheckCheck, Download, Globe
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +24,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { translations, Language } from "@/lib/i18n";
+
+const GLOBAL_CHAT_ID = "p7gSC3o9OxVezsjDbrFq";
 
 interface ChatWindowProps {
   chatId: string;
@@ -144,7 +145,7 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
   }
 
   const isOnline = chatData?.type === 'individual' && otherUserData?.status === 'online';
-  const headerStatus = chatData?.isPublic || chatId === 'global'
+  const headerStatus = chatData?.isPublic || chatId === GLOBAL_CHAT_ID
     ? `${chatData?.participants?.length || 0} ${t.members}`
     : (isOnline ? t.online : t.offline);
 
@@ -154,14 +155,14 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
         <div className="flex items-center gap-3">
           {onBack && <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground" onClick={onBack}><X className="w-5 h-5" /></Button>}
           <div className="flex items-center gap-3">
-            {chatId === 'global' ? (
+            {chatId === GLOBAL_CHAT_ID ? (
                <div className="w-10 h-10 rounded-full cove-gradient flex items-center justify-center border-2 border-primary/20 shadow-sm"><Globe className="w-6 h-6 text-white" /></div>
             ) : (
               <UserAvatar userId={avatarTargetId} fallback={chatName} className="w-10 h-10 border-2 border-primary/20" />
             )}
             <div className="min-w-0">
               <h2 className="font-semibold text-sm leading-tight truncate">{chatName}</h2>
-              <p className={cn("text-[10px] font-bold uppercase opacity-80", isOnline ? "text-primary" : "text-muted-foreground")}>
+              <p className={cn("text-[10px] font-bold uppercase opacity-80", isOnline || chatId === GLOBAL_CHAT_ID ? "text-primary" : "text-muted-foreground")}>
                 {headerStatus}
               </p>
             </div>
@@ -185,7 +186,7 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
                   }} className="text-destructive"><Trash2 className="w-4 h-4 mr-2" />{t.deleteChat}</DropdownMenuItem>
                 </>
               )}
-              {chatData?.type !== 'individual' && chatId !== 'global' && (
+              {chatData?.type !== 'individual' && chatId !== GLOBAL_CHAT_ID && (
                 <DropdownMenuItem onClick={async () => {
                   if (!db || !user || !chatRef) return;
                   await updateDoc(chatRef, { participants: arrayRemove(user.uid) });
@@ -203,11 +204,12 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
             const isMe = msg.senderId === user?.uid;
             return (
               <div key={msg.id} className={cn("flex items-start gap-2 max-w-[85%] group/msg", isMe ? "ml-auto flex-row-reverse" : "mr-auto flex-row")}>
+                {/* Аватарка ТОЛЬКО для других слева */}
                 {!isMe && <UserAvatar userId={msg.senderId} fallback={msg.senderName} className="w-8 h-8 mt-1 shrink-0" />}
                 
                 <div className={cn("flex flex-col", isMe ? "items-end" : "items-start")}>
                   <div className="flex items-center gap-1 group">
-                    {/* Меню действий слева для моих сообщений */}
+                    {/* Меню действий СЛЕВА для МОИХ сообщений */}
                     {isMe && (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -257,7 +259,7 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
                       </div>
                     </div>
 
-                    {/* Меню действий справа для чужих сообщений */}
+                    {/* Меню действий СПРАВА для ЧУЖИХ сообщений */}
                     {!isMe && (
                       <div className="flex items-center gap-0.5 opacity-0 group-hover/msg:opacity-100 transition-opacity">
                          <DropdownMenu>
