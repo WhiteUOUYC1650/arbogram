@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { Phone, PhoneOff, Mic, MicOff, Volume2, Loader2 } from "lucide-react";
+import { Phone, PhoneOff, Mic, MicOff, Volume2, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useFirestore, useUser } from "@/firebase";
 import { 
@@ -21,14 +21,16 @@ import {
 } from "firebase/firestore";
 import { UserAvatar } from "@/components/user-avatar";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 
 /**
  * Оверлей звонка. Управляет состоянием WebRTC и UI звонка.
- * CoveChat v1.1 Audio Engine - Optimized for User-Triggered Audio.
+ * CoveChat v1.1 Audio Engine - Optimized for Network Resilience.
  */
 export function CallOverlay() {
   const db = useFirestore();
   const { user } = useUser();
+  const { toast } = useToast();
   const [activeCall, setActiveCall] = React.useState<any>(null);
   const [callStatus, setCallStatus] = React.useState<"idle" | "dialing" | "ringing" | "connected" | "ended">("idle");
   const [isMuted, setIsMuted] = React.useState(false);
@@ -37,10 +39,12 @@ export function CallOverlay() {
   const peerConnection = React.useRef<RTCPeerConnection | null>(null);
   const localStream = React.useRef<MediaStream | null>(null);
   const remoteAudioRef = React.useRef<HTMLAudioElement | null>(null);
+  const connectionTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
   const rtcConfig = {
     iceServers: [
       { urls: ["stun:stun1.l.google.com:19302", "stun:stun2.l.google.com:19302"] },
+      { urls: ["stun:stun.l.google.com:19302"] },
     ],
     iceCandidatePoolSize: 10,
   };
@@ -82,11 +86,12 @@ export function CallOverlay() {
         handleEndCall();
       } else if (data.status === "connected" && callStatus !== "connected") {
         setCallStatus("connected");
+        if (connectionTimeoutRef.current) clearTimeout(connectionTimeoutRef.current);
       }
     });
 
     return () => unsubscribe();
-  }, [db, activeCall]);
+  }, [db, activeCall, callStatus]);
 
   const initPeerConnection = () => {
     if (peerConnection.current) {
@@ -99,13 +104,19 @@ export function CallOverlay() {
       console.log("Remote track received:", event.streams[0]);
       if (remoteAudioRef.current && event.streams[0]) {
         remoteAudioRef.current.srcObject = event.streams[0];
-        // Принудительный запуск звука после привязки потока
-        const playPromise = remoteAudioRef.current.play();
-        if (playPromise !== undefined) {
-          playPromise.catch(error => {
-            console.warn("Auto-play was prevented, waiting for interaction or connection stabilization.", error);
-          });
-        }
+        remoteAudioRef.current.play().catch(e => console.warn("Audio play blocked", e));
+      }
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      console.log("ICE Connection State:", pc.iceConnectionState);
+      if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+        toast({
+          variant: "destructive",
+          title: "Ошибка связи",
+          description: "Соединение заблокировано сетью. Попробуйте голосовые сообщения."
+        });
+        handleEndCall();
       }
     };
 
@@ -120,17 +131,17 @@ export function CallOverlay() {
       const receiverSnap = await getDoc(doc(db, "users", receiverId));
       if (receiverSnap.exists()) setOtherUserData(receiverSnap.data());
 
-      const pc = initPeerConnection();
-      
-      // ЗАХВАТ МИКРОФОНА ПОСЛЕ НАЖАТИЯ "ПОЗВОНИТЬ"
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      // 1. Захватываем микрофон ПОСЛЕ действия пользователя
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       localStream.current = stream;
+
+      const pc = initPeerConnection();
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
       const callDoc = doc(collection(db, "calls"));
       
       pc.onicecandidate = (event) => {
-        if (event.candidate && callDoc.id) {
+        if (event.candidate) {
           addDoc(collection(db, "calls", callDoc.id, "callerCandidates"), event.candidate.toJSON());
         }
       };
@@ -148,7 +159,14 @@ export function CallOverlay() {
 
       setActiveCall({ id: callDoc.id, callerId: user.uid, receiverId });
 
-      // Ждем ответ от получателя
+      // Тайм-аут на установку соединения (25 сек)
+      connectionTimeoutRef.current = setTimeout(() => {
+        if (callStatus !== "connected") {
+          toast({ title: "Нет ответа", description: "Собеседник не отвечает или связь заблокирована." });
+          handleEndCall();
+        }
+      }, 25000);
+
       onSnapshot(callDoc, (snapshot) => {
         const data = snapshot.data();
         if (data?.answer && !pc.currentRemoteDescription) {
@@ -156,11 +174,10 @@ export function CallOverlay() {
         }
       });
 
-      // Слушаем ICE-кандидатов от получателя
       onSnapshot(collection(db, "calls", callDoc.id, "receiverCandidates"), (snapshot) => {
         snapshot.docChanges().forEach((change) => {
           if (change.type === "added") {
-            pc.addIceCandidate(new RTCIceCandidate(change.doc.data()));
+            pc.addIceCandidate(new RTCIceCandidate(change.doc.data())).catch(e => console.warn(e));
           }
         });
       });
@@ -168,6 +185,7 @@ export function CallOverlay() {
     } catch (e) {
       console.error("Start call error:", e);
       handleEndCall();
+      toast({ variant: "destructive", title: "Ошибка", description: "Нужен доступ к микрофону." });
     }
   };
 
@@ -175,28 +193,23 @@ export function CallOverlay() {
     if (!db || !activeCall || !user) return;
     
     try {
-      // Инициализируем соединение
-      const pc = initPeerConnection();
-
-      // ЗАХВАТ МИКРОФОНА ТОЛЬКО ПОСЛЕ НАЖАТИЯ "ОТВЕТИТЬ"
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      // 1. Захватываем микрофон при ответе
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       localStream.current = stream;
+
+      const pc = initPeerConnection();
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
       pc.onicecandidate = (event) => {
-        if (event.candidate && activeCall.id) {
+        if (event.candidate) {
           addDoc(collection(db, "calls", activeCall.id, "receiverCandidates"), event.candidate.toJSON());
         }
       };
 
-      // Устанавливаем оффер
       await pc.setRemoteDescription(new RTCSessionDescription(activeCall.offer));
-
-      // Создаем ансфер
       const answerDescription = await pc.createAnswer();
       await pc.setLocalDescription(answerDescription);
 
-      // Обновляем статус в базе
       await updateDoc(doc(db, "calls", activeCall.id), {
         answer: { type: answerDescription.type, sdp: answerDescription.sdp },
         status: "connected"
@@ -204,11 +217,10 @@ export function CallOverlay() {
 
       setCallStatus("connected");
 
-      // Слушаем ICE-кандидатов от звонящего
       onSnapshot(collection(db, "calls", activeCall.id, "callerCandidates"), (snapshot) => {
         snapshot.docChanges().forEach((change) => {
           if (change.type === "added") {
-            pc.addIceCandidate(new RTCIceCandidate(change.doc.data()));
+            pc.addIceCandidate(new RTCIceCandidate(change.doc.data())).catch(e => console.warn(e));
           }
         });
       });
@@ -216,10 +228,13 @@ export function CallOverlay() {
     } catch (e) {
       console.error("Answer call error:", e);
       handleEndCall();
+      toast({ variant: "destructive", title: "Ошибка", description: "Не удалось подключить микрофон." });
     }
   };
 
   const handleEndCall = async () => {
+    if (connectionTimeoutRef.current) clearTimeout(connectionTimeoutRef.current);
+    
     if (db && activeCall) {
       updateDoc(doc(db, "calls", activeCall.id), { status: "ended" }).catch(() => {});
     }
@@ -263,14 +278,13 @@ export function CallOverlay() {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-xl animate-in fade-in duration-300">
-      <audio 
-        ref={remoteAudioRef} 
-        autoPlay 
-        playsInline 
-        className="hidden"
-      />
+      <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
       
-      <div className="bg-card w-full max-w-sm mx-4 p-8 rounded-[3.5rem] shadow-2xl border border-primary/10 flex flex-col items-center gap-8 text-center">
+      <div className="bg-card w-full max-w-sm mx-4 p-8 rounded-[3.5rem] shadow-2xl border border-primary/10 flex flex-col items-center gap-8 text-center relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-1 bg-primary/20">
+          <div className={cn("h-full bg-primary transition-all duration-[25000ms] ease-linear", callStatus === "dialing" ? "w-full" : "w-0")} />
+        </div>
+
         <div className="relative">
           <div className={cn("absolute inset-0 bg-primary/20 rounded-full", callStatus !== "idle" && "animate-ping duration-1000")} />
           <UserAvatar userId={otherPartyId} fallback={otherUserData?.displayName} className="w-32 h-32 border-4 border-primary/20 shadow-xl relative z-10" />
@@ -318,6 +332,12 @@ export function CallOverlay() {
             </>
           )}
         </div>
+
+        {callStatus === "dialing" && (
+          <p className="text-[10px] text-muted-foreground animate-pulse mt-2">
+            Если соединение не установится, используйте голосовые сообщения
+          </p>
+        )}
       </div>
     </div>
   );
