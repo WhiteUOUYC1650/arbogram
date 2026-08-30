@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Mail, Lock, User as UserIcon, ArrowRight, ChevronLeft, CheckCircle2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { doc, setDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { doc, setDoc, collection, query, where, getDocs, limit } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { ArbogramIcon } from "@/components/arbogram-icon";
 import { translations, Language } from "@/lib/i18n";
@@ -29,7 +29,8 @@ export default function LoginPage() {
   const { toast } = useToast();
 
   const [step, setStep] = useState<AuthStep>("email");
-  const [email, setEmail] = useState("");
+  const [emailOrUser, setEmailOrUser] = useState("");
+  const [resolvedEmail, setResolvedEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -69,10 +70,34 @@ export default function LoginPage() {
     setUsername(val.replace(/\s/g, ""));
   };
 
-  const handleProceedToPassword = (e: React.FormEvent) => {
+  const handleProceedToPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) return;
-    setStep("password");
+    if (!emailOrUser || !db) return;
+
+    setIsSubmitting(true);
+    try {
+      let targetEmail = emailOrUser.toLowerCase().trim();
+      
+      // Если введен юзернейм
+      if (targetEmail.startsWith("@")) {
+        const q = query(collection(db, "users"), where("username", "==", targetEmail), limit(1));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          targetEmail = snap.docs[0].data().email;
+        } else {
+          // Если аккаунт не найден по юзернейму, возможно это новый пользователь
+          setIsNewUser(true);
+        }
+      }
+
+      setResolvedEmail(targetEmail);
+      setStep("password");
+    } catch (e) {
+      console.error(e);
+      toast({ variant: "destructive", title: t.error, description: "Ошибка поиска аккаунта." });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -81,12 +106,10 @@ export default function LoginPage() {
 
     setIsSubmitting(true);
     try {
-      // Пытаемся войти
       try {
-        await signInWithEmailAndPassword(auth, email.toLowerCase().trim(), password);
+        await signInWithEmailAndPassword(auth, resolvedEmail, password);
         router.push("/");
       } catch (loginError: any) {
-        // Если пользователя нет, пробуем создать аккаунт
         if (loginError.code === 'auth/user-not-found' || loginError.code === 'auth/invalid-credential') {
           if (!isNewUser) {
             setIsNewUser(true);
@@ -100,7 +123,14 @@ export default function LoginPage() {
             return;
           }
 
-          await createUserWithEmailAndPassword(auth, email.toLowerCase().trim(), password);
+          // Если это новый юзер, resolvedEmail должен быть валидной почтой
+          if (!resolvedEmail.includes("@") || resolvedEmail.startsWith("@")) {
+             toast({ variant: "destructive", title: t.error, description: "Для регистрации используйте почту." });
+             setIsSubmitting(false);
+             return;
+          }
+
+          await createUserWithEmailAndPassword(auth, resolvedEmail, password);
         } else {
           throw loginError;
         }
@@ -135,7 +165,7 @@ export default function LoginPage() {
         return;
       }
 
-      const finalDisplayName = displayName.trim() || email.split('@')[0];
+      const finalDisplayName = displayName.trim() || resolvedEmail.split('@')[0];
       await updateProfile(user, { displayName: finalDisplayName });
 
       const userData = {
@@ -144,6 +174,7 @@ export default function LoginPage() {
         username: finalUsername,
         photoURL: "",
         email: user.email?.toLowerCase(),
+        phoneNumber: "",
         lastSeen: Date.now(),
         status: "online"
       };
@@ -177,16 +208,15 @@ export default function LoginPage() {
           {step === "email" && (
             <form onSubmit={handleProceedToPassword} className="space-y-6 animate-in slide-in-from-right duration-300">
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-[10px] uppercase font-bold ml-1 opacity-70 tracking-widest">{t.email}</Label>
+                <Label htmlFor="email" className="text-[10px] uppercase font-bold ml-1 opacity-70 tracking-widest">{t.email} / {t.username}</Label>
                 <div className="relative">
                   <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input 
                     id="email"
-                    type="email"
-                    placeholder="name@example.com" 
+                    placeholder="email@example.com или @username" 
                     required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    value={emailOrUser}
+                    onChange={(e) => setEmailOrUser(e.target.value)}
                     className="h-12 pl-12 rounded-2xl bg-muted/30 border-none focus-visible:ring-primary text-base"
                     disabled={isSubmitting}
                   />
@@ -194,7 +224,7 @@ export default function LoginPage() {
               </div>
               <Button 
                 type="submit"
-                disabled={isSubmitting || !email}
+                disabled={isSubmitting || !emailOrUser}
                 className="w-full h-12 cove-gradient hover:opacity-90 text-white font-bold rounded-2xl shadow-lg shadow-primary/20 transition-all active:scale-95 flex items-center justify-center gap-2"
               >
                 {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Продолжить <ArrowRight className="w-4 h-4" /></>}
@@ -209,7 +239,7 @@ export default function LoginPage() {
                 onClick={() => { setStep("email"); setIsNewUser(false); }}
                 className="flex items-center gap-2 text-xs text-muted-foreground hover:text-primary transition-colors mb-2"
               >
-                <ChevronLeft className="w-4 h-4" /> {email}
+                <ChevronLeft className="w-4 h-4" /> {emailOrUser}
               </button>
               
               <div className="space-y-4">
@@ -259,12 +289,6 @@ export default function LoginPage() {
               >
                 {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : (isNewUser ? "Создать аккаунт" : t.enter)}
               </Button>
-              
-              {!isNewUser && (
-                <p className="text-[10px] text-center text-muted-foreground pt-2">
-                  Нет аккаунта? Нажмите кнопку выше, чтобы начать регистрацию
-                </p>
-              )}
             </form>
           )}
 
@@ -307,7 +331,6 @@ export default function LoginPage() {
                       disabled={isSubmitting}
                     />
                   </div>
-                  <p className="text-[9px] text-muted-foreground ml-1">Только латиница и цифры.</p>
                 </div>
               </div>
 

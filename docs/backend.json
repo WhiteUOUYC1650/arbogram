@@ -11,6 +11,7 @@
         "username": { "type": "string" },
         "photoURL": { "type": "string" },
         "email": { "type": "string" },
+        "phoneNumber": { "type": "string" },
         "lastSeen": { "type": "number" },
         "status": { "type": "string", "enum": ["online", "offline"] },
         "isBanned": { "type": "boolean" },

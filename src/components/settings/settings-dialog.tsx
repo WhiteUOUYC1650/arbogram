@@ -1,19 +1,21 @@
+
 "use client";
 
 import * as React from "react";
-import { Settings, Loader2, Camera, Moon, Sun, User as UserIcon, Shield, Lock, Bell, Languages, Info } from "lucide-react";
+import { Settings, Loader2, Camera, Moon, Sun, User as UserIcon, Shield, Lock, Bell, Languages, Info, Phone } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
-import { doc, updateDoc, collection, query, where, getDocs, setDoc } from "firebase/firestore";
+import { doc, updateDoc, setDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { translations, Language } from "@/lib/i18n";
+import { normalizePhoneNumber } from "@/lib/phone-utils";
 
 export function SettingsDialog({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = React.useState(false);
@@ -32,6 +34,7 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
 
   const [displayName, setDisplayName] = React.useState("");
   const [username, setUsername] = React.useState("");
+  const [phoneNumber, setPhoneNumber] = React.useState("");
   const [photoURL, setPhotoURL] = React.useState("");
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -41,6 +44,7 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
     if (userData) {
       setDisplayName(userData.displayName || "");
       setUsername(userData.username || "@");
+      setPhoneNumber(userData.phoneNumber || "");
     }
   }, [userData]);
 
@@ -67,8 +71,16 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
       if (photoURL && photoURL.startsWith('data:image')) {
         await setDoc(doc(db, "avatars", user.uid), { base64: photoURL });
       }
-      await updateDoc(userRef, { displayName, username, photoURL: user.uid });
-      toast({ title: t.success, description: "Profile updated" });
+
+      const normalizedPhone = phoneNumber ? normalizePhoneNumber(phoneNumber) : "";
+
+      await updateDoc(userRef, { 
+        displayName, 
+        username, 
+        phoneNumber: normalizedPhone,
+        photoURL: user.uid 
+      });
+      toast({ title: t.success, description: "Профиль обновлен" });
       setOpen(false);
     } catch (e: any) {
       toast({ variant: "destructive", title: t.error, description: e.message });
@@ -114,6 +126,18 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
               <div className="space-y-4">
                 <div className="space-y-2"><Label>{t.name}</Label><Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="rounded-xl" /></div>
                 <div className="space-y-2"><Label>{t.username}</Label><Input value={username} onChange={(e) => setUsername(e.target.value)} className="rounded-xl font-mono" /></div>
+                <div className="space-y-2">
+                  <Label>Номер телефона</Label>
+                  <div className="relative">
+                    <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input 
+                      placeholder="+7 (___) ___-__-__" 
+                      value={phoneNumber} 
+                      onChange={(e) => setPhoneNumber(e.target.value)} 
+                      className="rounded-xl pl-12" 
+                    />
+                  </div>
+                </div>
                 
                 <div className="flex items-center justify-between p-4 bg-sidebar/20 rounded-2xl border border-primary/10">
                   <div className="flex items-center gap-3">
@@ -137,9 +161,6 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
               <div className="flex items-center justify-between p-4 bg-sidebar/20 rounded-2xl border border-primary/10">
                 <p className="text-sm font-semibold">{t.showOnline}</p><Switch defaultChecked />
               </div>
-              <div className="flex items-center justify-between p-4 bg-sidebar/20 rounded-2xl border border-primary/10">
-                <p className="text-sm font-semibold">{t.allowCalls}</p><Switch defaultChecked />
-              </div>
             </TabsContent>
 
             <TabsContent value="security" className="mt-0 space-y-4">
@@ -160,7 +181,7 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
             {isUpdating ? <Loader2 className="w-5 h-5 animate-spin" /> : t.save}
           </Button>
           <div className="flex flex-col items-center gap-1 pt-4 text-muted-foreground">
-            <div className="flex items-center gap-1.5"><Info className="w-3 h-3" /><span className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">CoveChat v1.1 • Redirection • 2026</span></div>
+            <div className="flex items-center gap-1.5"><Info className="w-3 h-3" /><span className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">CoveChat v1.1.1 • Redirection • 2026</span></div>
           </div>
         </div>
       </DialogContent>
