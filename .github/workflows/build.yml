@@ -39,7 +39,10 @@ jobs:
 
       - name: Initialize Capacitor Android
         run: |
-          if [ ! -d "android" ]; then
+          # Если папка android или файл gradlew отсутствуют, пересоздаем платформу
+          if [ ! -d "android" ] || [ ! -f "android/gradlew" ]; then
+            echo "Android platform missing or incomplete. Adding..."
+            rm -rf android
             npx cap add android
           fi
 
@@ -48,17 +51,26 @@ jobs:
 
       - name: Fix Kotlin dependency conflict
         run: |
-          sed -i 's/implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"/implementation "org.jetbrains.kotlin:kotlin-stdlib:1.9.10"/g' android/app/build.gradle || true
+          if [ -f "android/app/build.gradle" ]; then
+            sed -i 's/implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"/implementation "org.jetbrains.kotlin:kotlin-stdlib:1.9.10"/g' android/app/build.gradle || true
+          fi
 
       - name: Make gradlew executable
-        run: chmod +x android/gradlew
+        run: |
+          if [ -f "android/gradlew" ]; then
+            chmod +x android/gradlew
+          else
+            echo "Error: android/gradlew not found!"
+            exit 1
+          fi
 
       - name: Build with Gradle
-        run: cd android && ./gradlew assembleDebug
+        run: |
+          cd android && ./gradlew assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: arbogram-debug-apk
+          name: covechat-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 7
