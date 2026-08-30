@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -96,7 +97,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
             <ArbogramIcon className="w-10 h-10 shadow-md" />
             <div className="flex flex-col">
               <h1 className="text-xl font-bold font-headline text-primary leading-none">CoveChat</h1>
-              <span className="text-[10px] text-muted-foreground font-bold tracking-[0.2em] uppercase">{t.messenger}</span>
+              <span className="text-[10px] text-muted-foreground font-bold tracking-[0.2em] uppercase">MESSENGER</span>
             </div>
           </div>
           <div className="flex gap-0.5">
@@ -120,7 +121,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <div className="p-4 bg-primary/5 rounded-2xl border border-primary/10">
-                    <p className="text-[10px] font-bold text-primary uppercase tracking-widest mb-1">{t.rebooting}</p>
+                    <p className="text-[10px] font-bold text-primary uppercase tracking-widest mb-1">Redirection v1.1.1</p>
                     <p className="text-xs text-muted-foreground leading-relaxed">{t.v1_1_desc}</p>
                   </div>
                   <ul className="space-y-2">
@@ -130,7 +131,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
                       </li>
                     ))}
                   </ul>
-                  <p className="text-[9px] text-center text-muted-foreground pt-2">CoveChat • 2026 • Build 1.1.24</p>
+                  <p className="text-[9px] text-center text-muted-foreground pt-2">CoveChat • 2026 • Build 1.1.1</p>
                 </div>
               </DialogContent>
             </Dialog>

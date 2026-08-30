@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useAuth, useFirestore, useUser } from "@/firebase";
@@ -68,44 +69,46 @@ export default function LoginPage() {
     setUsername(val.replace(/\s/g, ""));
   };
 
-  const handleCheckEmail = async (e: React.FormEvent) => {
+  const handleProceedToPassword = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!db || !email) return;
-    setIsSubmitting(true);
-    try {
-      const q = query(collection(db, "users"), where("email", "==", email.toLowerCase().trim()));
-      const snapshot = await getDocs(q);
-      setIsNewUser(snapshot.empty);
-      setStep("password");
-    } catch (error) {
-      toast({ variant: "destructive", title: t.error, description: "Connection error." });
-    } finally {
-      setIsSubmitting(false);
-    }
+    if (!email) return;
+    setStep("password");
   };
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!auth || !db) return;
 
-    if (isNewUser && password !== confirmPassword) {
-      toast({ variant: "destructive", title: t.error, description: "Passwords do not match." });
-      return;
-    }
-
     setIsSubmitting(true);
     try {
-      if (isNewUser) {
-        await createUserWithEmailAndPassword(auth, email.toLowerCase().trim(), password);
-        // After creation, useEffect will catch the user and set step to "setup"
-      } else {
+      // Пытаемся войти
+      try {
         await signInWithEmailAndPassword(auth, email.toLowerCase().trim(), password);
         router.push("/");
+      } catch (loginError: any) {
+        // Если пользователя нет, пробуем создать аккаунт
+        if (loginError.code === 'auth/user-not-found' || loginError.code === 'auth/invalid-credential') {
+          if (!isNewUser) {
+            setIsNewUser(true);
+            setIsSubmitting(false);
+            return;
+          }
+          
+          if (password !== confirmPassword) {
+            toast({ variant: "destructive", title: t.error, description: "Пароли не совпадают." });
+            setIsSubmitting(false);
+            return;
+          }
+
+          await createUserWithEmailAndPassword(auth, email.toLowerCase().trim(), password);
+        } else {
+          throw loginError;
+        }
       }
     } catch (error: any) {
-      let message = "An error occurred.";
-      if (error.code === 'auth/wrong-password') message = "Wrong password.";
-      if (error.code === 'auth/user-not-found') message = "User not found.";
+      let message = "Произошла ошибка.";
+      if (error.code === 'auth/wrong-password') message = "Неверный пароль.";
+      if (error.code === 'auth/invalid-email') message = "Некорректный email.";
       toast({ variant: "destructive", title: t.error, description: message });
     } finally {
       setIsSubmitting(false);
@@ -117,29 +120,23 @@ export default function LoginPage() {
     if (!auth || !db || !user) return;
 
     const finalUsername = username.toLowerCase().trim();
-
     if (finalUsername === "@" || finalUsername.length < 4) {
-      toast({ variant: "destructive", title: t.error, description: "Username is too short." });
+      toast({ variant: "destructive", title: t.error, description: "Юзернейм слишком короткий." });
       return;
     }
 
     setIsSubmitting(true);
     try {
-      // КРИТИЧЕСКАЯ ПРОВЕРКА УНИКАЛЬНОСТИ
       const q = query(collection(db, "users"), where("username", "==", finalUsername));
       const snapshot = await getDocs(q);
-      
       if (!snapshot.empty) {
-        toast({ variant: "destructive", title: t.error, description: "This username is already taken." });
+        toast({ variant: "destructive", title: t.error, description: "Этот юзернейм уже занят." });
         setIsSubmitting(false);
         return;
       }
 
       const finalDisplayName = displayName.trim() || email.split('@')[0];
-
-      await updateProfile(user, {
-        displayName: finalDisplayName
-      });
+      await updateProfile(user, { displayName: finalDisplayName });
 
       const userData = {
         uid: user.uid,
@@ -147,14 +144,15 @@ export default function LoginPage() {
         username: finalUsername,
         photoURL: "",
         email: user.email?.toLowerCase(),
-        lastSeen: Date.now()
+        lastSeen: Date.now(),
+        status: "online"
       };
 
       await setDoc(doc(db, "users", user.uid), userData);
-      toast({ title: t.success, description: "Welcome to CoveChat!" });
+      toast({ title: t.success, description: "Добро пожаловать в CoveChat!" });
       router.push("/");
     } catch (error: any) {
-      toast({ variant: "destructive", title: t.error, description: error.message || "Setup failed." });
+      toast({ variant: "destructive", title: t.error, description: error.message || "Ошибка настройки." });
     } finally {
       setIsSubmitting(false);
     }
@@ -170,14 +168,14 @@ export default function LoginPage() {
           <div className="text-center space-y-1">
             <h1 className="text-4xl font-bold font-headline tracking-tighter text-foreground">CoveChat</h1>
             <p className="text-[10px] text-primary font-bold uppercase tracking-[0.3em] font-headline opacity-80">
-              {step === "email" ? "Identification" : step === "password" ? (isNewUser ? "Security Setup" : "Authorization") : "Profile Creation"}
+              {step === "email" ? "Идентификация" : step === "password" ? (isNewUser ? "Регистрация" : "Авторизация") : "Создание профиля"}
             </p>
           </div>
         </div>
 
         <div className="bg-card p-8 rounded-[2.5rem] shadow-2xl border border-primary/5 relative overflow-hidden">
           {step === "email" && (
-            <form onSubmit={handleCheckEmail} className="space-y-6 animate-in slide-in-from-right duration-300">
+            <form onSubmit={handleProceedToPassword} className="space-y-6 animate-in slide-in-from-right duration-300">
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-[10px] uppercase font-bold ml-1 opacity-70 tracking-widest">{t.email}</Label>
                 <div className="relative">
@@ -199,7 +197,7 @@ export default function LoginPage() {
                 disabled={isSubmitting || !email}
                 className="w-full h-12 cove-gradient hover:opacity-90 text-white font-bold rounded-2xl shadow-lg shadow-primary/20 transition-all active:scale-95 flex items-center justify-center gap-2"
               >
-                {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Continue <ArrowRight className="w-4 h-4" /></>}
+                {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Продолжить <ArrowRight className="w-4 h-4" /></>}
               </Button>
             </form>
           )}
@@ -208,7 +206,7 @@ export default function LoginPage() {
             <form onSubmit={handleAuth} className="space-y-6 animate-in slide-in-from-right duration-300">
               <button 
                 type="button" 
-                onClick={() => setStep("email")}
+                onClick={() => { setStep("email"); setIsNewUser(false); }}
                 className="flex items-center gap-2 text-xs text-muted-foreground hover:text-primary transition-colors mb-2"
               >
                 <ChevronLeft className="w-4 h-4" /> {email}
@@ -217,7 +215,7 @@ export default function LoginPage() {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="password" className="text-[10px] uppercase font-bold ml-1 opacity-70 tracking-widest">
-                    {isNewUser ? "Create Password" : t.password}
+                    {isNewUser ? "Придумайте пароль" : t.password}
                   </Label>
                   <div className="relative">
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -236,7 +234,7 @@ export default function LoginPage() {
 
                 {isNewUser && (
                   <div className="space-y-2 animate-in fade-in duration-500">
-                    <Label htmlFor="confirmPassword" className="text-[10px] uppercase font-bold ml-1 opacity-70 tracking-widest">Confirm Password</Label>
+                    <Label htmlFor="confirmPassword" className="text-[10px] uppercase font-bold ml-1 opacity-70 tracking-widest">Подтвердите пароль</Label>
                     <div className="relative">
                       <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input 
@@ -259,8 +257,14 @@ export default function LoginPage() {
                 disabled={isSubmitting || !password}
                 className="w-full h-12 cove-gradient hover:opacity-90 text-white font-bold rounded-2xl shadow-lg shadow-primary/20 transition-all active:scale-95"
               >
-                {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : (isNewUser ? "Create Account" : t.enter)}
+                {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : (isNewUser ? "Создать аккаунт" : t.enter)}
               </Button>
+              
+              {!isNewUser && (
+                <p className="text-[10px] text-center text-muted-foreground pt-2">
+                  Нет аккаунта? Нажмите кнопку выше, чтобы начать регистрацию
+                </p>
+              )}
             </form>
           )}
 
@@ -268,18 +272,18 @@ export default function LoginPage() {
             <form onSubmit={handleSetup} className="space-y-6 animate-in slide-in-from-right duration-300">
               <div className="text-center space-y-2 mb-4">
                 <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto" />
-                <h3 className="font-bold text-lg">Account Created!</h3>
-                <p className="text-xs text-muted-foreground">Now, set up your public profile</p>
+                <h3 className="font-bold text-lg">Почти готово!</h3>
+                <p className="text-xs text-muted-foreground">Настройте свой публичный профиль</p>
               </div>
 
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="displayName" className="text-[10px] uppercase font-bold ml-1 opacity-70 tracking-widest">Display Name</Label>
+                  <Label htmlFor="displayName" className="text-[10px] uppercase font-bold ml-1 opacity-70 tracking-widest">Ваше Имя</Label>
                   <div className="relative">
                     <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input 
                       id="displayName"
-                      placeholder="e.g. John Doe" 
+                      placeholder="Иван Иванов" 
                       required
                       value={displayName}
                       onChange={(e) => setDisplayName(e.target.value)}
@@ -290,7 +294,7 @@ export default function LoginPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="username" className="text-[10px] uppercase font-bold ml-1 opacity-70 tracking-widest">Unique Username</Label>
+                  <Label htmlFor="username" className="text-[10px] uppercase font-bold ml-1 opacity-70 tracking-widest">Уникальный Юзернейм</Label>
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 font-mono text-primary font-bold text-sm">@</span>
                     <Input 
@@ -303,7 +307,7 @@ export default function LoginPage() {
                       disabled={isSubmitting}
                     />
                   </div>
-                  <p className="text-[9px] text-muted-foreground ml-1">Must be unique, letters and numbers only.</p>
+                  <p className="text-[9px] text-muted-foreground ml-1">Только латиница и цифры.</p>
                 </div>
               </div>
 
@@ -312,7 +316,7 @@ export default function LoginPage() {
                 disabled={isSubmitting || !displayName || username === "@"}
                 className="w-full h-12 cove-gradient hover:opacity-90 text-white font-bold rounded-2xl shadow-lg shadow-primary/20 transition-all active:scale-95"
               >
-                {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "Complete Setup"}
+                {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "Завершить настройку"}
               </Button>
             </form>
           )}
