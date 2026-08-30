@@ -5,13 +5,26 @@ import * as React from "react";
 import { Phone, PhoneOff, Mic, MicOff, Volume2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useFirestore, useUser } from "@/firebase";
-import { doc, collection, addDoc, updateDoc, onSnapshot, setDoc, query, where, limit, getDoc, deleteDoc, getDocs } from "firebase/firestore";
+import { 
+  doc, 
+  collection, 
+  addDoc, 
+  updateDoc, 
+  onSnapshot, 
+  setDoc, 
+  query, 
+  where, 
+  limit, 
+  getDoc, 
+  deleteDoc, 
+  getDocs 
+} from "firebase/firestore";
 import { UserAvatar } from "@/components/user-avatar";
 import { cn } from "@/lib/utils";
-import { errorEmitter } from "@/firebase/error-emitter";
 
 /**
  * Оверлей звонка. Управляет состоянием WebRTC и UI звонка.
+ * CoveChat v1.1 Audio Engine
  */
 export function CallOverlay() {
   const db = useFirestore();
@@ -29,6 +42,7 @@ export function CallOverlay() {
     iceServers: [
       { urls: ["stun:stun1.l.google.com:19302", "stun:stun2.l.google.com:19302"] },
     ],
+    iceCandidatePoolSize: 10,
   };
 
   // Слушатель входящих звонков
@@ -58,7 +72,7 @@ export function CallOverlay() {
     return () => unsubscribe();
   }, [db, user, callStatus]);
 
-  // Слушатель изменений текущего звонка
+  // Слушатель изменений текущего звонка (сброс, подключение)
   React.useEffect(() => {
     if (!db || !activeCall) return;
 
@@ -75,20 +89,24 @@ export function CallOverlay() {
   }, [db, activeCall]);
 
   const setupWebRTC = async () => {
+    if (peerConnection.current) peerConnection.current.close();
+    
     const pc = new RTCPeerConnection(rtcConfig);
     peerConnection.current = pc;
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
       localStream.current = stream;
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
     } catch (e) {
-      console.error("Mic access error:", e);
+      console.error("Mic access denied:", e);
     }
 
     pc.ontrack = (event) => {
       if (remoteAudioRef.current) {
         remoteAudioRef.current.srcObject = event.streams[0];
+        // Принудительно запускаем воспроизведение, так как браузеры могут блокировать автоплей
+        remoteAudioRef.current.play().catch(err => console.error("Audio play blocked:", err));
       }
     };
 
@@ -107,7 +125,7 @@ export function CallOverlay() {
       const callDoc = doc(collection(db, "calls"));
       
       pc.onicecandidate = (event) => {
-        if (event.candidate) {
+        if (event.candidate && callDoc.id) {
           addDoc(collection(db, "calls", callDoc.id, "callerCandidates"), event.candidate.toJSON());
         }
       };
@@ -130,6 +148,7 @@ export function CallOverlay() {
 
       setActiveCall({ id: callDoc.id, callerId: user.uid, receiverId });
 
+      // Ждем ответ от получателя
       onSnapshot(callDoc, (snapshot) => {
         const data = snapshot.data();
         if (data?.answer && !pc.currentRemoteDescription) {
@@ -137,17 +156,18 @@ export function CallOverlay() {
         }
       });
 
+      // Слушаем кандидатов от получателя
       onSnapshot(collection(db, "calls", callDoc.id, "receiverCandidates"), (snapshot) => {
         snapshot.docChanges().forEach((change) => {
           if (change.type === "added") {
             const candidate = new RTCIceCandidate(change.doc.data());
-            pc.addIceCandidate(candidate);
+            pc.addIceCandidate(candidate).catch(e => console.error("ICE error:", e));
           }
         });
       });
 
     } catch (e) {
-      console.error("Call start error:", e);
+      console.error("Start call error:", e);
       handleEndCall();
     }
   };
@@ -160,7 +180,7 @@ export function CallOverlay() {
       const pc = await setupWebRTC();
 
       pc.onicecandidate = (event) => {
-        if (event.candidate) {
+        if (event.candidate && activeCall.id) {
           addDoc(collection(db, "calls", activeCall.id, "receiverCandidates"), event.candidate.toJSON());
         }
       };
@@ -181,17 +201,18 @@ export function CallOverlay() {
         status: "connected"
       });
 
+      // Слушаем кандидатов от звонящего
       onSnapshot(collection(db, "calls", activeCall.id, "callerCandidates"), (snapshot) => {
         snapshot.docChanges().forEach((change) => {
           if (change.type === "added") {
             const candidate = new RTCIceCandidate(change.doc.data());
-            pc.addIceCandidate(candidate);
+            pc.addIceCandidate(candidate).catch(e => console.error("ICE error:", e));
           }
         });
       });
 
     } catch (e) {
-      console.error("Call answer error:", e);
+      console.error("Answer call error:", e);
       handleEndCall();
     }
   };
@@ -209,6 +230,10 @@ export function CallOverlay() {
     if (localStream.current) {
       localStream.current.getTracks().forEach(track => track.stop());
       localStream.current = null;
+    }
+
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.srcObject = null;
     }
 
     setActiveCall(null);
@@ -234,7 +259,8 @@ export function CallOverlay() {
   const otherPartyId = activeCall?.callerId === user?.uid ? activeCall?.receiverId : activeCall?.callerId;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-xl animate-in fade-in duration-300">
+      {/* Элемент аудио должен быть в DOM и иметь autoplay */}
       <audio 
         ref={remoteAudioRef} 
         autoPlay 
@@ -242,33 +268,50 @@ export function CallOverlay() {
         className="hidden"
       />
       
-      <div className="bg-card w-full max-w-sm mx-4 p-8 rounded-[3rem] shadow-2xl border border-primary/10 flex flex-col items-center gap-8 text-center">
+      <div className="bg-card w-full max-w-sm mx-4 p-8 rounded-[3.5rem] shadow-2xl border border-primary/10 flex flex-col items-center gap-8 text-center">
         <div className="relative">
-          <UserAvatar userId={otherPartyId} fallback={otherUserData?.displayName} className="w-32 h-32 border-4 border-primary/20 shadow-xl" />
+          <div className="absolute inset-0 bg-primary/20 rounded-full animate-ping duration-1000" />
+          <UserAvatar userId={otherPartyId} fallback={otherUserData?.displayName} className="w-32 h-32 border-4 border-primary/20 shadow-xl relative z-10" />
           {callStatus === "connected" && (
-            <div className="absolute -bottom-2 -right-2 bg-green-500 p-2 rounded-full border-4 border-card animate-pulse">
+            <div className="absolute -bottom-2 -right-2 bg-green-500 p-2 rounded-full border-4 border-card z-20">
               <Volume2 className="w-5 h-5 text-white" />
             </div>
           )}
         </div>
+
         <div className="space-y-2">
-          <h2 className="text-2xl font-bold">{otherUserData?.displayName || "Пользователь"}</h2>
-          <p className="text-sm text-primary font-bold uppercase tracking-widest opacity-80">
-            {callStatus === "ringing" ? "Входящий вызов" : callStatus === "dialing" ? "Набор номера..." : "В разговоре"}
-          </p>
+          <h2 className="text-2xl font-bold text-foreground">{otherUserData?.displayName || "Пользователь"}</h2>
+          <div className="flex items-center justify-center gap-2">
+            {callStatus === "dialing" || callStatus === "ringing" ? (
+              <Loader2 className="w-3 h-3 animate-spin text-primary" />
+            ) : null}
+            <p className="text-xs text-primary font-bold uppercase tracking-[0.2em] opacity-80">
+              {callStatus === "ringing" ? "Входящий вызов" : 
+               callStatus === "dialing" ? "Вызов..." : 
+               callStatus === "connected" ? "В разговоре" : "Соединение..."}
+            </p>
+          </div>
         </div>
+
         <div className="flex items-center gap-6 mt-4">
           {callStatus === "ringing" ? (
             <>
-              <Button onClick={handleEndCall} variant="destructive" className="w-16 h-16 rounded-full p-0 shadow-lg active:scale-95"><PhoneOff className="w-6 h-6" /></Button>
-              <Button onClick={answerCall} className="w-16 h-16 rounded-full p-0 bg-green-500 text-white shadow-lg active:scale-95"><Phone className="w-6 h-6" /></Button>
+              <Button onClick={handleEndCall} variant="destructive" className="w-16 h-16 rounded-full p-0 shadow-lg active:scale-95 transition-transform"><PhoneOff className="w-6 h-6" /></Button>
+              <Button onClick={answerCall} className="w-16 h-16 rounded-full p-0 bg-green-500 text-white shadow-lg active:scale-95 transition-transform"><Phone className="w-6 h-6" /></Button>
             </>
           ) : (
             <>
-              <Button variant="outline" onClick={toggleMute} className={cn("w-14 h-14 rounded-full p-0 border-2 transition-all active:scale-95", isMuted ? "bg-red-500/10 border-red-500 text-red-500" : "border-primary/20 text-muted-foreground")}>
+              <Button 
+                variant="outline" 
+                onClick={toggleMute} 
+                className={cn(
+                  "w-14 h-14 rounded-full p-0 border-2 transition-all active:scale-95", 
+                  isMuted ? "bg-red-500/10 border-red-500 text-red-500" : "border-primary/20 text-muted-foreground"
+                )}
+              >
                 {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
               </Button>
-              <Button onClick={handleEndCall} variant="destructive" className="w-20 h-20 rounded-full p-0 shadow-xl active:scale-90"><PhoneOff className="w-8 h-8" /></Button>
+              <Button onClick={handleEndCall} variant="destructive" className="w-20 h-20 rounded-full p-0 shadow-xl active:scale-90 transition-transform"><PhoneOff className="w-8 h-8" /></Button>
               <Button variant="outline" className="w-14 h-14 rounded-full p-0 border-2 border-primary/20 text-muted-foreground"><Volume2 className="w-5 h-5" /></Button>
             </>
           )}
