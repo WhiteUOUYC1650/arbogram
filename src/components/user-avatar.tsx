@@ -1,4 +1,3 @@
-
 "use client";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -15,8 +14,9 @@ interface UserAvatarProps {
 
 export function UserAvatar({ userId, fallback, className }: UserAvatarProps) {
   const db = useFirestore();
+  // Используем useMemoFirebase для стабилизации ссылки на документ, предотвращая лишние рендеры и ошибки прав
   const avatarRef = useMemoFirebase(() => (db && userId && userId.length > 5 ? doc(db, "avatars", userId) : null), [db, userId]);
-  const { data: avatarData, loading } = useDoc(avatarRef);
+  const { data: avatarData } = useDoc(avatarRef);
 
   return (
     <Avatar className={className}>
