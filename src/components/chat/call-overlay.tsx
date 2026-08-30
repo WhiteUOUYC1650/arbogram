@@ -21,6 +21,8 @@ import {
 import { UserAvatar } from "@/components/user-avatar";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { errorEmitter } from "@/firebase/error-emitter";
+import { FirestorePermissionError } from "@/firebase/errors";
 
 /**
  * Оверлей звонка. CoveChat Relay Engine v1.1
@@ -83,22 +85,36 @@ export function CallOverlay() {
         setCallStatus("connected");
         if (connectionTimeoutRef.current) clearTimeout(connectionTimeoutRef.current);
       }
+    }, (err) => {
+      console.error("Call status listener error:", err);
     });
 
-    // Прием аудио-чанков от собеседника
+    // Прием аудио-чанков от собеседника. 
+    // Убираем фильтр неравенства (!=), чтобы избежать ошибки индексации Firestore.
+    // Фильтруем отправителя уже на клиенте.
     const chunksQuery = query(
       collection(db, "calls", activeCall.id, "chunks"),
-      where("senderId", "!=", user.uid),
       orderBy("timestamp", "asc")
     );
 
     const unsubscribeChunks = onSnapshot(chunksQuery, (snapshot) => {
       snapshot.docChanges().forEach((change) => {
         if (change.type === "added") {
-          const chunkData = change.doc.data().data;
-          setAudioQueue(prev => [...prev, chunkData]);
+          const chunkData = change.doc.data();
+          // Клиентская фильтрация: берем только чужие чанки
+          if (chunkData.senderId !== user.uid) {
+            setAudioQueue(prev => [...prev, chunkData.data]);
+          }
         }
       });
+    }, async (serverError) => {
+      // Surfacing context error for debugging
+      const permissionError = new FirestorePermissionError({
+        path: `calls/${activeCall.id}/chunks`,
+        operation: 'list',
+      });
+      (permissionError as any).originalError = serverError;
+      errorEmitter.emit('permission-error', permissionError);
     });
 
     return () => {
@@ -123,7 +139,7 @@ export function CallOverlay() {
 
     remoteAudioRef.current.src = nextChunk;
     remoteAudioRef.current.play().catch(e => {
-      console.warn("Playback blocked", e);
+      console.warn("Playback blocked by browser policy, waiting for user interaction", e);
       setIsRelayPlaying(false);
     });
   };
@@ -139,16 +155,25 @@ export function CallOverlay() {
         reader.readAsDataURL(event.data);
         reader.onloadend = () => {
           const base64 = reader.result as string;
+          // Добавляем чанк в Firestore без ожидания (оптимистично)
           addDoc(collection(db, "calls", callId, "chunks"), {
             data: base64,
             senderId: user.uid,
             timestamp: Date.now()
+          }).catch(async (err) => {
+             const pError = new FirestorePermissionError({
+               path: `calls/${callId}/chunks`,
+               operation: 'create',
+               requestResourceData: { senderId: user.uid }
+             });
+             (pError as any).originalError = err;
+             errorEmitter.emit('permission-error', pError);
           });
         };
       }
     };
 
-    recorder.start(1000); // Отправка чанка каждую секунду
+    recorder.start(1000); // Отправка чанка каждую секунду для минимизации задержки
   };
 
   const startCall = async (receiverId: string) => {
@@ -173,9 +198,10 @@ export function CallOverlay() {
       setActiveCall({ id: callDoc.id, callerId: user.uid, receiverId });
       startRelayRecording(stream, callDoc.id);
 
+      // Тайм-аут на ответ
       connectionTimeoutRef.current = setTimeout(() => {
         if (callStatus !== "connected") {
-          toast({ title: "Нет ответа", description: "Собеседник не ответил." });
+          toast({ title: "Нет ответа", description: "Собеседник не ответил вовремя." });
           handleEndCall();
         }
       }, 30000);
@@ -183,7 +209,7 @@ export function CallOverlay() {
     } catch (e) {
       console.error("Start call error:", e);
       handleEndCall();
-      toast({ variant: "destructive", title: "Ошибка", description: "Нужен доступ к микрофону." });
+      toast({ variant: "destructive", title: "Ошибка", description: "Нужен доступ к микрофону для звонка." });
     }
   };
 
@@ -204,7 +230,7 @@ export function CallOverlay() {
     } catch (e) {
       console.error("Answer call error:", e);
       handleEndCall();
-      toast({ variant: "destructive", title: "Ошибка", description: "Нужен доступ к микрофону." });
+      toast({ variant: "destructive", title: "Ошибка", description: "Нужен доступ к микрофону, чтобы ответить." });
     }
   };
 
@@ -255,6 +281,7 @@ export function CallOverlay() {
         ref={remoteAudioRef} 
         onEnded={() => setIsRelayPlaying(false)} 
         className="hidden" 
+        autoPlay
       />
       
       <div className="bg-card w-full max-w-sm mx-4 p-8 rounded-[3.5rem] shadow-2xl border border-primary/10 flex flex-col items-center gap-8 text-center relative overflow-hidden">
@@ -291,7 +318,7 @@ export function CallOverlay() {
             <p className="text-[10px] text-primary font-bold uppercase tracking-[0.2em] opacity-80">
               {callStatus === "ringing" ? "Входящий Cove-вызов" : 
                callStatus === "dialing" ? "Вызов (Relay Mode)..." : 
-               callStatus === "connected" ? "В разговоре (HD)" : "Соединение..."}
+               callStatus === "connected" ? "В разговоре (HD Relay)" : "Соединение..."}
             </p>
           </div>
         </div>
@@ -329,7 +356,7 @@ export function CallOverlay() {
         </div>
 
         <p className="text-[9px] text-muted-foreground mt-2 opacity-60">
-          Cove Relay Engine v1.1 • Защищенное соединение
+          Cove Relay Engine v1.1 • Защищенное соединение (Чанкинг)
         </p>
       </div>
     </div>
