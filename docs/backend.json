@@ -15,7 +15,8 @@
         "lastSeen": { "type": "number" },
         "status": { "type": "string", "enum": ["online", "offline"] },
         "isBanned": { "type": "boolean" },
-        "blockedUsers": { "type": "array", "items": { "type": "string" } }
+        "blockedUsers": { "type": "array", "items": { "type": "string" } },
+        "secretPin": { "type": "string", "description": "Секретный код для восстановления доступа" }
       },
       "required": ["uid", "email", "username"]
     },

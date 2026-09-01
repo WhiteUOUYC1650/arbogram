@@ -1,3 +1,4 @@
+
 export type Language = 'ru' | 'en';
 
 export const translations = {
@@ -52,6 +53,10 @@ export const translations = {
     allowCalls: 'Разрешить звонки',
     twoStep: 'Двухэтапная аутентификация',
     pushNotifications: 'Push-уведомления',
+    forgotPassword: 'Забыли пароль?',
+    recoveryTitle: 'Восстановление доступа',
+    enterPin: 'Введите секретный ПИН-код',
+    noPinDesc: 'Если у вас нет ПИН-кода, обратитесь к администратору CoveChat (@nexus90kyt) в другом мессенджере.',
     v1_1_desc: 'Версия 1.1.2 «Relay Engine». Добавлены голосовые сообщения, опросы, метки дат и регистрация по номеру телефона.'
   },
   en: {
@@ -104,6 +109,10 @@ export const translations = {
     allowCalls: 'Allow Calls',
     twoStep: 'Two-Step Verification',
     pushNotifications: 'Push Notifications',
+    forgotPassword: 'Forgot Password?',
+    recoveryTitle: 'Account Recovery',
+    enterPin: 'Enter Secret PIN',
+    noPinDesc: 'If you do not have a PIN, contact the CoveChat administrator (@nexus90kyt) in another messenger.',
     v1_1_desc: 'Version 1.1.2 "Relay Engine". Added voice messages, polls, date separators, and phone registration.'
   }
 };

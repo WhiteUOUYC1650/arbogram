@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useFirestore, useUser, useDoc, useCollection } from "@/firebase";
@@ -5,10 +6,12 @@ import { AuthGuard } from "@/components/auth-guard";
 import { doc, updateDoc, collection, query, orderBy } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ShieldAlert, Ban, UserCheck, Loader2 } from "lucide-react";
+import { ShieldAlert, Ban, UserCheck, Loader2, Key } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 export default function AdminPage() {
   const { user, loading: authLoading } = useUser();
@@ -17,16 +20,21 @@ export default function AdminPage() {
   const { toast } = useToast();
 
   const userRef = useDoc(user ? doc(db!, "users", user.uid) : null);
-  const isAdmin = userRef.data?.username === "@nexus90kyt" || userRef.data?.username === "@white";
+  const userUsername = userRef.data?.username?.toLowerCase() || "";
+  const isAdmin = userUsername === "@nexus90kyt" || userUsername === "@white";
 
   const usersQuery = collection(db!, "users");
   const { data: allUsers, loading: usersLoading } = useCollection(usersQuery);
 
+  const [pinDialogOpen, setPinDialogOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [newPin, setNewPin] = useState("");
+
   useEffect(() => {
-    if (!authLoading && !userRef.loading && !isAdmin) {
+    if (!authLoading && !userRef.loading && !isAdmin && userUsername !== "") {
       router.push("/");
     }
-  }, [isAdmin, userRef.loading, authLoading, router]);
+  }, [isAdmin, userRef.loading, authLoading, router, userUsername]);
 
   const handleBan = async (targetUid: string, isBanned: boolean) => {
     if (!db) return;
@@ -35,6 +43,18 @@ export default function AdminPage() {
       toast({ title: isBanned ? "Разбанен" : "Забанен", variant: isBanned ? "default" : "destructive" });
     } catch (e) {
       toast({ title: "Ошибка прав", variant: "destructive" });
+    }
+  };
+
+  const handleSetPin = async () => {
+    if (!db || !selectedUser) return;
+    try {
+      await updateDoc(doc(db, "users", selectedUser.uid), { secretPin: newPin });
+      toast({ title: "ПИН-код обновлен" });
+      setPinDialogOpen(false);
+      setNewPin("");
+    } catch (e) {
+      toast({ title: "Ошибка", variant: "destructive" });
     }
   };
 
@@ -56,7 +76,7 @@ export default function AdminPage() {
             </div>
             <div>
               <h1 className="text-3xl font-bold tracking-tight">Admin Terminal</h1>
-              <p className="text-muted-foreground">Управление пользователями CoveChat v1.1.1</p>
+              <p className="text-muted-foreground">Управление пользователями CoveChat v1.1.2</p>
             </div>
           </div>
 
@@ -73,21 +93,53 @@ export default function AdminPage() {
                     <p className="text-xs text-muted-foreground font-mono">{u.username}</p>
                   </div>
                 </div>
-                {u.uid !== user?.uid && (
+                <div className="flex gap-2">
                   <Button 
-                    variant={u.isBanned ? "outline" : "destructive"} 
-                    className="rounded-xl gap-2"
-                    onClick={() => handleBan(u.uid, u.isBanned)}
+                    variant="outline" 
+                    size="icon"
+                    className="rounded-xl"
+                    onClick={() => { setSelectedUser(u); setPinDialogOpen(true); }}
                   >
-                    {u.isBanned ? <UserCheck className="w-4 h-4" /> : <Ban className="w-4 h-4" />}
-                    {u.isBanned ? "Разбанить" : "Забанить"}
+                    <Key className="w-4 h-4" />
                   </Button>
-                )}
+                  {u.uid !== user?.uid && (
+                    <Button 
+                      variant={u.isBanned ? "outline" : "destructive"} 
+                      className="rounded-xl gap-2"
+                      onClick={() => handleBan(u.uid, u.isBanned)}
+                    >
+                      {u.isBanned ? <UserCheck className="w-4 h-4" /> : <Ban className="w-4 h-4" />}
+                      {u.isBanned ? "Разбанить" : "Забанить"}
+                    </Button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
         </div>
       </div>
+
+      <Dialog open={pinDialogOpen} onOpenChange={setPinDialogOpen}>
+        <DialogContent className="rounded-3xl max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Установить ПИН-код</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <p className="text-sm text-muted-foreground">Установите секретный код для пользователя <b>{selectedUser?.displayName}</b></p>
+            <Input 
+              placeholder="Введите ПИН..." 
+              value={newPin} 
+              onChange={(e) => setNewPin(e.target.value)} 
+              className="rounded-xl h-12"
+            />
+          </div>
+          <DialogFooter>
+            <Button className="w-full h-12 rounded-2xl cove-gradient text-white font-bold" onClick={handleSetPin}>
+              Сохранить
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AuthGuard>
   );
 }
