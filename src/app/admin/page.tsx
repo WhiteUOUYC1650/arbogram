@@ -75,12 +75,12 @@ export default function AdminPage() {
               <ShieldAlert className="w-8 h-8" />
             </div>
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Admin Terminal</h1>
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">Admin Terminal</h1>
               <p className="text-xs md:text-sm text-muted-foreground">Управление пользователями CoveChat v1.1.2</p>
             </div>
           </div>
 
-          <ScrollArea className="flex-1 border rounded-[2rem] bg-card/50 shadow-inner">
+          <ScrollArea className="flex-1 border rounded-[2rem] bg-card/50 shadow-inner overflow-hidden">
             <div className="p-4 space-y-3">
               {usersLoading ? (
                 <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin opacity-20" /></div>

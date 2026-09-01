@@ -20,6 +20,22 @@ service cloud.firestore {
       allow write: if isAuthenticated() && request.auth.uid == userId;
     }
 
+    match /stickerPacks/{packId} {
+      allow read, list: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.ownerId == request.auth.uid);
+      
+      match /stickers/{stickerId} {
+        allow read, list: if isAuthenticated();
+        allow create: if isAuthenticated();
+        
+        match /chunks/{chunkId} {
+          allow read, list: if isAuthenticated();
+          allow create: if isAuthenticated();
+        }
+      }
+    }
+
     match /chats/{chatId} {
       allow read: if isAuthenticated() && (
         request.auth.uid in resource.data.participants || 
