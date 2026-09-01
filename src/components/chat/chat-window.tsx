@@ -5,7 +5,7 @@ import * as React from "react";
 import { 
   Send, Paperclip, X, Loader2, 
   MoreVertical, Trash2, Copy, 
-  Reply, Smile, ShieldBan, LogOut, CheckCheck, Download, Globe, Image as ImageIcon, Mic, StopCircle, BarChart2, StickyNote, Plus
+  Reply, Smile, ShieldBan, LogOut, CheckCheck, Download, Globe, Image as ImageIcon, Mic, StopCircle, BarChart2, StickyNote, Plus, ChevronLeft
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +32,12 @@ import { format } from "date-fns";
 import { ru, enUS } from "date-fns/locale";
 
 const GLOBAL_CHAT_ID = "p7gSC3o9OxVezsjDbrFq";
+
+interface ChatWindowProps {
+  chatId: string;
+  onBack?: () => void;
+  onStartDirectChat?: (userId: string) => void;
+}
 
 export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProps) {
   const [message, setMessage] = React.useState("");
@@ -138,22 +144,40 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
 
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden relative">
-      <div className="flex items-center justify-between p-4 border-b bg-white/80 dark:bg-black/40 backdrop-blur-md z-10 shrink-0">
-        <div className="flex items-center gap-3">
-          {onBack && <Button variant="ghost" size="icon" onClick={onBack} className="rounded-full md:hidden"><X className="w-5 h-5" /></Button>}
+      <div className="flex items-center justify-between h-16 px-4 border-b bg-white/80 dark:bg-black/40 backdrop-blur-md z-10 shrink-0">
+        <div className="flex items-center gap-2">
+          {onBack && (
+            <Button variant="ghost" size="icon" onClick={onBack} className="rounded-full -ml-2">
+              <X className="w-5 h-5 text-muted-foreground" />
+            </Button>
+          )}
           <UserProfileDialog userId={chatId === GLOBAL_CHAT_ID ? "" : chatId} onStartChat={() => {}}>
             <div className="flex items-center gap-3 cursor-pointer">
               {chatId === GLOBAL_CHAT_ID ? (
-                <div className="w-10 h-10 rounded-full cove-gradient flex items-center justify-center text-white"><Globe className="w-5 h-5" /></div>
+                <div className="w-10 h-10 rounded-full cove-gradient flex items-center justify-center text-white border-2 border-white/20"><Globe className="w-5 h-5" /></div>
               ) : (
                 <UserAvatar userId={chatId} className="w-10 h-10 border-2 border-primary/20" />
               )}
               <div className="flex flex-col">
-                <h2 className="font-bold text-sm leading-none">{chatId === GLOBAL_CHAT_ID ? "Общий чат" : chatData?.name || "Чат"}</h2>
-                <span className="text-[10px] text-muted-foreground font-medium">{chatId === GLOBAL_CHAT_ID ? "Redirection Public" : (chatData?.type === 'individual' ? "Личная переписка" : "Группа")}</span>
+                <h2 className="font-bold text-sm leading-tight truncate max-w-[150px] sm:max-w-[200px]">
+                  {chatId === GLOBAL_CHAT_ID ? "Общий чат" : chatData?.name || "Чат"}
+                </h2>
+                <span className="text-[10px] text-muted-foreground font-medium">
+                  {chatId === GLOBAL_CHAT_ID ? "Redirection Public" : (chatData?.type === 'individual' ? "Личная переписка" : "Группа")}
+                </span>
               </div>
             </div>
           </UserProfileDialog>
+        </div>
+        <div className="flex items-center">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="rounded-full"><MoreVertical className="w-5 h-5" /></Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="rounded-2xl w-48">
+              <DropdownMenuItem className="rounded-xl gap-2 text-destructive"><Trash2 className="w-4 h-4" /> {t.deleteChat}</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -387,14 +411,13 @@ function StickerPicker({ onSelect }: { onSelect: (s: { id: string; packId: strin
   const db = useFirestore();
   const packsQuery = query(collection(db!, "stickerPacks"), orderBy("createdAt", "desc"), limit(20));
   const { data: packs } = useCollection(packsQuery);
-  const [activePackId, setActivePackId] = React.useState<string | null>(null);
 
   return (
     <div className="h-64 border-t bg-muted/20 animate-in slide-in-from-bottom flex flex-col">
-      <Tabs defaultValue={packs?.[0]?.id || "none"} className="flex-1 flex flex-col overflow-hidden" onValueChange={setActivePackId}>
-        <TabsList className="h-10 bg-transparent px-4 gap-2 overflow-x-auto justify-start">
+      <Tabs defaultValue={packs?.[0]?.id || "none"} className="flex-1 flex flex-col overflow-hidden">
+        <TabsList className="h-10 bg-transparent px-4 gap-2 overflow-x-auto justify-start border-none">
           {packs?.map(p => (
-            <TabsTrigger key={p.id} value={p.id} className="text-xs h-8 px-4 rounded-xl data-[state=active]:bg-white">{p.name}</TabsTrigger>
+            <TabsTrigger key={p.id} value={p.id} className="text-xs h-8 px-4 rounded-xl data-[state=active]:bg-white data-[state=active]:shadow-sm">{p.name}</TabsTrigger>
           ))}
         </TabsList>
         <div className="flex-1 overflow-y-auto p-4">
