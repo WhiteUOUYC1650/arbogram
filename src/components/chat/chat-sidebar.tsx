@@ -156,18 +156,18 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <div className="p-4 bg-primary/5 rounded-2xl border border-primary/10">
-                    <p className="text-[10px] font-bold text-primary uppercase tracking-widest mb-1">Redirection v1.1.2.1</p>
+                    <p className="text-[10px] font-bold text-primary uppercase tracking-widest mb-1">Redirection v1.1.2.2</p>
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      Глобальное обновление движка передачи данных и визуального контента.
+                      Финальная оптимизация интерфейса и системы восстановления.
                     </p>
                   </div>
                   <ul className="space-y-3">
                     {[
+                      { icon: "🖼️", text: "Аватарки в окне сообщений" },
+                      { icon: "⚙️", text: "Расширенные настройки профиля" },
                       { icon: "🔐", text: "Вход через ПИН при утере пароля" },
                       { icon: "🎨", text: "Стикеры и GIF (до 10 МБ)" },
-                      { icon: "📦", text: "Система чанкинга Firestore" },
-                      { icon: "📅", text: "Метки дат в истории сообщений" },
-                      { icon: "👤", text: "Полноценные окна профилей" }
+                      { icon: "📦", text: "Система чанкинга документов" }
                     ].map((item, i) => (
                       <li key={i} className="flex items-center gap-3 text-[11px] font-medium text-foreground bg-muted/30 p-2 rounded-xl">
                         <span className="text-base">{item.icon}</span> {item.text}

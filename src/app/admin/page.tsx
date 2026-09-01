@@ -77,7 +77,7 @@ export default function AdminPage() {
             </div>
             <div>
               <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">Admin Terminal</h1>
-              <p className="text-xs md:text-sm text-muted-foreground">Управление пользователями CoveChat v1.1.2.1</p>
+              <p className="text-xs md:text-sm text-muted-foreground">Управление пользователями CoveChat v1.1.2.2</p>
             </div>
           </div>
 

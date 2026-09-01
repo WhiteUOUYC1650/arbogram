@@ -8,7 +8,7 @@ export const translations = {
     yesterday: 'Вчера',
     messenger: 'MESSENGER',
     whatsNew: 'Что нового?',
-    rebooting: 'Redirection v1.1.2.1',
+    rebooting: 'Redirection v1.1.2.2',
     login: 'Вход',
     registration: 'Регистрация',
     email: 'Электронная почта',
@@ -57,7 +57,7 @@ export const translations = {
     recoveryTitle: 'Восстановление доступа',
     enterPin: 'Введите секретный ПИН-код',
     noPinDesc: 'Если у вас нет ПИН-кода, обратитесь к администратору CoveChat (@nexus90kyt) в другом мессенджере.',
-    v1_1_desc: 'Версия 1.1.2.1 «Redirection». Добавлен вход по ПИН-коду при утере пароля, стикеры, GIF с чанкингом и улучшенная админка.'
+    v1_1_desc: 'Версия 1.1.2.2 «Redirection». Финальная оптимизация интерфейса, аватарки в чатах, расширенные настройки и вход по ПИН-коду.'
   },
   en: {
     appName: 'CoveChat',
@@ -65,7 +65,7 @@ export const translations = {
     yesterday: 'Yesterday',
     messenger: 'MESSENGER',
     whatsNew: "What's new?",
-    rebooting: 'Redirection v1.1.2.1',
+    rebooting: 'Redirection v1.1.2.2',
     login: 'Sign In',
     email: 'Email',
     password: 'Password',
@@ -113,7 +113,7 @@ export const translations = {
     recoveryTitle: 'Account Recovery',
     enterPin: 'Enter Secret PIN',
     noPinDesc: 'If you do not have a PIN, contact the CoveChat administrator (@nexus90kyt) in another messenger.',
-    v1_1_desc: 'Version 1.1.2.1 "Redirection". Added PIN login for password recovery, stickers, GIFs with chunking, and improved admin panel.'
+    v1_1_desc: 'Version 1.1.2.2 "Redirection". UI final optimization, avatars in chats, expanded settings, and PIN recovery login.'
   }
 };
 
