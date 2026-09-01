@@ -4,7 +4,7 @@ import * as React from "react";
 import { 
   Send, Paperclip, X, Loader2, 
   MoreVertical, Trash2, Copy, 
-  Clock, Reply, Smile, ShieldBan, LogOut, CheckCheck, Download, Globe, Image as ImageIcon
+  Clock, Reply, Smile, ShieldBan, LogOut, CheckCheck, Download, Globe, Image as ImageIcon, Mic, StopCircle, BarChart2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { translations, Language } from "@/lib/i18n";
 import { UserProfileDialog } from "./user-profile-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 const GLOBAL_CHAT_ID = "p7gSC3o9OxVezsjDbrFq";
 const MAX_IMAGES = 10;
@@ -42,6 +43,16 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
   const [replyTo, setReplyTo] = React.useState<any>(null);
   const [selectedImages, setSelectedImages] = React.useState<string[]>([]);
   
+  // Voice Recording State
+  const [isRecording, setIsRecording] = React.useState(false);
+  const [recordingTime, setRecordingTime] = React.useState(0);
+  const [mediaRecorder, setMediaRecorder] = React.useState<MediaRecorder | null>(null);
+  
+  // Poll State
+  const [pollDialogOpen, setPollDialogOpen] = React.useState(false);
+  const [pollQuestion, setPollQuestion] = React.useState("");
+  const [pollOptions, setPollOptions] = React.useState(["", ""]);
+
   const db = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
@@ -55,6 +66,7 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
   
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const scrollRef = React.useRef<HTMLDivElement>(null);
+  const recordingIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
 
   const chatRef = useMemoFirebase(() => db ? doc(db, "chats", chatId) : null, [db, chatId]);
   const { data: chatData } = useDoc(chatRef);
@@ -78,13 +90,50 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
     if (scrollRef.current) scrollRef.current.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Voice Recording Logic
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+
+      recorder.ondataavailable = (e) => chunks.push(e.data);
+      recorder.onstop = async () => {
+        const blob = new Blob(chunks, { type: 'audio/ogg; codecs=opus' });
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64 = reader.result as string;
+          handleSend({ audioUrl: base64, duration: recordingTime });
+        };
+        reader.readAsDataURL(blob);
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      recorder.start();
+      setMediaRecorder(recorder);
+      setIsRecording(true);
+      setRecordingTime(0);
+      recordingIntervalRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
+    } catch (err) {
+      toast({ variant: "destructive", title: t.error, description: "Доступ к микрофону запрещен." });
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorder) {
+      mediaRecorder.stop();
+      setMediaRecorder(null);
+      setIsRecording(false);
+      if (recordingIntervalRef.current) clearInterval(recordingIntervalRef.current);
+    }
+  };
+
   const renderTextWithMentions = (text: string) => {
     const parts = text.split(/(@\w+)/g);
     return parts.map((part, i) => {
       if (part.startsWith("@")) {
-        // Мы не знаем ID по юзернейму сразу здесь, поэтому ProfileDialog 
-        // потребует поиска внутри себя или мы используем обертку.
-        // Для MVP: нажатие на упоминание выполняет поиск и открывает профиль.
         return (
           <MentionTrigger key={i} username={part} onStartChat={onStartDirectChat}>
             <span className="text-white bg-white/20 px-1 rounded-md cursor-pointer hover:bg-white/40 transition-colors font-bold">
@@ -122,12 +171,12 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
     setSelectedImages(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleSend = async (options: { audioUrl?: string; duration?: number } = {}) => {
-    const { audioUrl, duration } = options;
+  const handleSend = async (options: { audioUrl?: string; duration?: number; poll?: any } = {}) => {
+    const { audioUrl, duration, poll } = options;
     const hasText = message.trim().length > 0;
     const hasImages = selectedImages.length > 0;
     
-    if (!hasText && !hasImages && !audioUrl) return;
+    if (!hasText && !hasImages && !audioUrl && !poll) return;
     if (!db || !user) return;
 
     if (chatData?.type === 'individual' && otherUserData?.blockedUsers?.includes(user.uid)) {
@@ -140,11 +189,12 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
       senderId: user.uid,
       senderName: user.displayName || "User",
       timestamp: Date.now(),
-      type: audioUrl ? "audio" : (hasImages ? "image" : "text"),
+      type: poll ? "poll" : (audioUrl ? "audio" : (hasImages ? "image" : "text")),
       text: message.trim() || null,
       imageUrls: hasImages ? selectedImages : null,
       audioUrl: audioUrl || null,
       duration: duration || null,
+      poll: poll || null,
       replyTo: replyTo ? { id: replyTo.id, text: replyTo.text || (replyTo.imageUrls ? '📷 Фото' : '🎤 Голос'), senderName: replyTo.senderName } : null,
       reactions: {}
     };
@@ -153,7 +203,8 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
       await addDoc(collection(db, "chats", chatId, "messages"), msgData);
       if (chatRef) {
         let lastMsg = msgData.text;
-        if (audioUrl) lastMsg = "🎤 Голосовое";
+        if (poll) lastMsg = `📊 Опрос: ${poll.question}`;
+        else if (audioUrl) lastMsg = "🎤 Голосовое";
         else if (hasImages) lastMsg = hasText ? `📷 ${msgData.text}` : "📷 Фото";
         
         await updateDoc(chatRef, { 
@@ -169,6 +220,41 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
     } finally {
       setIsSending(false);
     }
+  };
+
+  const handlePollCreate = () => {
+    if (!pollQuestion.trim() || pollOptions.some(o => !o.trim())) {
+      toast({ variant: "destructive", title: t.error, description: "Заполните вопрос и все варианты." });
+      return;
+    }
+    const poll = {
+      question: pollQuestion,
+      options: pollOptions.map(text => ({ text, votes: [] }))
+    };
+    handleSend({ poll });
+    setPollDialogOpen(false);
+    setPollQuestion("");
+    setPollOptions(["", ""]);
+  };
+
+  const handleVote = async (msgId: string, optionIndex: number) => {
+    if (!db || !user) return;
+    const msgRef = doc(db, "chats", chatId, "messages", msgId);
+    const snap = await getDoc(msgRef);
+    if (!snap.exists()) return;
+
+    const data = snap.data();
+    const newOptions = [...data.poll.options];
+    
+    // Remove old vote if exists
+    newOptions.forEach(opt => {
+      opt.votes = opt.votes.filter((uid: string) => uid !== user.uid);
+    });
+
+    // Add new vote
+    newOptions[optionIndex].votes.push(user.uid);
+
+    await updateDoc(msgRef, { "poll.options": newOptions });
   };
 
   const handleReaction = async (msgId: string, emoji: string) => {
@@ -266,6 +352,7 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
         <div className="p-4 flex flex-col gap-4 max-w-4xl mx-auto">
           {messages?.map((msg, idx) => {
             const isMe = msg.senderId === user?.uid;
+            const showName = !isMe && chatData?.type !== 'individual';
 
             return (
               <div key={msg.id} className={cn("flex items-start gap-2 max-w-[85%] group/msg", isMe ? "ml-auto flex-row-reverse" : "mr-auto flex-row")}>
@@ -278,6 +365,8 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
                 )}
                 
                 <div className={cn("flex flex-col", isMe ? "items-end" : "items-start")}>
+                  {showName && <span className="text-[10px] font-bold text-primary px-1 mb-0.5">{msg.senderName}</span>}
+                  
                   <div className="flex items-center gap-1 group">
                     {isMe && (
                       <DropdownMenu>
@@ -322,17 +411,41 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
                         </div>
                       )}
 
-                      {msg.audioUrl && (
-                        <div className="flex items-center gap-3 py-1 min-w-[180px]">
-                          <div className="w-10 h-10 rounded-full bg-black/10 flex items-center justify-center shrink-0">
-                            <Clock className="w-5 h-5 text-white/70" />
-                          </div>
-                          <div className="flex flex-col flex-1">
-                            <div className="h-1.5 w-full bg-white/20 rounded-full overflow-hidden">
-                              <div className="h-full bg-white w-1/3" />
-                            </div>
-                            <span className="text-[11px] font-bold mt-1.5 opacity-90">{msg.duration ? `${Math.floor(msg.duration / 60)}:${(msg.duration % 60).toString().padStart(2, '0')}` : "0:00"}</span>
-                          </div>
+                      {msg.type === 'audio' && msg.audioUrl && (
+                        <div className="flex items-center gap-3 py-1 min-w-[200px]">
+                          <audio controls src={msg.audioUrl} className="h-10 w-full" />
+                        </div>
+                      )}
+
+                      {msg.type === 'poll' && msg.poll && (
+                        <div className="space-y-3 min-w-[200px] py-1">
+                          <p className="font-bold border-b pb-2 mb-2">{msg.poll.question}</p>
+                          {msg.poll.options.map((opt: any, i: number) => {
+                            const totalVotes = msg.poll.options.reduce((acc: number, o: any) => acc + (o.votes?.length || 0), 0);
+                            const percent = totalVotes === 0 ? 0 : Math.round(((opt.votes?.length || 0) / totalVotes) * 100);
+                            const hasVoted = opt.votes?.includes(user?.uid);
+
+                            return (
+                              <button 
+                                key={i} 
+                                onClick={() => handleVote(msg.id, i)}
+                                className={cn(
+                                  "w-full text-left p-2 rounded-xl border relative overflow-hidden transition-all active:scale-95",
+                                  hasVoted ? "border-primary bg-primary/5" : "hover:bg-muted/30"
+                                )}
+                              >
+                                <div className="relative z-10 flex justify-between items-center text-xs">
+                                  <span>{opt.text}</span>
+                                  <span className="font-bold">{percent}%</span>
+                                </div>
+                                <div 
+                                  className="absolute inset-0 bg-primary/10 transition-all" 
+                                  style={{ width: `${percent}%` }}
+                                />
+                              </button>
+                            );
+                          })}
+                          <p className="text-[10px] opacity-60 text-center">{msg.poll.options.reduce((a:any, b:any) => a + (b.votes?.length || 0), 0)} голосов</p>
                         </div>
                       )}
 
@@ -425,43 +538,89 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
       {/* Input Area */}
       <div className="p-4 bg-white/80 dark:bg-black/40 backdrop-blur-md border-t shrink-0">
         <div className="max-w-4xl mx-auto flex items-center gap-2">
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            className="hidden" 
-            accept="image/*" 
-            multiple 
-            onChange={handleFileChange} 
-          />
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="rounded-full text-muted-foreground" 
-            onClick={() => fileInputRef.current?.click()}
-            disabled={selectedImages.length >= MAX_IMAGES}
-          >
-            <Paperclip className="w-5 h-5" />
-          </Button>
-          <Input 
-            placeholder={selectedImages.length > 0 ? "Добавьте подпись..." : t.message} 
-            className="rounded-full bg-background border-none h-11" 
-            value={message} 
-            onChange={(e) => setMessage(e.target.value)} 
-            onKeyDown={(e) => e.key === 'Enter' && handleSend()} 
-          />
-          <Button className="rounded-full cove-gradient text-white h-11 w-11 p-0 shadow-lg shadow-primary/20" onClick={() => handleSend()} disabled={isSending}>
-            {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-          </Button>
+          {isRecording ? (
+            <div className="flex-1 flex items-center gap-4 bg-destructive/10 text-destructive p-2 rounded-full animate-pulse px-6 h-11">
+              <StopCircle className="w-5 h-5" onClick={stopRecording} />
+              <span className="text-xs font-bold font-mono">
+                {Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, '0')}
+              </span>
+              <span className="text-[10px] uppercase tracking-widest flex-1">Идет запись...</span>
+              <Button size="icon" variant="ghost" onClick={stopRecording} className="text-destructive"><Send className="w-5 h-5" /></Button>
+            </div>
+          ) : (
+            <>
+              <input type="file" ref={fileInputRef} className="hidden" accept="image/*" multiple onChange={handleFileChange} />
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="rounded-full text-muted-foreground"><Paperclip className="w-5 h-5" /></Button></DropdownMenuTrigger>
+                <DropdownMenuContent className="rounded-2xl" align="start">
+                  <DropdownMenuItem onClick={() => fileInputRef.current?.click()}><ImageIcon className="w-4 h-4 mr-2" />{t.photo}</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setPollDialogOpen(true)}><BarChart2 className="w-4 h-4 mr-2" />Опрос</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              
+              <Input 
+                placeholder={selectedImages.length > 0 ? "Добавьте подпись..." : t.message} 
+                className="rounded-full bg-background border-none h-11" 
+                value={message} 
+                onChange={(e) => setMessage(e.target.value)} 
+                onKeyDown={(e) => e.key === 'Enter' && handleSend()} 
+              />
+              {message.trim() || selectedImages.length > 0 ? (
+                <Button className="rounded-full cove-gradient text-white h-11 w-11 p-0 shadow-lg shadow-primary/20" onClick={() => handleSend()} disabled={isSending}>
+                  {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                </Button>
+              ) : (
+                <Button className="rounded-full bg-primary/10 text-primary h-11 w-11 p-0" onClick={startRecording}>
+                  <Mic className="w-5 h-5" />
+                </Button>
+              )}
+            </>
+          )}
         </div>
       </div>
+
+      {/* Poll Dialog */}
+      <Dialog open={pollDialogOpen} onOpenChange={setPollDialogOpen}>
+        <DialogContent className="rounded-3xl max-w-sm">
+          <DialogHeader><DialogTitle>Создать опрос</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold uppercase opacity-60 ml-1">Вопрос</label>
+              <Input placeholder="О чем спросим?" value={pollQuestion} onChange={e => setPollQuestion(e.target.value)} className="rounded-xl h-11" />
+            </div>
+            <div className="space-y-3">
+              <label className="text-[10px] font-bold uppercase opacity-60 ml-1">Варианты ответа</label>
+              {pollOptions.map((opt, i) => (
+                <div key={i} className="flex gap-2">
+                  <Input 
+                    placeholder={`Вариант ${i + 1}`} 
+                    value={opt} 
+                    onChange={e => {
+                      const newOpts = [...pollOptions];
+                      newOpts[i] = e.target.value;
+                      setPollOptions(newOpts);
+                    }} 
+                    className="rounded-xl h-10" 
+                  />
+                  {pollOptions.length > 2 && (
+                    <Button variant="ghost" size="icon" onClick={() => setPollOptions(prev => prev.filter((_, idx) => idx !== i))}><X className="w-4 h-4" /></Button>
+                  )}
+                </div>
+              ))}
+              {pollOptions.length < 10 && (
+                <Button variant="ghost" className="w-full h-10 rounded-xl border-dashed border-2 text-[10px] font-bold uppercase" onClick={() => setPollOptions(prev => [...prev, ""])}>Добавить вариант</Button>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button className="w-full h-12 rounded-2xl cove-gradient text-white font-bold" onClick={handlePollCreate}>Создать опрос</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-/**
- * Вспомогательный компонент для триггера упоминания.
- * Ищет пользователя по юзернейму и открывает UserProfileDialog.
- */
 function MentionTrigger({ username, onStartChat, children }: { username: string; onStartChat?: (id: string) => void; children: React.ReactNode }) {
   const db = useFirestore();
   const [resolvedUserId, setResolvedUserId] = React.useState<string | null>(null);
@@ -469,29 +628,17 @@ function MentionTrigger({ username, onStartChat, children }: { username: string;
   const handleTrigger = async () => {
     if (!db || resolvedUserId) return;
     try {
-      const q = query(
-        collection(db, "users"), 
-        where("username", "==", username.toLowerCase()), 
-        limit(1)
-      );
+      const q = query(collection(db, "users"), where("username", "==", username.toLowerCase()), limit(1));
       const snap = await getDocs(q);
-      if (!snap.empty) {
-        setResolvedUserId(snap.docs[0].id);
-      }
-    } catch (e) {
-      console.error(e);
-    }
+      if (!snap.empty) setResolvedUserId(snap.docs[0].id);
+    } catch (e) { console.error(e); }
   };
 
   return (
     <span onMouseEnter={handleTrigger} onClick={handleTrigger}>
       {resolvedUserId ? (
-        <UserProfileDialog userId={resolvedUserId} onStartChat={onStartChat}>
-          {children}
-        </UserProfileDialog>
-      ) : (
-        children
-      )}
+        <UserProfileDialog userId={resolvedUserId} onStartChat={onStartChat}>{children}</UserProfileDialog>
+      ) : children}
     </span>
   );
 }

@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -70,7 +69,6 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
     try {
       const normalizedPhone = phoneNumber ? normalizePhoneNumber(phoneNumber) : "";
 
-      // Проверка уникальности номера телефона
       if (normalizedPhone) {
         const q = query(
           collection(db, "users"), 
@@ -196,7 +194,7 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
             {isUpdating ? <Loader2 className="w-5 h-5 animate-spin" /> : t.save}
           </Button>
           <div className="flex flex-col items-center gap-1 pt-4 text-muted-foreground">
-            <div className="flex items-center gap-1.5"><Info className="w-3 h-3" /><span className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">CoveChat v1.1.1 • Redirection • 2026</span></div>
+            <div className="flex items-center gap-1.5"><Info className="w-3 h-3" /><span className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">CoveChat v1.1.2 • Relay Engine • 2026</span></div>
           </div>
         </div>
       </DialogContent>
