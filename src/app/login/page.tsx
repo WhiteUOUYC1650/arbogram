@@ -233,6 +233,7 @@ export default function LoginPage() {
       });
       
       try {
+        // Для MVP используем ПИН как пароль для входа (если он был установлен админом)
         await signInWithEmailAndPassword(auth, foundUserForRecovery.email, recoveryPin);
         router.push("/");
       } catch (e) {

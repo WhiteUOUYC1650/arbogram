@@ -62,7 +62,7 @@ export default function AdminPage() {
   if (authLoading || userRef.loading || (!isAdmin && userUsername !== "")) {
     return (
       <div className="h-screen flex items-center justify-center bg-background">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
