@@ -63,6 +63,15 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
   const t = translations[lang];
   const chatRef = useMemoFirebase(() => db ? doc(db, "chats", chatId) : null, [db, chatId]);
   const { data: chatData } = useDoc(chatRef);
+
+  // Определяем ID собеседника для личного чата
+  const otherParticipantId = React.useMemo(() => {
+    if (!chatData || chatData.type !== 'individual' || !user) return null;
+    return chatData.participants.find((p: string) => p !== user.uid);
+  }, [chatData, user]);
+
+  const otherUserRef = useMemoFirebase(() => (db && otherParticipantId ? doc(db, "users", otherParticipantId) : null), [db, otherParticipantId]);
+  const { data: otherUserData } = useDoc(otherUserRef);
   
   const messagesQuery = useMemoFirebase(() => {
     if (!db) return null;
@@ -142,34 +151,58 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
     return null;
   };
 
+  const getChatTitle = () => {
+    if (chatId === GLOBAL_CHAT_ID) return "Общий чат";
+    if (chatData?.type === 'individual') return otherUserData?.displayName || "Чат";
+    return chatData?.name || "Группа";
+  };
+
+  const getChatStatus = () => {
+    if (chatId === GLOBAL_CHAT_ID) return "Redirection Public";
+    if (chatData?.type === 'individual') {
+      return otherUserData?.status === 'online' ? t.online : t.offline;
+    }
+    return `${chatData?.participants?.length || 0} ${t.members}`;
+  };
+
+  const targetId = chatData?.type === 'individual' ? otherParticipantId : chatId;
+
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden relative">
       <div className="flex items-center justify-between h-16 px-4 border-b bg-white/80 dark:bg-black/40 backdrop-blur-md z-10 shrink-0">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 overflow-hidden">
           {onBack && (
-            <Button variant="ghost" size="icon" onClick={onBack} className="rounded-full -ml-2">
+            <Button variant="ghost" size="icon" onClick={onBack} className="rounded-full shrink-0 -ml-2">
               <X className="w-5 h-5 text-muted-foreground" />
             </Button>
           )}
-          <UserProfileDialog userId={chatId === GLOBAL_CHAT_ID ? "" : chatId} onStartChat={() => {}}>
-            <div className="flex items-center gap-3 cursor-pointer">
-              {chatId === GLOBAL_CHAT_ID ? (
-                <div className="w-10 h-10 rounded-full cove-gradient flex items-center justify-center text-white border-2 border-white/20"><Globe className="w-5 h-5" /></div>
-              ) : (
-                <UserAvatar userId={chatId} className="w-10 h-10 border-2 border-primary/20" />
-              )}
-              <div className="flex flex-col">
-                <h2 className="font-bold text-sm leading-tight truncate max-w-[150px] sm:max-w-[200px]">
-                  {chatId === GLOBAL_CHAT_ID ? "Общий чат" : chatData?.name || "Чат"}
+          <UserProfileDialog userId={targetId || ""} onStartChat={() => {}}>
+            <div className="flex items-center gap-3 cursor-pointer overflow-hidden">
+              <div className="relative shrink-0">
+                {chatId === GLOBAL_CHAT_ID ? (
+                  <div className="w-10 h-10 rounded-full cove-gradient flex items-center justify-center text-white border-2 border-white/20"><Globe className="w-5 h-5" /></div>
+                ) : (
+                  <UserAvatar userId={targetId || ""} className="w-10 h-10 border-2 border-primary/20" />
+                )}
+                {chatData?.type === 'individual' && otherUserData?.status === 'online' && (
+                  <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white dark:border-zinc-900 rounded-full" />
+                )}
+              </div>
+              <div className="flex flex-col min-w-0">
+                <h2 className="font-bold text-sm leading-tight truncate">
+                  {getChatTitle()}
                 </h2>
-                <span className="text-[10px] text-muted-foreground font-medium">
-                  {chatId === GLOBAL_CHAT_ID ? "Redirection Public" : (chatData?.type === 'individual' ? "Личная переписка" : "Группа")}
+                <span className={cn(
+                  "text-[10px] font-medium truncate",
+                  otherUserData?.status === 'online' && chatData?.type === 'individual' ? "text-green-500" : "text-muted-foreground"
+                )}>
+                  {getChatStatus()}
                 </span>
               </div>
             </div>
           </UserProfileDialog>
         </div>
-        <div className="flex items-center">
+        <div className="flex items-center shrink-0">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="rounded-full"><MoreVertical className="w-5 h-5" /></Button>
