@@ -100,7 +100,7 @@ export default function ChatPageClient() {
                 <h2 className="text-5xl font-bold font-headline text-foreground tracking-tighter">CoveChat</h2>
                 <div className="flex items-center justify-center gap-2">
                   <span className="h-px w-8 bg-primary/30" />
-                  <p className="text-[10px] font-bold text-primary uppercase tracking-[0.4em]">Relay Engine v1.1.2</p>
+                  <p className="text-[10px] font-bold text-primary uppercase tracking-[0.4em]">Redirection v1.1.2</p>
                   <span className="h-px w-8 bg-primary/30" />
                 </div>
               </div>

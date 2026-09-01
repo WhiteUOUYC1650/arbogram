@@ -51,7 +51,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
 
   const userRef = useMemoFirebase(() => (db && user ? doc(db, "users", user.uid) : null), [db, user?.uid]);
   const { data: userData } = useDoc(userRef);
-  const isAdmin = userData?.username === "@nexus90kyt" || userData?.username === "@white";
+  const isAdmin = userData?.username?.toLowerCase() === "@nexus90kyt" || userData?.username?.toLowerCase() === "@white";
 
   const myChatsQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
@@ -146,7 +146,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
                   <Info className="w-5 h-5 text-muted-foreground" />
                 </Button>
               </DialogTrigger>
-              <DialogContent className="rounded-3xl max-w-sm">
+              <DialogContent className="rounded-[2rem] max-w-sm border-none shadow-2xl">
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
                     <ArbogramIcon className="w-6 h-6 rounded-lg" />
@@ -155,13 +155,21 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <div className="p-4 bg-primary/5 rounded-2xl border border-primary/10">
-                    <p className="text-[10px] font-bold text-primary uppercase tracking-widest mb-1">Redirection v1.1.1</p>
-                    <p className="text-xs text-muted-foreground leading-relaxed">{t.v1_1_desc}</p>
+                    <p className="text-[10px] font-bold text-primary uppercase tracking-widest mb-1">Redirection v1.1.2</p>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Глобальное обновление движка передачи данных и визуального контента.
+                    </p>
                   </div>
-                  <ul className="space-y-2">
-                    {['Mentions & Global Search', 'Multiple Images (up to 10)', 'Reactions & Replies', 'Admin Panel'].map((item, i) => (
-                      <li key={i} className="flex items-center gap-2 text-[11px] font-medium text-foreground">
-                        <ChevronRight className="w-3 h-3 text-primary" /> {item}
+                  <ul className="space-y-3">
+                    {[
+                      { icon: "🎨", text: "Стикеры и GIF (до 10 МБ)" },
+                      { icon: "📦", text: "Система чанкинга Firestore" },
+                      { icon: "📅", text: "Метки дат в истории сообщений" },
+                      { icon: "🔐", text: "Вход и восстановление по номеру/логину" },
+                      { icon: "👤", text: "Полноценные окна профилей" }
+                    ].map((item, i) => (
+                      <li key={i} className="flex items-center gap-3 text-[11px] font-medium text-foreground bg-muted/30 p-2 rounded-xl">
+                        <span className="text-base">{item.icon}</span> {item.text}
                       </li>
                     ))}
                   </ul>
