@@ -5,7 +5,7 @@ service cloud.firestore {
     
     function isAdmin() {
       return isAuthenticated() && 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.username in ['@nexus90kyt', '@white'];
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.username.lower() in ['@nexus90kyt', '@white'];
     }
 
     match /users/{userId} {

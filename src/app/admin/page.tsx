@@ -1,9 +1,8 @@
-
 "use client";
 
 import { useFirestore, useUser, useDoc, useCollection } from "@/firebase";
 import { AuthGuard } from "@/components/auth-guard";
-import { doc, updateDoc, collection, query, orderBy } from "firebase/firestore";
+import { doc, updateDoc, collection } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ShieldAlert, Ban, UserCheck, Loader2, Key } from "lucide-react";
@@ -12,6 +11,7 @@ import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 export default function AdminPage() {
   const { user, loading: authLoading } = useUser();
@@ -58,7 +58,7 @@ export default function AdminPage() {
     }
   };
 
-  if (authLoading || userRef.loading || !isAdmin) {
+  if (authLoading || userRef.loading || (!isAdmin && userUsername !== "")) {
     return (
       <div className="h-screen flex items-center justify-center bg-background">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -68,59 +68,63 @@ export default function AdminPage() {
 
   return (
     <AuthGuard>
-      <div className="min-h-screen bg-background p-6">
-        <div className="max-w-4xl mx-auto space-y-8">
-          <div className="flex items-center gap-4">
+      <div className="h-screen bg-background overflow-hidden flex flex-col">
+        <div className="max-w-4xl w-full mx-auto p-6 space-y-6 flex flex-col h-full">
+          <div className="flex items-center gap-4 shrink-0">
             <div className="p-3 rounded-2xl bg-destructive/10 text-destructive">
               <ShieldAlert className="w-8 h-8" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">Admin Terminal</h1>
-              <p className="text-muted-foreground">Управление пользователями CoveChat v1.1.2</p>
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Admin Terminal</h1>
+              <p className="text-xs md:text-sm text-muted-foreground">Управление пользователями CoveChat v1.1.2</p>
             </div>
           </div>
 
-          <div className="grid gap-4">
-            {allUsers?.map((u: any) => (
-              <div key={u.uid} className="flex items-center justify-between p-4 bg-card rounded-2xl border shadow-sm">
-                <div className="flex items-center gap-4">
-                  <Avatar className="w-12 h-12">
-                    <AvatarImage src={u.photoURL} />
-                    <AvatarFallback>{u.displayName?.[0]}</AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="font-bold">{u.displayName}</p>
-                    <p className="text-xs text-muted-foreground font-mono">{u.username}</p>
+          <ScrollArea className="flex-1 border rounded-[2rem] bg-card/50 shadow-inner">
+            <div className="p-4 space-y-3">
+              {usersLoading ? (
+                <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin opacity-20" /></div>
+              ) : allUsers?.map((u: any) => (
+                <div key={u.uid} className="flex items-center justify-between p-3 md:p-4 bg-card rounded-2xl border shadow-sm transition-all hover:shadow-md">
+                  <div className="flex items-center gap-3 md:gap-4 min-w-0">
+                    <Avatar className="w-10 h-10 md:w-12 md:h-12 border-2 border-primary/10">
+                      <AvatarImage src={u.photoURL} className="object-cover" />
+                      <AvatarFallback>{u.displayName?.[0]}</AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <p className="font-bold text-sm md:text-base truncate">{u.displayName}</p>
+                      <p className="text-[10px] md:text-xs text-muted-foreground font-mono truncate">{u.username}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <Button 
+                      variant="outline" 
+                      size="icon"
+                      className="rounded-xl h-9 w-9 md:h-10 md:w-10"
+                      onClick={() => { setSelectedUser(u); setPinDialogOpen(true); }}
+                    >
+                      <Key className="w-4 h-4" />
+                    </Button>
+                    {u.uid !== user?.uid && (
+                      <Button 
+                        variant={u.isBanned ? "outline" : "destructive"} 
+                        className="rounded-xl gap-2 h-9 md:h-10 text-xs px-3"
+                        onClick={() => handleBan(u.uid, u.isBanned)}
+                      >
+                        {u.isBanned ? <UserCheck className="w-4 h-4" /> : <Ban className="w-4 h-4" />}
+                        <span className="hidden sm:inline">{u.isBanned ? "Разбанить" : "Забанить"}</span>
+                      </Button>
+                    )}
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="icon"
-                    className="rounded-xl"
-                    onClick={() => { setSelectedUser(u); setPinDialogOpen(true); }}
-                  >
-                    <Key className="w-4 h-4" />
-                  </Button>
-                  {u.uid !== user?.uid && (
-                    <Button 
-                      variant={u.isBanned ? "outline" : "destructive"} 
-                      className="rounded-xl gap-2"
-                      onClick={() => handleBan(u.uid, u.isBanned)}
-                    >
-                      {u.isBanned ? <UserCheck className="w-4 h-4" /> : <Ban className="w-4 h-4" />}
-                      {u.isBanned ? "Разбанить" : "Забанить"}
-                    </Button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          </ScrollArea>
         </div>
       </div>
 
       <Dialog open={pinDialogOpen} onOpenChange={setPinDialogOpen}>
-        <DialogContent className="rounded-3xl max-w-sm">
+        <DialogContent className="rounded-3xl max-w-[90vw] sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Установить ПИН-код</DialogTitle>
           </DialogHeader>
