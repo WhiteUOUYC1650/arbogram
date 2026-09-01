@@ -2,10 +2,17 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function isAuthenticated() { return request.auth != null; }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.username in ['@nexus90kyt', '@white'];
+    }
 
     match /users/{userId} {
-      allow read: if isAuthenticated();
-      allow write: if (isAuthenticated() && request.auth.uid == userId);
+      // Разрешаем поиск всем для входа по юзернейму/телефону и восстановления
+      allow read, list: if true;
+      // Запись владельцу или админу (для бана/ПИН-кода)
+      allow write: if (isAuthenticated() && request.auth.uid == userId) || isAdmin();
     }
 
     match /avatars/{userId} {
@@ -20,29 +27,20 @@ service cloud.firestore {
       );
       allow create: if isAuthenticated();
       allow update: if isAuthenticated();
-      allow delete: if isAuthenticated() && (
-        resource.data.ownerId == request.auth.uid || 
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.username in ['@nexus90kyt', '@white'])
-      );
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.ownerId == request.auth.uid);
 
       match /messages/{messageId} {
         allow read: if isAuthenticated();
         allow create: if isAuthenticated();
         allow update: if isAuthenticated();
-        allow delete: if isAuthenticated() && (
-          resource.data.senderId == request.auth.uid ||
-          get(/databases/$(database)/documents/chats/$(chatId)).data.ownerId == request.auth.uid
-        );
+        allow delete: if isAdmin() || (isAuthenticated() && resource.data.senderId == request.auth.uid);
       }
     }
 
     match /stories/{storyId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
-      allow delete: if isAuthenticated() && (
-        resource.data.userId == request.auth.uid ||
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.username in ['@nexus90kyt', '@white'])
-      );
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
     }
   }
 }
