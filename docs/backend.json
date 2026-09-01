@@ -20,6 +20,27 @@
       },
       "required": ["uid", "email", "username"]
     },
+    "StickerPack": {
+      "title": "StickerPack",
+      "description": "Набор стикеров",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["name", "ownerId"]
+    },
+    "Sticker": {
+      "title": "Sticker",
+      "description": "Стикер или GIF",
+      "type": "object",
+      "properties": {
+        "packId": { "type": "string" },
+        "type": { "type": "string", "enum": ["sticker", "gif"] },
+        "chunkCount": { "type": "number" }
+      }
+    },
     "Chat": {
       "title": "Chat",
       "description": "Метадані чату",
@@ -33,8 +54,7 @@
         "name": { "type": "string" },
         "slug": { "type": "string" },
         "isPublic": { "type": "boolean" },
-        "createdAt": { "type": "object" },
-        "typing": { "type": "object" }
+        "createdAt": { "type": "object" }
       },
       "required": ["participants", "type", "lastMessageTime"]
     },
@@ -45,13 +65,11 @@
       "properties": {
         "senderId": { "type": "string" },
         "senderName": { "type": "string" },
-        "type": { "type": "string", "enum": ["text", "image", "audio"] },
+        "type": { "type": "string", "enum": ["text", "image", "audio", "poll", "sticker"] },
         "text": { "type": "string" },
-        "imageUrls": { "type": "array", "items": { "type": "string" } },
-        "audioUrl": { "type": "string" },
-        "timestamp": { "type": "number" },
-        "reactions": { "type": "object" },
-        "replyTo": { "type": "object" }
+        "stickerId": { "type": "string" },
+        "packId": { "type": "string" },
+        "timestamp": { "type": "number" }
       },
       "required": ["senderId", "type", "timestamp"]
     }
@@ -61,6 +79,8 @@
   },
   "firestore": {
     "/users/{userId}": { "schema": "User", "description": "Профілі" },
+    "/stickerPacks/{packId}": { "schema": "StickerPack", "description": "Паки" },
+    "/stickerPacks/{packId}/stickers/{stickerId}": { "schema": "Sticker", "description": "Стикеры" },
     "/chats/{chatId}": { "schema": "Chat", "description": "Чати" },
     "/chats/{chatId}/messages/{messageId}": { "schema": "Message", "description": "Повідомлення" }
   }
