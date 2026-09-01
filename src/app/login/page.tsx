@@ -18,7 +18,6 @@ import { useToast } from "@/hooks/use-toast";
 import { ArbogramIcon } from "@/components/arbogram-icon";
 import { translations, Language } from "@/lib/i18n";
 import { normalizePhoneNumber } from "@/lib/phone-utils";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 type AuthMode = "login" | "register" | "setup" | "recovery";
 
@@ -78,7 +77,6 @@ export default function LoginPage() {
     let targetEmail = "";
     let foundData = null;
     
-    // 1. Поиск по юзернейму
     if (input.startsWith("@")) {
       const q = query(collection(db, "users"), where("username", "==", input.toLowerCase()), limit(1));
       const snap = await getDocs(q);
@@ -87,7 +85,6 @@ export default function LoginPage() {
         foundData = snap.docs[0].data();
       }
     } 
-    // 2. Поиск по номеру телефона
     else if (/^[\d+]+$/.test(input.replace(/[\s-()]/g, ""))) {
       const normalized = normalizePhoneNumber(input);
       const q = query(collection(db, "users"), where("phoneNumber", "==", normalized), limit(1));
@@ -96,11 +93,9 @@ export default function LoginPage() {
         targetEmail = snap.docs[0].data().email;
         foundData = snap.docs[0].data();
       } else {
-        // Если номер новый для регистрации
         targetEmail = `${normalized.replace('+', '')}@covechat.local`;
       }
     }
-    // 3. Прямой ввод email
     else if (input.includes("@")) {
       targetEmail = input.toLowerCase();
     }
@@ -149,7 +144,6 @@ export default function LoginPage() {
       }
 
       await createUserWithEmailAndPassword(auth, targetEmail, password);
-      // Автоматически переключит в setup через useEffect
     } catch (error: any) {
       toast({ variant: "destructive", title: t.error, description: "Ошибка регистрации." });
     } finally {
@@ -196,7 +190,8 @@ export default function LoginPage() {
         email: user.email?.toLowerCase(),
         phoneNumber: finalPhone,
         lastSeen: Date.now(),
-        status: "online"
+        status: "online",
+        secretPin: ""
       };
 
       await setDoc(doc(db, "users", user.uid), userData);
@@ -229,10 +224,24 @@ export default function LoginPage() {
     }
   };
 
-  const handleCheckPin = () => {
-    if (!foundUserForRecovery) return;
+  const handleCheckPin = async () => {
+    if (!foundUserForRecovery || !auth) return;
     if (foundUserForRecovery.secretPin && foundUserForRecovery.secretPin === recoveryPin) {
-      toast({ title: "ПИН верный", description: "Для сброса пароля используйте форму входа или обратитесь к администратору." });
+      toast({ 
+        title: "ПИН подтвержден", 
+        description: "Вход в Redirection v1.1.2.1 через ПИН..." 
+      });
+      
+      try {
+        await signInWithEmailAndPassword(auth, foundUserForRecovery.email, recoveryPin);
+        router.push("/");
+      } catch (e) {
+        toast({ 
+          variant: "destructive", 
+          title: "Ошибка", 
+          description: "ПИН верный, но Auth-доступ не настроен. Обратитесь к админу." 
+        });
+      }
     } else {
       toast({ variant: "destructive", title: "Ошибка", description: "Неверный ПИН-код." });
     }
@@ -431,7 +440,7 @@ export default function LoginPage() {
                         onChange={(e) => setRecoveryPin(e.target.value)}
                         className="h-12 rounded-2xl bg-muted/30 border-none focus-visible:ring-primary text-base"
                       />
-                      <Button onClick={handleCheckPin} className="w-full h-12 rounded-2xl bg-primary text-white font-bold">Проверить</Button>
+                      <Button onClick={handleCheckPin} className="w-full h-12 rounded-2xl bg-primary text-white font-bold">Войти через ПИН</Button>
                     </div>
                   ) : (
                     <div className="p-4 bg-destructive/10 rounded-2xl border border-destructive/20 text-center space-y-3">

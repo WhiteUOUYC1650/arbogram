@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -36,7 +37,7 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
       <DialogContent className="w-[95vw] sm:max-w-xl rounded-3xl overflow-hidden p-0 h-[80vh] flex flex-col">
         <DialogHeader className="p-6 pb-0 border-b"><DialogTitle>{t.settings}</DialogTitle></DialogHeader>
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          <p className="text-sm font-bold text-primary text-center">Redirection v1.1.2</p>
+          <p className="text-sm font-bold text-primary text-center">Redirection v1.1.2.1</p>
           <div className="space-y-4">
             <div className="flex items-center justify-between p-4 bg-sidebar/20 rounded-2xl border border-primary/10">
               <div className="flex items-center gap-3">
