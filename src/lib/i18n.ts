@@ -3,6 +3,8 @@ export type Language = 'ru' | 'en';
 export const translations = {
   ru: {
     appName: 'CoveChat',
+    today: 'Сегодня',
+    yesterday: 'Вчера',
     messenger: 'MESSENGER',
     whatsNew: 'Что нового?',
     rebooting: 'Relay Engine v1.1.2',
@@ -50,10 +52,12 @@ export const translations = {
     allowCalls: 'Разрешить звонки',
     twoStep: 'Двухэтапная аутентификация',
     pushNotifications: 'Push-уведомления',
-    v1_1_desc: 'Версия 1.1.2 «Relay Engine». Добавлены голосовые сообщения, опросы, отображение имен в группах и полная поддержка Android-разрешений.'
+    v1_1_desc: 'Версия 1.1.2 «Relay Engine». Добавлены голосовые сообщения, опросы, метки дат и регистрация по номеру телефона.'
   },
   en: {
     appName: 'CoveChat',
+    today: 'Today',
+    yesterday: 'Yesterday',
     messenger: 'MESSENGER',
     whatsNew: "What's new?",
     rebooting: 'Relay Engine v1.1.2',
@@ -100,7 +104,7 @@ export const translations = {
     allowCalls: 'Allow Calls',
     twoStep: 'Two-Step Verification',
     pushNotifications: 'Push Notifications',
-    v1_1_desc: 'Version 1.1.2 "Relay Engine". Added voice messages, polls, sender names in groups, and full Android permissions support.'
+    v1_1_desc: 'Version 1.1.2 "Relay Engine". Added voice messages, polls, date separators, and phone registration.'
   }
 };
 

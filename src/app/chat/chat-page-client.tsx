@@ -10,10 +10,6 @@ import { useFirestore, useUser } from "@/firebase";
 import { collection, query, where, getDocs, addDoc, serverTimestamp, doc, getDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 
-/**
- * Основной интерфейс мессенджера (SPA).
- * CoveChat v1.1 "Redirection"
- */
 export default function ChatPageClient() {
   const [activeChatId, setActiveChatId] = React.useState<string | null>(null);
   const isMobile = useIsMobile();
@@ -76,40 +72,42 @@ export default function ChatPageClient() {
 
   return (
     <div className="flex h-[100dvh] overflow-hidden bg-background">
-      <div className={cn(
-        "w-full md:w-80 flex-shrink-0 border-r bg-sidebar/50 backdrop-blur-sm transition-all duration-300",
-        !showSidebar && "hidden md:block"
-      )}>
-        <ChatSidebar 
-          activeChatId={activeChatId || undefined} 
-          onChatSelect={(id) => setActiveChatId(id)} 
-        />
-      </div>
-
-      <main className={cn(
-        "flex-1 relative h-full overflow-hidden transition-all duration-300",
-        !showChat && "hidden md:flex flex-col items-center justify-center p-8 text-center space-y-6"
-      )}>
-        {activeChatId ? (
-          <ChatWindow 
-            chatId={activeChatId} 
-            onBack={() => setActiveChatId(null)} 
-            onStartDirectChat={handleStartDirectChat}
+      {showSidebar && (
+        <div className={cn(
+          "w-full md:w-80 flex-shrink-0 border-r bg-sidebar/50 backdrop-blur-sm transition-all duration-300",
+        )}>
+          <ChatSidebar 
+            activeChatId={activeChatId || undefined} 
+            onChatSelect={(id) => setActiveChatId(id)} 
           />
-        ) : (
-          <div className="hidden md:flex h-full flex-col items-center justify-center p-8 text-center space-y-6 animate-in fade-in duration-700">
-            <ArbogramIcon className="w-32 h-32" />
-            <div className="space-y-2">
-              <h2 className="text-5xl font-bold font-headline text-foreground tracking-tighter">CoveChat</h2>
-              <div className="flex items-center justify-center gap-2">
-                <span className="h-px w-8 bg-primary/30" />
-                <p className="text-[10px] font-bold text-primary uppercase tracking-[0.4em]">Redirection v1.1</p>
-                <span className="h-px w-8 bg-primary/30" />
+        </div>
+      )}
+
+      {showChat && (
+        <main className={cn(
+          "flex-1 relative h-full overflow-hidden transition-all duration-300",
+        )}>
+          {activeChatId ? (
+            <ChatWindow 
+              chatId={activeChatId} 
+              onBack={() => setActiveChatId(null)} 
+              onStartDirectChat={handleStartDirectChat}
+            />
+          ) : (
+            <div className="hidden md:flex h-full flex-col items-center justify-center p-8 text-center space-y-6 animate-in fade-in duration-700">
+              <ArbogramIcon className="w-32 h-32" />
+              <div className="space-y-2">
+                <h2 className="text-5xl font-bold font-headline text-foreground tracking-tighter">CoveChat</h2>
+                <div className="flex items-center justify-center gap-2">
+                  <span className="h-px w-8 bg-primary/30" />
+                  <p className="text-[10px] font-bold text-primary uppercase tracking-[0.4em]">Relay Engine v1.1.2</p>
+                  <span className="h-px w-8 bg-primary/30" />
+                </div>
               </div>
             </div>
-          </div>
-        )}
-      </main>
+          )}
+        </main>
+      )}
     </div>
   );
 }

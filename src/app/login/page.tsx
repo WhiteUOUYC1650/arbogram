@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useAuth, useFirestore, useUser } from "@/firebase";
@@ -10,7 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Mail, Lock, User as UserIcon, ArrowRight, ChevronLeft, CheckCircle2 } from "lucide-react";
+import { Loader2, Mail, Lock, User as UserIcon, ArrowRight, ChevronLeft, CheckCircle2, Phone } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { doc, setDoc, collection, query, where, getDocs, limit } from "firebase/firestore";
@@ -78,6 +77,7 @@ export default function LoginPage() {
     try {
       let input = emailOrUser.trim();
       let targetEmail = "";
+      let foundByPhone = false;
 
       // 1. Поиск по юзернейму
       if (input.startsWith("@")) {
@@ -90,7 +90,14 @@ export default function LoginPage() {
         const normalized = normalizePhoneNumber(input);
         const q = query(collection(db, "users"), where("phoneNumber", "==", normalized), limit(1));
         const snap = await getDocs(q);
-        if (!snap.empty) targetEmail = snap.docs[0].data().email;
+        if (!snap.empty) {
+          targetEmail = snap.docs[0].data().email;
+        } else {
+          // Если по телефону не нашли, это новая регистрация по телефону
+          targetEmail = `${normalized.replace('+', '')}@covechat.local`;
+          foundByPhone = true;
+          setIsNewUser(true);
+        }
       }
       // 3. Прямой ввод email
       else if (input.includes("@")) {
@@ -99,17 +106,15 @@ export default function LoginPage() {
 
       if (targetEmail) {
         setResolvedEmail(targetEmail);
-        setIsNewUser(false);
+        if (!foundByPhone) {
+          // Проверяем, существует ли пользователь в Auth
+          // В Firebase Client SDK мы не можем проверить существование email без попытки входа, 
+          // поэтому мы просто переходим к шагу пароля.
+          // Если пароль не подойдет, мы предложим регистрацию.
+        }
         setStep("password");
       } else {
-        // Если ничего не найдено, предполагаем регистрацию по почте
-        if (input.includes("@") && !input.startsWith("@")) {
-          setResolvedEmail(input.toLowerCase());
-          setIsNewUser(true);
-          setStep("password");
-        } else {
-          toast({ variant: "destructive", title: t.error, description: "Аккаунт не найден. Для регистрации введите email." });
-        }
+        toast({ variant: "destructive", title: t.error, description: "Аккаунт не найден." });
       }
     } catch (e) {
       console.error(e);
@@ -133,13 +138,22 @@ export default function LoginPage() {
         }
         await createUserWithEmailAndPassword(auth, resolvedEmail, password);
       } else {
-        await signInWithEmailAndPassword(auth, resolvedEmail, password);
-        router.push("/");
+        try {
+          await signInWithEmailAndPassword(auth, resolvedEmail, password);
+          router.push("/");
+        } catch (err: any) {
+          if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+            // Если пользователя нет, пробуем регистрацию
+            setIsNewUser(true);
+            toast({ title: "Аккаунт не найден", description: "Придумайте пароль для регистрации." });
+          } else {
+            throw err;
+          }
+        }
       }
     } catch (error: any) {
-      let message = "Неверный пароль или ошибка входа.";
+      let message = "Ошибка входа.";
       if (error.code === 'auth/wrong-password') message = "Неверный пароль.";
-      if (error.code === 'auth/user-not-found') message = "Пользователь не найден.";
       toast({ variant: "destructive", title: t.error, description: message });
     } finally {
       setIsSubmitting(false);
@@ -169,13 +183,19 @@ export default function LoginPage() {
       const finalDisplayName = displayName.trim() || resolvedEmail.split('@')[0];
       await updateProfile(user, { displayName: finalDisplayName });
 
+      // Если входили по телефону, сохраняем его
+      let finalPhone = "";
+      if (/^[\d+]+$/.test(emailOrUser.replace(/[\s-()]/g, ""))) {
+        finalPhone = normalizePhoneNumber(emailOrUser);
+      }
+
       const userData = {
         uid: user.uid,
         displayName: finalDisplayName,
         username: finalUsername,
         photoURL: "",
         email: user.email?.toLowerCase(),
-        phoneNumber: "",
+        phoneNumber: finalPhone,
         lastSeen: Date.now(),
         status: "online"
       };
@@ -338,7 +358,7 @@ export default function LoginPage() {
               <Button 
                 type="submit"
                 disabled={isSubmitting || !displayName || username === "@"}
-                className="w-full h-12 cove-gradient hover:opacity-90 text-white font-bold rounded-2xl shadow-lg shadow-primary/20 transition-all active:scale-95"
+                className="w-full h-12 rounded-2xl cove-gradient text-white font-bold shadow-lg shadow-primary/20 transition-all active:scale-95"
               >
                 {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "Завершить настройку"}
               </Button>

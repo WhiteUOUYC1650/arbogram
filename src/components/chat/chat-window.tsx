@@ -84,13 +84,42 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
     return query(collection(db, "chats", chatId, "messages"), orderBy("timestamp", "asc"));
   }, [db, chatId]);
 
-  const { data: messages } = useCollection(messagesQuery);
+  const { data: rawMessages } = useCollection(messagesQuery);
+
+  const messagesWithDates = React.useMemo(() => {
+    if (!rawMessages) return [];
+    const grouped: any[] = [];
+    let lastDate = "";
+
+    rawMessages.forEach((msg) => {
+      const date = new Date(msg.timestamp);
+      const today = new Date();
+      const yesterday = new Date();
+      yesterday.setDate(today.getDate() - 1);
+
+      let dateString = "";
+      if (date.toDateString() === today.toDateString()) {
+        dateString = t.today;
+      } else if (date.toDateString() === yesterday.toDateString()) {
+        dateString = t.yesterday;
+      } else {
+        dateString = date.toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-US', { day: 'numeric', month: 'long' });
+      }
+
+      if (dateString !== lastDate) {
+        grouped.push({ type: 'date', date: dateString });
+        lastDate = dateString;
+      }
+      grouped.push({ ...msg, type: msg.type || 'text' });
+    });
+
+    return grouped;
+  }, [rawMessages, lang, t]);
 
   React.useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [rawMessages]);
 
-  // Voice Recording Logic
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -246,14 +275,11 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
     const data = snap.data();
     const newOptions = [...data.poll.options];
     
-    // Remove old vote if exists
     newOptions.forEach(opt => {
       opt.votes = opt.votes.filter((uid: string) => uid !== user.uid);
     });
 
-    // Add new vote
     newOptions[optionIndex].votes.push(user.uid);
-
     await updateDoc(msgRef, { "poll.options": newOptions });
   };
 
@@ -293,7 +319,6 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
 
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden animate-in slide-in-from-right duration-300">
-      {/* Header */}
       <div className="flex items-center justify-between p-4 border-b bg-white/80 dark:bg-black/40 backdrop-blur-md z-10 shrink-0">
         <div className="flex items-center gap-3">
           {onBack && <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground" onClick={onBack}><X className="w-5 h-5" /></Button>}
@@ -347,10 +372,19 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
         </div>
       </div>
 
-      {/* Messages */}
       <ScrollArea className="flex-1 bg-sidebar/5">
         <div className="p-4 flex flex-col gap-4 max-w-4xl mx-auto">
-          {messages?.map((msg, idx) => {
+          {messagesWithDates?.map((msg, idx) => {
+            if (msg.type === 'date') {
+              return (
+                <div key={`date-${idx}`} className="flex justify-center my-4">
+                  <span className="text-[10px] font-bold uppercase tracking-widest bg-muted/50 px-3 py-1 rounded-full text-muted-foreground">
+                    {msg.date}
+                  </span>
+                </div>
+              );
+            }
+
             const isMe = msg.senderId === user?.uid;
             const showName = !isMe && chatData?.type !== 'individual';
 
@@ -445,7 +479,6 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
                               </button>
                             );
                           })}
-                          <p className="text-[10px] opacity-60 text-center">{msg.poll.options.reduce((a:any, b:any) => a + (b.votes?.length || 0), 0)} голосов</p>
                         </div>
                       )}
 
@@ -494,7 +527,6 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
         </div>
       </ScrollArea>
 
-      {/* Previews and Reply Context */}
       <div className="shrink-0">
         {replyTo && (
           <div className="px-4 py-2 bg-muted/30 border-t flex items-center justify-between animate-in slide-in-from-bottom duration-200">
@@ -535,7 +567,6 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
         )}
       </div>
 
-      {/* Input Area */}
       <div className="p-4 bg-white/80 dark:bg-black/40 backdrop-blur-md border-t shrink-0">
         <div className="max-w-4xl mx-auto flex items-center gap-2">
           {isRecording ? (
@@ -579,7 +610,6 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
         </div>
       </div>
 
-      {/* Poll Dialog */}
       <Dialog open={pollDialogOpen} onOpenChange={setPollDialogOpen}>
         <DialogContent className="rounded-3xl max-w-sm">
           <DialogHeader><DialogTitle>Создать опрос</DialogTitle></DialogHeader>
