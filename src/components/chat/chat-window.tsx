@@ -428,7 +428,7 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
                             senderName: msg.senderName,
                           })
                         }
-                        className="flex items-center gap-1 px-1 text-[10px] font-medium text-on-surface-variant opacity-0 transition-opacity hover:text-primary focus:opacity-100 group-hover:opacity-100 md:opacity-60"
+                        className="flex items-center gap-1 px-1 text-[10px] font-medium text-on-surface-variant/80 transition-colors hover:text-primary"
                       >
                         <Reply className="h-3 w-3" /> {t.reply}
                       </button>

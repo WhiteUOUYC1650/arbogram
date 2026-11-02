@@ -304,7 +304,7 @@ export function CreateChatDialog({ children, onChatCreated }: CreateChatDialogPr
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="flex h-[82vh] w-[95vw] flex-col overflow-hidden rounded-[28px] border-none bg-surface-low p-0 shadow-m3-strong sm:max-w-md">
+      <DialogContent className="flex h-[70vh] max-h-[600px] min-h-[440px] w-[95vw] flex-col overflow-hidden rounded-[28px] border-none bg-surface-low p-0 shadow-m3-strong sm:max-w-md">
         <DialogHeader className="space-y-1 border-b border-outline-variant/60 px-6 pb-4 pt-6 text-left">
           <DialogTitle className="flex items-center gap-2 text-xl font-bold tracking-tight">
             <Plus className="h-5 w-5 text-primary" /> Новое
