@@ -34,7 +34,7 @@ import { StoriesBar } from '@/components/stories/stories-bar';
 import { SettingsDialog } from '@/components/settings/settings-dialog';
 import { UserAvatar } from '@/components/user-avatar';
 import { SlinkLogo } from '@/components/slink-logo';
-import { APP_NAME, APP_TAGLINE, APP_VERSION_LABEL } from '@/lib/brand';
+import { APP_NAME, APP_VERSION_LABEL } from '@/lib/brand';
 import { translations, Language } from '@/lib/i18n';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import Link from 'next/link';
@@ -170,20 +170,20 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
       <div className="shrink-0 space-y-3 border-b border-outline-variant/50 bg-surface-low/90 px-4 pb-3 pt-4 backdrop-blur-xl">
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-3">
-            <SlinkLogo className="h-11 w-11" />
+            <SlinkLogo className="h-10 w-10" />
             <div className="min-w-0">
               <h1 className="truncate text-[22px] font-extrabold leading-none tracking-tight text-on-surface">
                 {APP_NAME}
               </h1>
-              <p className="mt-1 truncate text-[10px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">
-                {APP_TAGLINE}
+              <p className="mt-1 truncate text-[10px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">
+                {t.messenger} · {APP_VERSION_LABEL}
               </p>
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center">
+          <div className="-mr-1 flex shrink-0 items-center">
             {isAdmin && (
-              <Button variant="ghost" size="icon" asChild className="rounded-full text-destructive">
+              <Button variant="ghost" size="icon" asChild className="h-9 w-9 rounded-full text-destructive">
                 <Link href="/admin" aria-label="Админ-панель">
                   <ShieldAlert className="h-5 w-5" />
                 </Link>
@@ -192,7 +192,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
 
             <Dialog>
               <DialogTrigger asChild>
-                <Button variant="ghost" size="icon" className="rounded-full" aria-label={t.whatsNew}>
+                <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full" aria-label={t.whatsNew}>
                   <Info className="h-5 w-5 text-on-surface-variant" />
                 </Button>
               </DialogTrigger>
@@ -227,7 +227,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
             </Dialog>
 
             <SettingsDialog>
-              <Button variant="ghost" size="icon" className="rounded-full" aria-label={t.settings}>
+              <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full" aria-label={t.settings}>
                 <SettingsIcon className="h-5 w-5 text-on-surface-variant" />
               </Button>
             </SettingsDialog>
@@ -235,7 +235,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
             <Button
               variant="ghost"
               size="icon"
-              className="rounded-full"
+              className="h-9 w-9 rounded-full"
               aria-label={t.logout}
               onClick={() => auth && signOut(auth)}
             >

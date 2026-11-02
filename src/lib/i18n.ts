@@ -75,7 +75,7 @@ export const translations = {
     enterPin: 'Введите секретный ПИН-код',
     noPinDesc:
       'Если у вас нет ПИН-кода, обратитесь к администратору SLink (@nexus90kyt) в другом мессенджере.',
-    emailOrUserOrPhone: 'E-mail, @юзернейм или телефон',
+    emailOrUserOrPhone: 'E-mail, @юзернейм или тел.',
     phone: 'Телефон',
     history: 'Истории',
     globalChat: 'Общий чат',

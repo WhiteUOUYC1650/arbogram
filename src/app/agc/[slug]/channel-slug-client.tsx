@@ -52,7 +52,7 @@ export default function ChannelSlugClient({ slug }: { slug: string }) {
   if (loading) {
     return (
       <div className="h-screen flex flex-col items-center justify-center space-y-4 bg-background">
-        <Loader2 className="w-8 h-8 animate-spin text-accent" />
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
         <p className="text-sm text-muted-foreground">Поиск канала agc/{slug}...</p>
       </div>
     );
@@ -70,7 +70,7 @@ export default function ChannelSlugClient({ slug }: { slug: string }) {
             Ссылка agc/{slug} не существует или была удалена.
           </p>
         </div>
-        <Button asChild className="rounded-xl bg-accent">
+        <Button asChild className="rounded-xl bg-primary text-primary-foreground">
           <Link href="/">Вернуться в SLink</Link>
         </Button>
       </div>
