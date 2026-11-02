@@ -43,6 +43,22 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Check Firebase env
+        run: |
+          # GitHub подставляет пустую строку, если секрет не создан.
+          # config.ts трактует пустые значения как «не задано» и берёт дефолты.
+          for name in FIREBASE_API_KEY FIREBASE_AUTH_DOMAIN FIREBASE_PROJECT_ID FIREBASE_APP_ID; do
+            current="${!name}"
+            if [ -z "$current" ]; then
+              echo "::warning::$name не задан — будет использован проект по умолчанию из src/firebase/config.ts"
+            fi
+          done
+        env:
+          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+          FIREBASE_AUTH_DOMAIN: ${{ secrets.FIREBASE_AUTH_DOMAIN }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+
       - name: Build web app (static export)
         run: npm run static
         env:

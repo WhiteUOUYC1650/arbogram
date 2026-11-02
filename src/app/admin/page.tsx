@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { ShieldAlert, Ban, UserCheck, Loader2, Key, ArrowLeft, Search, Users } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import * as React from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -23,7 +24,7 @@ export default function AdminPage() {
   const userUsername = userRef.data?.username?.toLowerCase() || '';
   const isAdmin = userUsername === '@nexus90kyt' || userUsername === '@white';
 
-  const usersQuery = collection(db!, 'users');
+  const usersQuery = React.useMemo(() => (db ? collection(db, 'users') : null), [db]);
   const { data: allUsers, loading: usersLoading } = useCollection(usersQuery);
 
   const [pinDialogOpen, setPinDialogOpen] = useState(false);

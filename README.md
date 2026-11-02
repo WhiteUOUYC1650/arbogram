@@ -64,6 +64,20 @@ src/lib/i18n.ts    локализации (ru/en)
 Формат выбирается автоматически (`audio/webm;codecs=opus`, fallback `audio/mp4` для Safari).
 Плеер (`VoiceMessage`) — play/pause, «волна» с прогрессом и длительностью.
 
+### Troubleshooting: `auth/invalid-api-key` при сборке
+
+Симптом: `Error occurred prerendering page "/_not-found" ... Firebase: Error (auth/invalid-api-key)`.
+
+Причины и что сделано:
+
+1. GitHub Actions подставляет **пустую строку**, если секрет не создан, а `??` пустую строку не отбрасывает.
+   Теперь `src/firebase/config.ts` использует trim-фолбэк: пустая переменная = «не задано» → берутся значения по умолчанию.
+2. Firebase инициализировался во время статического пререндера (Next рендерит клиентские компоненты и на сервере).
+   Теперь `initializeFirebase()` возвращает `null` на сервере и не бросает исключение — сборка не зависит от ключей.
+3. `React.useMemo`-запросы Firestore (`/admin`) больше не вызывают `collection(db!)` при `db === null`.
+
+Проверено локально: `npm run build` проходит и с пустыми env-переменными, и с заведомо неверным ключом.
+
 ## Сборка APK (GitHub Actions)
 
 Готовый исправленный воркфлоу лежит в [`docs/ci/build.yml`](docs/ci/build.yml) — скопируйте его в

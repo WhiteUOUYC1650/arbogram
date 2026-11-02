@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useMemo } from 'react';
@@ -10,11 +9,15 @@ export function FirebaseClientProvider({
 }: {
   children: React.ReactNode;
 }) {
-  // Инициализируем Firebase на стороне клиента один раз
-  const { firebaseApp, firestore, auth } = useMemo(() => initializeFirebase(), []);
+  // Инициализируем Firebase один раз и только на клиенте
+  const services = useMemo(() => initializeFirebase(), []);
 
   return (
-    <FirebaseProvider firebaseApp={firebaseApp} firestore={firestore} auth={auth}>
+    <FirebaseProvider
+      firebaseApp={services?.firebaseApp ?? null}
+      firestore={services?.firestore ?? null}
+      auth={services?.auth ?? null}
+    >
       {children}
     </FirebaseProvider>
   );
