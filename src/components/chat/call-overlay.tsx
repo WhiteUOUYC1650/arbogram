@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * Заглушка системы звонков для CoveChat v1.1.
- * Аудиозвонки перенесены в v1.2 «Relay Engine».
+ * Заглушка системы звонков SLink.
+ * Аудиозвонки появятся в одном из следующих обновлений..
  */
 export function CallOverlay() {
   return null;

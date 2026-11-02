@@ -131,25 +131,33 @@ export function CreateStoryDialog({ children }: { children: React.ReactNode }) {
       <DialogTrigger asChild>
         {children}
       </DialogTrigger>
-      <DialogContent className="w-[95vw] sm:max-w-md rounded-3xl">
+      <DialogContent className="w-[95vw] rounded-[28px] sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Создать историю</DialogTitle>
+          <DialogTitle className="text-lg font-bold">Создать историю</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4 py-4">
-          <div className="flex justify-center gap-4">
+        <div className="space-y-4 py-2">
+          <div className="grid grid-cols-2 gap-1 rounded-full bg-surface-high p-1">
             <Button 
-              variant={type === 'text' ? 'default' : 'outline'} 
+              variant="ghost"
               onClick={() => setType('text')}
-              className="rounded-xl flex-1"
+              className={
+                type === 'text'
+                  ? 'rounded-full bg-surface-lowest text-primary shadow-sm hover:bg-surface-lowest'
+                  : 'rounded-full text-on-surface-variant'
+              }
             >
-              <Type className="w-4 h-4 mr-2" /> Текст
+              <Type className="mr-2 h-4 w-4" /> Текст
             </Button>
             <Button 
-              variant={type === 'image' ? 'default' : 'outline'} 
+              variant="ghost"
               onClick={() => setType('image')}
-              className="rounded-xl flex-1"
+              className={
+                type === 'image'
+                  ? 'rounded-full bg-surface-lowest text-primary shadow-sm hover:bg-surface-lowest'
+                  : 'rounded-full text-on-surface-variant'
+              }
             >
-              <ImageIcon className="w-4 h-4 mr-2" /> Фото
+              <ImageIcon className="mr-2 h-4 w-4" /> Фото
             </Button>
           </div>
           
@@ -158,7 +166,7 @@ export function CreateStoryDialog({ children }: { children: React.ReactNode }) {
               placeholder="О чем вы думаете?"
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              className="rounded-2xl min-h-[120px]"
+              className="min-h-[120px] rounded-2xl border-none bg-surface-high text-[15px]"
             />
           ) : (
             <div className="space-y-4">
@@ -171,14 +179,14 @@ export function CreateStoryDialog({ children }: { children: React.ReactNode }) {
               />
               {!selectedImage ? (
                 <div 
-                  className="w-full h-40 border-2 border-dashed border-primary/20 rounded-2xl flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-primary/5 transition-colors"
+                  className="flex h-40 w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-outline-variant transition-colors hover:bg-on-surface/5"
                   onClick={() => fileInputRef.current?.click()}
                 >
                   <Upload className="w-8 h-8 text-muted-foreground" />
                   <p className="text-xs text-muted-foreground">Нажмите, чтобы выбрать фото</p>
                 </div>
               ) : (
-                <div className="relative aspect-[9/16] max-h-[300px] mx-auto overflow-hidden rounded-2xl border">
+                <div className="relative mx-auto aspect-[9/16] max-h-[300px] overflow-hidden rounded-2xl border border-outline-variant/60">
                   <img src={selectedImage} alt="Preview" className="w-full h-full object-cover" />
                   <Button 
                     variant="destructive" 
@@ -194,13 +202,13 @@ export function CreateStoryDialog({ children }: { children: React.ReactNode }) {
           )}
 
           <Button 
-            className="w-full rounded-xl bg-accent h-12" 
+            className="h-12 w-full rounded-full bg-primary font-bold text-primary-foreground shadow-m3" 
             onClick={handleCreate} 
             disabled={isCreating || (type === 'text' && !content.trim()) || (type === 'image' && !selectedImage)}
           >
             {isCreating ? <Loader2 className="w-5 h-5 animate-spin" /> : "Опубликовать"}
           </Button>
-          <p className="text-[10px] text-center text-muted-foreground">Максимум 10 историй. При добавлении новой старые удаляются.</p>
+          <p className="text-center text-[11px] text-on-surface-variant">Максимум 10 историй. При добавлении новой старые удаляются.</p>
         </div>
       </DialogContent>
     </Dialog>

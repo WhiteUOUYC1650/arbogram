@@ -71,7 +71,7 @@ export default function ChannelSlugClient({ slug }: { slug: string }) {
           </p>
         </div>
         <Button asChild className="rounded-xl bg-accent">
-          <Link href="/">Вернуться в Arbogram</Link>
+          <Link href="/">Вернуться в SLink</Link>
         </Button>
       </div>
     );

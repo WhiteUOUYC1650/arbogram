@@ -1,27 +1,27 @@
-
 {
-  "name": "CoveChat",
-  "short_name": "CoveChat",
-  "description": "Redirection v1.1.1 - The next generation messenger",
+  "name": "SLink Messenger",
+  "short_name": "SLink",
+  "description": "SLink — современный мессенджер: личные чаты, группы, каналы и истории.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#8b5cf6",
+  "orientation": "portrait",
+  "background_color": "#fdfbff",
+  "theme_color": "#6c5cff",
+  "categories": ["social", "communication"],
   "icons": [
     {
-      "src": "/pictures/logo.jpg",
-      "sizes": "192x192",
-      "type": "image/jpeg"
+      "src": "/icons/slink-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
     },
     {
-      "src": "/pictures/logo.jpg",
-      "sizes": "512x512",
-      "type": "image/jpeg"
+      "src": "/icons/slink-icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
     }
   ],
-  "permissions": [
-    "camera",
-    "microphone",
-    "notifications"
-  ]
+  "permissions": ["camera", "microphone", "notifications"]
 }

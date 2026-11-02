@@ -8,6 +8,7 @@ export async function generateStaticParams() {
   return [{ slug: 'main' }];
 }
 
-export default function ChannelSlugPage({ params }: { params: { slug: string } }) {
-  return <ChannelSlugClient slug={params.slug} />;
+export default async function ChannelSlugPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  return <ChannelSlugClient slug={slug} />;
 }

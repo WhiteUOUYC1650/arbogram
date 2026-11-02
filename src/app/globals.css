@@ -1,68 +1,137 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+   SLink — Material 3 (standard, non-expressive) design tokens
+   ============================================================ */
+
 @layer base {
   :root {
-    --background: 240 20% 98%;
-    --foreground: 240 10% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 262 83% 58%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 210 100% 50%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 262 83% 58%;
-    --radius: 1.25rem;
-    --sidebar-background: 240 20% 97%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 262 83% 58%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 90%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 240 5.9% 90%;
-    --sidebar-ring: 262 83% 58%;
-  }
-  .dark {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 263.4 70% 50.4%;
-    --primary-foreground: 210 20% 98%;
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 210 100% 50%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 263.4 70% 50.4%;
+    color-scheme: light;
 
-    --sidebar-background: 240 10% 2.5%;
-    --sidebar-foreground: 240 5% 90%;
-    --sidebar-primary: 263.4 70% 50.4%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 3.7% 12%;
-    --sidebar-accent-foreground: 240 5% 95%;
-    --sidebar-border: 240 3.7% 12%;
-    --sidebar-ring: 263.4 70% 50.4%;
+    /* Surface roles */
+    --background: 264 100% 99%;
+    --surface: 264 100% 99%;
+    --surface-lowest: 0 0% 100%;
+    --surface-low: 264 55% 98%;
+    --surface-container: 264 42% 96.5%;
+    --surface-high: 264 34% 94%;
+    --surface-highest: 264 26% 91%;
+    --on-surface: 260 16% 12%;
+    --on-surface-variant: 258 8% 43%;
+    --outline: 258 8% 64%;
+    --outline-variant: 262 20% 88%;
+
+    /* Neutral text roles (shadcn conventions) */
+    --foreground: 260 16% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 260 16% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 260 16% 12%;
+
+    /* Primary — SLink violet */
+    --primary: 258 84% 60%;
+    --primary-foreground: 0 0% 100%;
+    --primary-container: 258 100% 93%;
+    --on-primary-container: 258 62% 28%;
+
+    /* Secondary — link teal */
+    --secondary: 187 92% 30%;
+    --secondary-foreground: 0 0% 100%;
+    --secondary-container: 186 86% 90%;
+    --on-secondary-container: 190 100% 17%;
+
+    /* Tertiary — signal coral */
+    --tertiary: 337 82% 57%;
+    --tertiary-foreground: 0 0% 100%;
+    --tertiary-container: 337 100% 93%;
+    --on-tertiary-container: 337 62% 27%;
+
+    --muted: 264 34% 95%;
+    --muted-foreground: 258 8% 44%;
+    --accent: 258 100% 93%;
+    --accent-foreground: 258 62% 28%;
+
+    --destructive: 0 78% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 152 62% 34%;
+    --success-foreground: 0 0% 100%;
+
+    --border: 262 20% 90%;
+    --input: 262 20% 90%;
+    --ring: 258 84% 60%;
+    --radius: 1.5rem;
+
+    /* Legacy sidebar tokens mapped onto M3 surfaces */
+    --sidebar-background: 264 55% 98%;
+    --sidebar-foreground: 260 16% 16%;
+    --sidebar-primary: 258 84% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 258 100% 93%;
+    --sidebar-accent-foreground: 258 62% 28%;
+    --sidebar-border: 262 20% 90%;
+    --sidebar-ring: 258 84% 60%;
+  }
+
+  .dark {
+    color-scheme: dark;
+
+    --background: 260 16% 8%;
+    --surface: 260 16% 8%;
+    --surface-lowest: 260 16% 6%;
+    --surface-low: 260 14% 10%;
+    --surface-container: 260 12% 12.5%;
+    --surface-high: 260 11% 15.5%;
+    --surface-highest: 260 10% 19%;
+    --on-surface: 260 24% 96%;
+    --on-surface-variant: 260 10% 72%;
+    --outline: 260 8% 54%;
+    --outline-variant: 260 10% 23%;
+
+    --foreground: 260 24% 96%;
+    --card: 260 12% 12.5%;
+    --card-foreground: 260 24% 96%;
+    --popover: 260 12% 13.5%;
+    --popover-foreground: 260 24% 96%;
+
+    --primary: 258 100% 80%;
+    --primary-foreground: 258 62% 18%;
+    --primary-container: 258 46% 29%;
+    --on-primary-container: 258 100% 92%;
+
+    --secondary: 186 72% 66%;
+    --secondary-foreground: 190 100% 12%;
+    --secondary-container: 190 64% 22%;
+    --on-secondary-container: 186 90% 88%;
+
+    --tertiary: 337 92% 78%;
+    --tertiary-foreground: 337 62% 18%;
+    --tertiary-container: 337 52% 28%;
+    --on-tertiary-container: 337 100% 94%;
+
+    --muted: 260 10% 16%;
+    --muted-foreground: 260 10% 72%;
+    --accent: 258 46% 29%;
+    --accent-foreground: 258 100% 92%;
+
+    --destructive: 0 70% 66%;
+    --destructive-foreground: 0 0% 12%;
+    --success: 152 48% 55%;
+    --success-foreground: 0 0% 10%;
+
+    --border: 260 10% 21%;
+    --input: 260 10% 21%;
+    --ring: 258 100% 80%;
+
+    --sidebar-background: 260 14% 10%;
+    --sidebar-foreground: 260 20% 92%;
+    --sidebar-primary: 258 100% 80%;
+    --sidebar-primary-foreground: 258 62% 18%;
+    --sidebar-accent: 258 46% 29%;
+    --sidebar-accent-foreground: 258 100% 92%;
+    --sidebar-border: 260 10% 21%;
+    --sidebar-ring: 258 100% 80%;
   }
 }
 
@@ -70,10 +139,125 @@
   * {
     @apply border-border;
   }
-  body {
-    @apply bg-background text-foreground font-body transition-colors duration-300 antialiased;
+
+  html {
+    -webkit-tap-highlight-color: transparent;
   }
-  .cove-gradient {
-    @apply bg-gradient-to-bl from-[#a855f7] to-[#3b82f6];
+
+  body {
+    @apply bg-background font-body text-foreground antialiased;
+    @apply transition-colors duration-300;
+  }
+
+  ::selection {
+    @apply bg-primary/25 text-foreground;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--outline) / 0.4) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--outline) / 0.35);
+    border-radius: 9999px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@layer components {
+  /* Signature SLink gradient — brand moments only (logo, send FAB) */
+  .slink-gradient {
+    background-image: linear-gradient(
+      135deg,
+      hsl(258 84% 62%) 0%,
+      hsl(232 92% 62%) 50%,
+      hsl(190 92% 52%) 100%
+    );
+  }
+
+  .slink-text-gradient {
+    background-image: linear-gradient(
+      120deg,
+      hsl(var(--primary)) 0%,
+      hsl(232 92% 58%) 55%,
+      hsl(190 92% 45%) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* M3 surface cards */
+  .m3-card {
+    @apply rounded-[28px] border border-outline-variant/60 bg-surface-low;
+  }
+
+  .m3-elevated {
+    @apply bg-surface-container shadow-m3;
+  }
+
+  /* M3 state layer for interactive rows */
+  .m3-state {
+    @apply transition-colors duration-200 hover:bg-on-surface/[0.06] active:bg-on-surface/[0.1];
+  }
+
+  /* Filled text field (Material 3 "filled" look) */
+  .m3-field {
+    @apply h-14 w-full rounded-2xl border-none bg-surface-high px-4 text-[15px] text-on-surface shadow-none;
+    @apply placeholder:text-on-surface-variant/70;
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-0;
+  }
+
+  /* Pill chip */
+  .m3-chip {
+    @apply inline-flex h-9 items-center gap-1.5 rounded-full border border-outline-variant px-4 text-xs font-semibold text-on-surface-variant;
+    @apply transition-colors duration-200 hover:bg-on-surface/[0.06];
+  }
+
+  .m3-chip-active {
+    @apply border-transparent bg-secondary-container text-secondary-on-container hover:bg-secondary-container/90;
+  }
+
+  .m3-label {
+    @apply text-[11px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+@layer utilities {
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .animate-message-in {
+    animation: message-in 0.22s cubic-bezier(0.2, 0, 0, 1);
+  }
+}
+
+@keyframes message-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }

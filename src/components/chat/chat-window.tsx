@@ -1,37 +1,42 @@
-
 "use client";
 
-import * as React from "react";
-import { 
-  Send, Paperclip, X, Loader2, 
-  MoreVertical, Trash2, Copy, 
-  Reply, Smile, ShieldBan, LogOut, CheckCheck, Download, Globe, Image as ImageIcon, Mic, StopCircle, BarChart2, StickyNote, Plus, ChevronLeft
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { cn } from "@/lib/utils";
-import { useCollection, useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
-import { 
-  collection, query, orderBy, addDoc, doc, updateDoc, 
-  deleteDoc, arrayUnion, arrayRemove, getDoc, getDocs, where, limit 
-} from "firebase/firestore";
-import { UserAvatar } from "@/components/user-avatar";
-import { useToast } from "@/hooks/use-toast";
+import * as React from 'react';
+import {
+  Send,
+  Paperclip,
+  X,
+  MoreVertical,
+  Reply,
+  Smile,
+  Globe,
+  Mic,
+  StopCircle,
+  BarChart2,
+  MessageSquarePlus,
+  LogOut,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
+import { useCollection, useFirestore, useUser, useDoc, useMemoFirebase } from '@/firebase';
+import { collection, query, orderBy, addDoc, doc, updateDoc, getDoc, arrayRemove, limit } from 'firebase/firestore';
+import { UserAvatar } from '@/components/user-avatar';
+import { SlinkLogo } from '@/components/slink-logo';
+import { useToast } from '@/hooks/use-toast';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { translations, Language } from "@/lib/i18n";
-import { UserProfileDialog } from "./user-profile-dialog";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { format } from "date-fns";
-import { ru, enUS } from "date-fns/locale";
+} from '@/components/ui/dropdown-menu';
+import { translations, Language } from '@/lib/i18n';
+import { UserProfileDialog } from './user-profile-dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { format } from 'date-fns';
+import { ru, enUS } from 'date-fns/locale';
 
-const GLOBAL_CHAT_ID = "p7gSC3o9OxVezsjDbrFq";
+const GLOBAL_CHAT_ID = 'p7gSC3o9OxVezsjDbrFq';
 
 interface ChatWindowProps {
   chatId: string;
@@ -40,28 +45,28 @@ interface ChatWindowProps {
 }
 
 export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProps) {
-  const [message, setMessage] = React.useState("");
+  const [message, setMessage] = React.useState('');
   const [isSending, setIsSending] = React.useState(false);
   const [lang, setLang] = React.useState<Language>('ru');
   const [replyTo, setReplyTo] = React.useState<any>(null);
   const [selectedImages, setSelectedImages] = React.useState<string[]>([]);
   const [stickerPickerOpen, setStickerPickerOpen] = React.useState(false);
   const [pollDialogOpen, setPollDialogOpen] = React.useState(false);
-  const [pollQuestion, setPollQuestion] = React.useState("");
-  const [pollOptions, setPollOptions] = React.useState(["", ""]);
-  
+  const [pollQuestion, setPollQuestion] = React.useState('');
+  const [pollOptions, setPollOptions] = React.useState(['', '']);
+
   const db = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
   const scrollRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
-    const storedLang = localStorage.getItem("lang") as Language;
+    const storedLang = localStorage.getItem('lang') as Language;
     if (storedLang) setLang(storedLang);
   }, []);
 
   const t = translations[lang];
-  const chatRef = useMemoFirebase(() => db ? doc(db, "chats", chatId) : null, [db, chatId]);
+  const chatRef = useMemoFirebase(() => (db ? doc(db, 'chats', chatId) : null), [db, chatId]);
   const { data: chatData } = useDoc(chatRef);
 
   // Определяем ID собеседника для личного чата
@@ -70,12 +75,15 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
     return chatData.participants.find((p: string) => p !== user.uid);
   }, [chatData, user]);
 
-  const otherUserRef = useMemoFirebase(() => (db && otherParticipantId ? doc(db, "users", otherParticipantId) : null), [db, otherParticipantId]);
+  const otherUserRef = useMemoFirebase(
+    () => (db && otherParticipantId ? doc(db, 'users', otherParticipantId) : null),
+    [db, otherParticipantId],
+  );
   const { data: otherUserData } = useDoc(otherUserRef);
-  
+
   const messagesQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return query(collection(db, "chats", chatId, "messages"), orderBy("timestamp", "asc"));
+    return query(collection(db, 'chats', chatId, 'messages'), orderBy('timestamp', 'asc'));
   }, [db, chatId]);
   const { data: rawMessages } = useCollection(messagesQuery);
 
@@ -85,7 +93,9 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
     }
   }, [rawMessages]);
 
-  const handleSend = async (options: { audioUrl?: string; duration?: number; poll?: any; sticker?: { id: string; packId: string } } = {}) => {
+  const handleSend = async (
+    options: { audioUrl?: string; duration?: number; poll?: any; sticker?: { id: string; packId: string } } = {},
+  ) => {
     const { audioUrl, duration, poll, sticker } = options;
     if (!message.trim() && selectedImages.length === 0 && !audioUrl && !poll && !sticker) return;
     if (!db || !user) return;
@@ -93,47 +103,77 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
     setIsSending(true);
     const msgData: any = {
       senderId: user.uid,
-      senderName: user.displayName || "User",
+      senderName: user.displayName || 'User',
       timestamp: Date.now(),
-      type: sticker ? "sticker" : (poll ? "poll" : (audioUrl ? "audio" : (selectedImages.length > 0 ? "image" : "text"))),
+      type: sticker
+        ? 'sticker'
+        : poll
+          ? 'poll'
+          : audioUrl
+            ? 'audio'
+            : selectedImages.length > 0
+              ? 'image'
+              : 'text',
       text: message.trim() || null,
       imageUrls: selectedImages.length > 0 ? selectedImages : null,
       audioUrl: audioUrl || null,
+      duration: duration || null,
       poll: poll || null,
       stickerId: sticker?.id || null,
       packId: sticker?.packId || null,
-      replyTo: replyTo ? { id: replyTo.id, text: replyTo.text || 'Вложение', senderName: replyTo.senderName } : null
+      replyTo: replyTo
+        ? { id: replyTo.id, text: replyTo.text || 'Вложение', senderName: replyTo.senderName }
+        : null,
     };
 
     try {
-      await addDoc(collection(db, "chats", chatId, "messages"), msgData);
-      let last = msgData.text || "Вложение";
-      if (sticker) last = "🎨 Стикер";
-      if (poll) last = "📊 Опрос";
+      await addDoc(collection(db, 'chats', chatId, 'messages'), msgData);
+      let last = msgData.text || 'Вложение';
+      if (sticker) last = '🎨 Стикер';
+      if (poll) last = '📊 Опрос';
+      if (audioUrl) last = '🎤 Голосовое сообщение';
       await updateDoc(chatRef!, { lastMessage: last, lastMessageTime: Date.now() });
-      setMessage(""); setSelectedImages([]); setReplyTo(null); setStickerPickerOpen(false);
-    } catch (e) { toast({ title: "Ошибка отправки" }); } finally { setIsSending(false); }
+      setMessage('');
+      setSelectedImages([]);
+      setReplyTo(null);
+      setStickerPickerOpen(false);
+    } catch (e) {
+      toast({ variant: 'destructive', title: 'Ошибка отправки' });
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const handleVote = async (msgId: string, optionIndex: number) => {
     if (!db || !user) return;
-    const msgRef = doc(db, "chats", chatId, "messages", msgId);
+    const msgRef = doc(db, 'chats', chatId, 'messages', msgId);
     const snap = await getDoc(msgRef);
     if (!snap.exists()) return;
-    
+
     const poll = snap.data().poll;
     const votes = poll.votes || {};
     votes[user.uid] = optionIndex;
-    
-    await updateDoc(msgRef, { "poll.votes": votes });
+
+    await updateDoc(msgRef, { 'poll.votes': votes });
+  };
+
+  const handleLeaveChat = async () => {
+    if (!db || !user || !chatRef) return;
+    try {
+      await updateDoc(chatRef, { participants: arrayRemove(user.uid) });
+      toast({ title: 'Вы покинули чат' });
+      onBack?.();
+    } catch (e) {
+      toast({ variant: 'destructive', title: 'Не удалось покинуть чат' });
+    }
   };
 
   const renderDateSeparator = (timestamp: number, prevTimestamp?: number) => {
     const date = new Date(timestamp);
     const prevDate = prevTimestamp ? new Date(prevTimestamp) : null;
-    
+
     if (!prevDate || date.toDateString() !== prevDate.toDateString()) {
-      let label = format(date, "d MMMM yyyy", { locale: lang === 'ru' ? ru : enUS });
+      let label = format(date, 'd MMMM yyyy', { locale: lang === 'ru' ? ru : enUS });
       const now = new Date();
       if (date.toDateString() === now.toDateString()) label = t.today;
       const yesterday = new Date();
@@ -141,8 +181,8 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
       if (date.toDateString() === yesterday.toDateString()) label = t.yesterday;
 
       return (
-        <div className="flex justify-center my-4">
-          <span className="px-3 py-1 bg-muted/50 rounded-full text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+        <div className="flex justify-center py-3">
+          <span className="rounded-full bg-surface-high px-3.5 py-1 text-[11px] font-semibold text-on-surface-variant">
             {label}
           </span>
         </div>
@@ -152,13 +192,13 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
   };
 
   const getChatTitle = () => {
-    if (chatId === GLOBAL_CHAT_ID) return "Общий чат";
-    if (chatData?.type === 'individual') return otherUserData?.displayName || "Чат";
-    return chatData?.name || "Группа";
+    if (chatId === GLOBAL_CHAT_ID) return t.globalChat;
+    if (chatData?.type === 'individual') return otherUserData?.displayName || 'Чат';
+    return chatData?.name || 'Группа';
   };
 
   const getChatStatus = () => {
-    if (chatId === GLOBAL_CHAT_ID) return "Redirection Public";
+    if (chatId === GLOBAL_CHAT_ID) return `${t.public} · SLink`;
     if (chatData?.type === 'individual') {
       return otherUserData?.status === 'online' ? t.online : t.offline;
     }
@@ -166,212 +206,397 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
   };
 
   const targetId = chatData?.type === 'individual' ? otherParticipantId : chatId;
+  const isIndividualOnline = chatData?.type === 'individual' && otherUserData?.status === 'online';
 
   return (
-    <div className="flex flex-col h-full bg-background overflow-hidden relative">
-      <div className="flex items-center justify-between h-16 px-4 border-b bg-white/80 dark:bg-black/40 backdrop-blur-md z-10 shrink-0">
-        <div className="flex items-center gap-2 overflow-hidden">
+    <div className="relative flex h-full flex-col overflow-hidden bg-background">
+      {/* M3 top app bar */}
+      <header className="z-10 flex h-16 shrink-0 items-center justify-between gap-2 border-b border-outline-variant/60 bg-surface-low/95 px-2 backdrop-blur-xl md:px-4">
+        <div className="flex min-w-0 items-center gap-1">
           {onBack && (
-            <Button variant="ghost" size="icon" onClick={onBack} className="rounded-full shrink-0 -ml-2">
-              <X className="w-5 h-5 text-muted-foreground" />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onBack}
+              aria-label="Закрыть чат"
+              className="shrink-0 rounded-full text-on-surface-variant"
+            >
+              <X className="h-5 w-5" />
             </Button>
           )}
-          <UserProfileDialog userId={targetId || ""} onStartChat={() => {}}>
-            <div className="flex items-center gap-3 cursor-pointer overflow-hidden">
+
+          <UserProfileDialog userId={targetId || ''} onStartChat={() => {}}>
+            <div className="flex min-w-0 cursor-pointer items-center gap-3 rounded-full pr-2 transition-colors hover:bg-on-surface/5">
               <div className="relative shrink-0">
                 {chatId === GLOBAL_CHAT_ID ? (
-                  <div className="w-10 h-10 rounded-full cove-gradient flex items-center justify-center text-white border-2 border-white/20"><Globe className="w-5 h-5" /></div>
+                  <div className="slink-gradient flex h-10 w-10 items-center justify-center rounded-full text-white">
+                    <Globe className="h-5 w-5" />
+                  </div>
                 ) : (
-                  <UserAvatar userId={targetId || ""} className="w-10 h-10 border-2 border-primary/20" />
+                  <UserAvatar userId={targetId || ''} className="h-10 w-10" />
                 )}
-                {chatData?.type === 'individual' && otherUserData?.status === 'online' && (
-                  <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white dark:border-zinc-900 rounded-full" />
+                {isIndividualOnline && (
+                  <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-surface-low bg-success" />
                 )}
               </div>
-              <div className="flex flex-col min-w-0">
-                <h2 className="font-bold text-sm leading-tight truncate">
+              <div className="flex min-w-0 flex-col">
+                <h2 className="truncate text-[15px] font-bold leading-tight text-on-surface">
                   {getChatTitle()}
                 </h2>
-                <span className={cn(
-                  "text-[10px] font-medium truncate",
-                  otherUserData?.status === 'online' && chatData?.type === 'individual' ? "text-green-500" : "text-muted-foreground"
-                )}>
+                <span
+                  className={cn(
+                    'truncate text-[11px] font-medium',
+                    isIndividualOnline ? 'text-success' : 'text-on-surface-variant',
+                  )}
+                >
                   {getChatStatus()}
                 </span>
               </div>
             </div>
           </UserProfileDialog>
         </div>
-        <div className="flex items-center shrink-0">
+
+        <div className="flex shrink-0 items-center">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-full"><MoreVertical className="w-5 h-5" /></Button>
+              <Button variant="ghost" size="icon" className="rounded-full" aria-label="Меню чата">
+                <MoreVertical className="h-5 w-5 text-on-surface-variant" />
+              </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="rounded-2xl w-48">
-              <DropdownMenuItem className="rounded-xl gap-2 text-destructive"><Trash2 className="w-4 h-4" /> {t.deleteChat}</DropdownMenuItem>
+            <DropdownMenuContent align="end" className="w-56 rounded-3xl border-outline-variant/60 p-2">
+              <DropdownMenuItem
+                className="gap-2 rounded-2xl py-2.5 text-destructive focus:text-destructive"
+                onClick={handleLeaveChat}
+              >
+                <LogOut className="h-4 w-4" /> {t.leave}
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+        </div>
+      </header>
+
+      {/* Messages */}
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 md:px-6">
+        <div className="mx-auto w-full max-w-3xl py-2">
+          {!rawMessages?.length && (
+            <div className="flex flex-col items-center justify-center gap-4 py-24 text-center">
+              <SlinkLogo className="h-16 w-16 opacity-90" />
+              <div className="space-y-1">
+                <p className="text-base font-bold text-on-surface">{getChatTitle()}</p>
+                <p className="text-sm text-on-surface-variant">
+                  Сообщений пока нет — отправьте первое.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {rawMessages?.map((msg: any, i: number) => {
+            const mine = msg.senderId === user?.uid;
+            const showSender = !mine && (chatData?.type !== 'individual' || chatId === GLOBAL_CHAT_ID);
+
+            return (
+              <React.Fragment key={msg.id}>
+                {renderDateSeparator(msg.timestamp, rawMessages[i - 1]?.timestamp)}
+                <div
+                  className={cn(
+                    'animate-message-in mb-2.5 flex max-w-[88%] items-end gap-2 md:max-w-[75%]',
+                    mine ? 'ml-auto flex-row-reverse' : 'mr-auto',
+                  )}
+                >
+                  {!mine && (
+                    <UserProfileDialog userId={msg.senderId} onStartChat={onStartDirectChat}>
+                      <UserAvatar
+                        userId={msg.senderId}
+                        fallback={msg.senderName}
+                        className="mt-1 h-8 w-8 shrink-0 cursor-pointer"
+                      />
+                    </UserProfileDialog>
+                  )}
+
+                  <div className={cn('flex min-w-0 flex-col gap-1', mine ? 'items-end' : 'items-start')}>
+                    {showSender && (
+                      <span className="ml-1 text-[11px] font-semibold text-primary">
+                        {msg.senderName}
+                      </span>
+                    )}
+
+                    <div
+                      className={cn(
+                        'relative min-w-0 rounded-[20px] px-4 py-2.5 text-[14px] leading-relaxed shadow-sm',
+                        mine
+                          ? 'rounded-br-md bg-primary-container text-primary-on-container'
+                          : 'rounded-bl-md bg-surface-high text-on-surface',
+                      )}
+                    >
+                      {msg.replyTo && (
+                        <div className="mb-2 rounded-xl border-l-2 border-current/40 bg-on-surface/5 px-2.5 py-1.5 text-[11px]">
+                          <p className="font-bold opacity-70">{msg.replyTo.senderName}</p>
+                          <p className="truncate opacity-90">{msg.replyTo.text}</p>
+                        </div>
+                      )}
+
+                      {msg.type === 'sticker' && (
+                        <StickerRenderer packId={msg.packId} stickerId={msg.stickerId} />
+                      )}
+
+                      {msg.type === 'image' && msg.imageUrls?.length > 0 && (
+                        <div className="mb-1 grid grid-cols-2 gap-1.5">
+                          {msg.imageUrls.map((src: string, idx: number) => (
+                            <img
+                              key={idx}
+                              src={src}
+                              alt="Вложение"
+                              className="max-h-56 w-full rounded-xl object-cover"
+                            />
+                          ))}
+                        </div>
+                      )}
+
+                      {msg.type === 'poll' && msg.poll && (
+                        <div className="min-w-[200px] space-y-3">
+                          <p className="flex items-center gap-2 text-sm font-bold">
+                            <BarChart2 className="h-4 w-4" /> {msg.poll.question}
+                          </p>
+                          <div className="space-y-2">
+                            {msg.poll.options.map((opt: string, idx: number) => {
+                              const votes = Object.values(msg.poll.votes || {});
+                              const count = votes.filter((v) => v === idx).length;
+                              const percent = votes.length > 0 ? (count / votes.length) * 100 : 0;
+                              const isVoted = msg.poll.votes?.[user?.uid!] === idx;
+
+                              return (
+                                <button
+                                  key={idx}
+                                  onClick={() => handleVote(msg.id, idx)}
+                                  className={cn(
+                                    'relative w-full overflow-hidden rounded-xl border p-2 text-left transition-all',
+                                    isVoted
+                                      ? 'border-primary bg-primary/10'
+                                      : 'border-outline-variant/60 bg-surface-lowest/40',
+                                  )}
+                                >
+                                  <div
+                                    className="absolute inset-0 bg-primary/15 transition-all"
+                                    style={{ width: `${percent}%` }}
+                                  />
+                                  <div className="relative flex justify-between text-xs font-medium">
+                                    <span>{opt}</span>
+                                    <span>{Math.round(percent)}%</span>
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <p className="text-center text-[10px] opacity-60">
+                            {Object.keys(msg.poll.votes || {}).length} проголосовало
+                          </p>
+                        </div>
+                      )}
+
+                      {msg.type === 'audio' && (
+                        <div className="flex min-w-[150px] items-center gap-2">
+                          <audio controls className="h-9 w-44">
+                            <source src={msg.audioUrl} type="audio/webm" />
+                          </audio>
+                        </div>
+                      )}
+
+                      {msg.text && <p className="whitespace-pre-wrap break-words">{msg.text}</p>}
+
+                      <div
+                        className={cn(
+                          'mt-1 flex items-center justify-end gap-1 text-[10px]',
+                          mine ? 'text-primary-on-container/60' : 'text-on-surface-variant',
+                        )}
+                      >
+                        <span>
+                          {new Date(msg.timestamp).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                      </div>
+                    </div>
+
+                    {msg.type !== 'sticker' && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setReplyTo({
+                            id: msg.id,
+                            text: msg.text || 'Вложение',
+                            senderName: msg.senderName,
+                          })
+                        }
+                        className="flex items-center gap-1 px-1 text-[10px] font-medium text-on-surface-variant opacity-0 transition-opacity hover:text-primary focus:opacity-100 group-hover:opacity-100 md:opacity-60"
+                      >
+                        <Reply className="h-3 w-3" /> {t.reply}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </React.Fragment>
+            );
+          })}
+          <div ref={scrollRef} />
         </div>
       </div>
 
-      <ScrollArea className="flex-1 px-4">
-        <div className="py-4 space-y-4">
-          {rawMessages?.map((msg: any, i) => (
-            <React.Fragment key={msg.id}>
-              {renderDateSeparator(msg.timestamp, rawMessages[i-1]?.timestamp)}
-              <div className={cn("flex gap-2 max-w-[85%]", msg.senderId === user?.uid ? "ml-auto flex-row-reverse" : "mr-auto")}>
-                {msg.senderId !== user?.uid && (
-                  <UserProfileDialog userId={msg.senderId} onStartChat={onStartDirectChat}>
-                    <UserAvatar userId={msg.senderId} fallback={msg.senderName} className="w-8 h-8 shrink-0 mt-1 cursor-pointer border shadow-sm" />
-                  </UserProfileDialog>
-                )}
-                <div className={cn("flex flex-col gap-1", msg.senderId === user?.uid ? "items-end" : "items-start")}>
-                  {msg.senderId !== user?.uid && (chatData?.type !== 'individual' || chatId === GLOBAL_CHAT_ID) && (
-                    <span className="text-[10px] font-bold text-primary ml-1">{msg.senderName}</span>
-                  )}
-                  <div className={cn(
-                    "relative p-3 rounded-2xl text-sm shadow-sm",
-                    msg.senderId === user?.uid ? "cove-gradient text-white rounded-tr-none" : "bg-white dark:bg-zinc-800 border rounded-tl-none"
-                  )}>
-                    {msg.replyTo && (
-                      <div className="mb-2 p-2 rounded-lg bg-black/10 text-[10px] border-l-4 border-primary">
-                        <p className="font-bold opacity-70">{msg.replyTo.senderName}</p>
-                        <p className="truncate opacity-90">{msg.replyTo.text}</p>
-                      </div>
-                    )}
+      {stickerPickerOpen && (
+        <StickerPicker
+          onSelect={(s) => {
+            handleSend({ sticker: s });
+          }}
+        />
+      )}
 
-                    {msg.type === 'sticker' && <StickerRenderer packId={msg.packId} stickerId={msg.stickerId} />}
-                    
-                    {msg.type === 'poll' && (
-                      <div className="space-y-3 min-w-[200px]">
-                        <p className="font-bold flex items-center gap-2"><BarChart2 className="w-4 h-4" /> {msg.poll.question}</p>
-                        <div className="space-y-2">
-                          {msg.poll.options.map((opt: string, idx: number) => {
-                            const votes = Object.values(msg.poll.votes || {});
-                            const count = votes.filter(v => v === idx).length;
-                            const percent = votes.length > 0 ? (count / votes.length) * 100 : 0;
-                            const isVoted = msg.poll.votes?.[user?.uid!] === idx;
-
-                            return (
-                              <button 
-                                key={idx} 
-                                onClick={() => handleVote(msg.id, idx)}
-                                className={cn(
-                                  "w-full text-left p-2 rounded-xl relative overflow-hidden border transition-all",
-                                  isVoted ? "border-primary bg-primary/10" : "bg-muted/30"
-                                )}
-                              >
-                                <div className="absolute inset-0 bg-primary/20 transition-all" style={{ width: `${percent}%` }} />
-                                <div className="relative flex justify-between text-xs font-medium">
-                                  <span>{opt}</span>
-                                  <span>{Math.round(percent)}%</span>
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                        <p className="text-[10px] opacity-60 text-center">{Object.keys(msg.poll.votes || {}).length} проголосовало</p>
-                      </div>
-                    )}
-
-                    {msg.type === 'audio' && (
-                      <div className="flex items-center gap-2 min-w-[150px]">
-                        <audio controls className="h-8 w-40">
-                          <source src={msg.audioUrl} type="audio/webm" />
-                        </audio>
-                      </div>
-                    )}
-
-                    {msg.text && <p className="whitespace-pre-wrap">{msg.text}</p>}
-                    
-                    <span className={cn("text-[9px] mt-1 block opacity-60 text-right", msg.senderId === user?.uid ? "text-white/80" : "text-muted-foreground")}>
-                      {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                  </div>
+      {/* Composer */}
+      <div className="safe-bottom shrink-0 border-t border-outline-variant/60 bg-surface-low/95 px-3 pb-3 pt-2 backdrop-blur-xl md:px-4">
+        <div className="mx-auto w-full max-w-3xl">
+          {replyTo && (
+            <div className="mb-2 flex items-center justify-between rounded-2xl bg-surface-high px-3 py-2 text-xs animate-in slide-in-from-bottom-2">
+              <div className="flex min-w-0 items-center gap-2">
+                <Reply className="h-3.5 w-3.5 shrink-0 text-primary" />
+                <div className="min-w-0">
+                  <p className="truncate font-bold text-on-surface">{replyTo.senderName}</p>
+                  <p className="truncate text-on-surface-variant">{replyTo.text || 'Вложение'}</p>
                 </div>
               </div>
-            </React.Fragment>
-          ))}
-          <div ref={scrollRef} />
-        </div>
-      </ScrollArea>
-
-      {stickerPickerOpen && <StickerPicker onSelect={(s) => handleSend({ sticker: s })} />}
-
-      <div className="p-4 border-t bg-background flex flex-col gap-2">
-        {replyTo && (
-          <div className="flex items-center justify-between p-2 bg-muted rounded-xl text-xs animate-in slide-in-from-bottom">
-            <div className="flex items-center gap-2">
-              <Reply className="w-3 h-3 text-primary" />
-              <div className="min-w-0">
-                <p className="font-bold truncate">{replyTo.senderName}</p>
-                <p className="truncate opacity-70">{replyTo.text || "Вложение"}</p>
-              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0 rounded-full"
+                onClick={() => setReplyTo(null)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
             </div>
-            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setReplyTo(null)}><X className="w-4 h-4" /></Button>
-          </div>
-        )}
-        <div className="flex items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-full hover:bg-muted"><Paperclip className="w-5 h-5" /></Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="rounded-2xl w-48 p-2">
-              <DropdownMenuItem className="rounded-xl gap-3 cursor-pointer" onClick={() => setPollDialogOpen(true)}>
-                <BarChart2 className="w-4 h-4 text-blue-500" /> {t.group} Опрос
-              </DropdownMenuItem>
-              <DropdownMenuItem className="rounded-xl gap-3 cursor-pointer">
-                <ImageIcon className="w-4 h-4 text-green-500" /> {t.photo}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <Button variant="ghost" size="icon" onClick={() => setStickerPickerOpen(!stickerPickerOpen)} className="rounded-full"><Smile className="w-5 h-5" /></Button>
-          
-          <div className="flex-1 relative">
-            <Input 
-              placeholder={t.message} 
-              value={message} 
-              onChange={e => setMessage(e.target.value)} 
-              onKeyDown={e => e.key === 'Enter' && handleSend()} 
-              className="h-11 rounded-2xl bg-muted/50 border-none pr-10 focus-visible:ring-primary"
-            />
-          </div>
-
-          {message.trim() ? (
-            <Button className="h-11 w-11 rounded-full cove-gradient text-white shadow-lg p-0" onClick={() => handleSend()} disabled={isSending}>
-              <Send className="w-5 h-5" />
-            </Button>
-          ) : (
-            <VoiceRecorder onSend={(url) => handleSend({ audioUrl: url })} />
           )}
+
+          <div className="flex items-end gap-1 md:gap-1.5">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-12 w-12 shrink-0 rounded-full text-on-surface-variant"
+                  aria-label="Вложения"
+                >
+                  <Paperclip className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" side="top" className="w-52 rounded-3xl p-2">
+                <DropdownMenuItem
+                  className="cursor-pointer gap-3 rounded-2xl py-2.5"
+                  onClick={() => setPollDialogOpen(true)}
+                >
+                  <BarChart2 className="h-4 w-4 text-primary" /> Опрос
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="cursor-pointer gap-3 rounded-2xl py-2.5"
+                  onClick={() => setStickerPickerOpen((v) => !v)}
+                >
+                  <Smile className="h-4 w-4 text-secondary" /> Стикеры
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setStickerPickerOpen(!stickerPickerOpen)}
+              className="hidden h-12 w-12 shrink-0 rounded-full text-on-surface-variant sm:inline-flex"
+              aria-label="Стикеры"
+            >
+              <Smile className="h-5 w-5" />
+            </Button>
+
+            <div className="relative min-w-0 flex-1">
+              <Input
+                placeholder={t.message}
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                className="h-12 rounded-3xl border-none bg-surface-high px-4 text-[15px] shadow-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              />
+            </div>
+
+            {message.trim() ? (
+              <Button
+                className="h-12 w-12 shrink-0 rounded-2xl bg-primary p-0 text-primary-foreground shadow-m3 transition-transform active:scale-95"
+                onClick={() => handleSend()}
+                disabled={isSending}
+                aria-label="Отправить"
+              >
+                <Send className="h-5 w-5" />
+              </Button>
+            ) : (
+              <VoiceRecorder onSend={(url) => handleSend({ audioUrl: url })} />
+            )}
+          </div>
         </div>
       </div>
 
       <Dialog open={pollDialogOpen} onOpenChange={setPollDialogOpen}>
-        <DialogContent className="rounded-3xl max-w-sm">
-          <DialogHeader><DialogTitle>Создать опрос</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-4">
-            <Input placeholder="Ваш вопрос..." value={pollQuestion} onChange={e => setPollQuestion(e.target.value)} className="rounded-xl h-12" />
+        <DialogContent className="max-w-sm rounded-[28px] border-none bg-surface-container p-6 shadow-m3-strong">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg font-bold">
+              <MessageSquarePlus className="h-5 w-5 text-primary" /> Создать опрос
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <Input
+              placeholder="Ваш вопрос…"
+              value={pollQuestion}
+              onChange={(e) => setPollQuestion(e.target.value)}
+              className="m3-field"
+            />
             <div className="space-y-2">
               {pollOptions.map((opt, i) => (
                 <div key={i} className="flex gap-2">
-                  <Input 
-                    placeholder={`Вариант ${i + 1}`} 
-                    value={opt} 
-                    onChange={e => {
+                  <Input
+                    placeholder={`Вариант ${i + 1}`}
+                    value={opt}
+                    onChange={(e) => {
                       const newOpts = [...pollOptions];
                       newOpts[i] = e.target.value;
                       setPollOptions(newOpts);
-                    }} 
-                    className="rounded-xl h-10"
+                    }}
+                    className="h-11 rounded-2xl border-none bg-surface-high"
                   />
-                  {pollOptions.length > 2 && <Button variant="ghost" size="icon" onClick={() => setPollOptions(pollOptions.filter((_, idx) => idx !== i))}><X className="w-4 h-4" /></Button>}
+                  {pollOptions.length > 2 && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="rounded-full"
+                      onClick={() => setPollOptions(pollOptions.filter((_, idx) => idx !== i))}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               ))}
-              <Button variant="ghost" className="w-full rounded-xl text-primary text-xs" onClick={() => setPollOptions([...pollOptions, ""])}>+ Добавить вариант</Button>
+              <Button
+                variant="ghost"
+                className="w-full rounded-2xl text-xs font-semibold text-primary"
+                onClick={() => setPollOptions([...pollOptions, ''])}
+              >
+                + Добавить вариант
+              </Button>
             </div>
-            <Button className="w-full h-12 rounded-2xl bg-accent text-white font-bold" onClick={() => { handleSend({ poll: { question: pollQuestion, options: pollOptions.filter(o => o.trim()), votes: {} } }); setPollDialogOpen(false); setPollQuestion(""); setPollOptions(["", ""]); }}>Создать опрос</Button>
+            <Button
+              className="h-12 w-full rounded-full bg-primary font-bold text-primary-foreground"
+              onClick={() => {
+                handleSend({
+                  poll: { question: pollQuestion, options: pollOptions.filter((o) => o.trim()), votes: {} },
+                });
+                setPollDialogOpen(false);
+                setPollQuestion('');
+                setPollOptions(['', '']);
+              }}
+            >
+              Создать опрос
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -392,7 +617,7 @@ function VoiceRecorder({ onSend }: { onSend: (url: string) => void }) {
       const recorder = new MediaRecorder(stream);
       mediaRecorderRef.current = recorder;
       chunksRef.current = [];
-      
+
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) chunksRef.current.push(e.data);
       };
@@ -400,17 +625,17 @@ function VoiceRecorder({ onSend }: { onSend: (url: string) => void }) {
       recorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
         const reader = new FileReader();
-        reader.onload = (e) => onSend(e.target?.result as string);
+        reader.onloadend = () => onSend(reader.result as string);
         reader.readAsDataURL(blob);
-        stream.getTracks().forEach(track => track.stop());
+        stream.getTracks().forEach((track) => track.stop());
       };
 
       recorder.start();
       setIsRecording(true);
       setTimer(0);
-      timerIntervalRef.current = setInterval(() => setTimer(prev => prev + 1), 1000);
+      timerIntervalRef.current = setInterval(() => setTimer((prev) => prev + 1), 1000);
     } catch (err) {
-      alert("Доступ к микрофону отклонен");
+      alert('Доступ к микрофону отклонен');
     }
   };
 
@@ -423,18 +648,34 @@ function VoiceRecorder({ onSend }: { onSend: (url: string) => void }) {
   };
 
   return (
-    <div className="flex items-center gap-2">
-      {isRecording && <span className="text-[10px] font-mono text-destructive animate-pulse">{Math.floor(timer/60)}:{(timer%60).toString().padStart(2, '0')}</span>}
-      <Button 
-        variant="ghost" 
-        size="icon" 
-        className={cn("h-11 w-11 rounded-full transition-all", isRecording ? "bg-destructive text-white scale-110" : "hover:bg-muted text-muted-foreground")}
+    <div className="flex shrink-0 items-center gap-2">
+      {isRecording && (
+        <span className="animate-pulse font-mono text-[10px] text-destructive">
+          {Math.floor(timer / 60)}:{(timer % 60).toString().padStart(2, '0')}
+        </span>
+      )}
+      <Button
+        variant="ghost"
+        size="icon"
+        className={cn(
+          'h-12 w-12 rounded-full transition-all',
+          isRecording
+            ? 'scale-105 bg-destructive text-destructive-foreground'
+            : 'text-on-surface-variant hover:bg-on-surface/5',
+        )}
         onMouseDown={startRecording}
         onMouseUp={stopRecording}
-        onTouchStart={(e) => { e.preventDefault(); startRecording(); }}
-        onTouchEnd={(e) => { e.preventDefault(); stopRecording(); }}
+        onTouchStart={(e) => {
+          e.preventDefault();
+          startRecording();
+        }}
+        onTouchEnd={(e) => {
+          e.preventDefault();
+          stopRecording();
+        }}
+        aria-label="Голосовое сообщение"
       >
-        {isRecording ? <StopCircle className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+        {isRecording ? <StopCircle className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
       </Button>
     </div>
   );
@@ -442,20 +683,26 @@ function VoiceRecorder({ onSend }: { onSend: (url: string) => void }) {
 
 function StickerPicker({ onSelect }: { onSelect: (s: { id: string; packId: string }) => void }) {
   const db = useFirestore();
-  const packsQuery = query(collection(db!, "stickerPacks"), orderBy("createdAt", "desc"), limit(20));
+  const packsQuery = query(collection(db!, 'stickerPacks'), orderBy('createdAt', 'desc'), limit(20));
   const { data: packs } = useCollection(packsQuery);
 
   return (
-    <div className="h-64 border-t bg-muted/20 animate-in slide-in-from-bottom flex flex-col">
-      <Tabs defaultValue={packs?.[0]?.id || "none"} className="flex-1 flex flex-col overflow-hidden">
-        <TabsList className="h-10 bg-transparent px-4 gap-2 overflow-x-auto justify-start border-none">
-          {packs?.map(p => (
-            <TabsTrigger key={p.id} value={p.id} className="text-xs h-8 px-4 rounded-xl data-[state=active]:bg-white data-[state=active]:shadow-sm">{p.name}</TabsTrigger>
+    <div className="flex h-64 shrink-0 flex-col border-t border-outline-variant/60 bg-surface-low animate-in slide-in-from-bottom">
+      <Tabs defaultValue={packs?.[0]?.id || 'none'} className="flex flex-1 flex-col overflow-hidden">
+        <TabsList className="no-scrollbar h-11 justify-start gap-2 overflow-x-auto border-none bg-transparent px-4">
+          {packs?.map((p) => (
+            <TabsTrigger
+              key={p.id}
+              value={p.id}
+              className="h-8 rounded-full px-4 text-xs data-[state=active]:bg-secondary-container data-[state=active]:text-secondary-on-container"
+            >
+              {p.name}
+            </TabsTrigger>
           ))}
         </TabsList>
         <div className="flex-1 overflow-y-auto p-4">
-          {packs?.map(p => (
-            <TabsContent key={p.id} value={p.id} className="grid grid-cols-4 sm:grid-cols-6 gap-3 mt-0">
+          {packs?.map((p) => (
+            <TabsContent key={p.id} value={p.id} className="mt-0 grid grid-cols-4 gap-3 sm:grid-cols-6">
               <StickerList packId={p.id} onSelect={onSelect} />
             </TabsContent>
           ))}
@@ -465,19 +712,34 @@ function StickerPicker({ onSelect }: { onSelect: (s: { id: string; packId: strin
   );
 }
 
-function StickerList({ packId, onSelect }: { packId: string, onSelect: any }) {
+function StickerList({ packId, onSelect }: { packId: string; onSelect: any }) {
   const db = useFirestore();
-  const stickersQuery = query(collection(db!, "stickerPacks", packId, "stickers"));
+  const stickersQuery = query(collection(db!, 'stickerPacks', packId, 'stickers'));
   const { data: stickers } = useCollection(stickersQuery);
-  return <>{stickers?.map(s => <div key={s.id} onClick={() => onSelect({ id: s.id, packId })} className="cursor-pointer hover:bg-muted p-2 rounded-xl transition-all hover:scale-105 active:scale-95"><StickerRenderer packId={packId} stickerId={s.id} /></div>)}</>;
+  return (
+    <>
+      {stickers?.map((s) => (
+        <div
+          key={s.id}
+          onClick={() => onSelect({ id: s.id, packId })}
+          className="m3-state cursor-pointer rounded-2xl p-2 transition-transform hover:scale-105 active:scale-95"
+        >
+          <StickerRenderer packId={packId} stickerId={s.id} />
+        </div>
+      ))}
+    </>
+  );
 }
 
-function StickerRenderer({ packId, stickerId }: { packId: string, stickerId: string }) {
+function StickerRenderer({ packId, stickerId }: { packId: string; stickerId: string }) {
   const db = useFirestore();
-  const chunksQuery = query(collection(db!, "stickerPacks", packId, "stickers", stickerId, "chunks"), orderBy("index", "asc"));
+  const chunksQuery = query(
+    collection(db!, 'stickerPacks', packId, 'stickers', stickerId, 'chunks'),
+    orderBy('index', 'asc'),
+  );
   const { data: chunks } = useCollection(chunksQuery);
-  const fullData = React.useMemo(() => chunks?.map(c => c.data).join("") || null, [chunks]);
+  const fullData = React.useMemo(() => chunks?.map((c) => c.data).join('') || null, [chunks]);
 
-  if (!fullData) return <div className="w-16 h-16 bg-muted animate-pulse rounded-lg" />;
-  return <img src={fullData} className="w-24 h-24 object-contain" alt="Sticker" />;
+  if (!fullData) return <div className="h-16 w-16 animate-pulse rounded-lg bg-surface-high" />;
+  return <img src={fullData} className="h-24 w-24 object-contain" alt="Sticker" />;
 }

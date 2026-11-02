@@ -1,9 +1,8 @@
-
 import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.covechat.app',
-  appName: 'CoveChat',
+  appId: 'chat.slink.messenger',
+  appName: 'SLink',
   webDir: 'out',
   server: {
     androidScheme: 'https'
