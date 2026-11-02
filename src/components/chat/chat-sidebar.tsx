@@ -40,6 +40,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import Link from 'next/link';
 import { UserProfileDialog } from './user-profile-dialog';
 import { sendSystemNotification } from '@/lib/system-notifications';
+import { ensureServiceChat, serviceChatId } from '@/lib/service-bot';
 
 const GLOBAL_CHAT_ID = "p7gSC3o9OxVezsjDbrFq";
 
@@ -59,6 +60,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
   });
   const [isSearching, setIsSearching] = React.useState(false);
   const [filter, setFilter] = React.useState<ChatFilter>('all');
+  const [isOpeningBot, setIsOpeningBot] = React.useState(false);
 
   const db = useFirestore();
   const auth = useAuth();
@@ -87,7 +89,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
   const sortedChats = React.useMemo(() => {
     if (!myChats) return [];
     return [...myChats]
-      .filter((c) => c.id !== GLOBAL_CHAT_ID)
+      .filter((c) => c.id !== GLOBAL_CHAT_ID && c.type !== 'service')
       .sort((a, b) => (b.lastMessageTime || 0) - (a.lastMessageTime || 0));
   }, [myChats]);
 
@@ -161,6 +163,19 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
       onChatSelect(GLOBAL_CHAT_ID);
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const handleOpenServiceChat = async () => {
+    if (!db || !user || isOpeningBot) return;
+    setIsOpeningBot(true);
+    try {
+      const id = await ensureServiceChat(db, user, userData?.displayName || user.displayName);
+      if (id) onChatSelect(id);
+    } catch (e) {
+      console.error('Service chat error:', e);
+    } finally {
+      setIsOpeningBot(false);
     }
   };
 
@@ -353,6 +368,29 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
             </div>
           ) : (
             <>
+              <button
+                type="button"
+                onClick={handleOpenServiceChat}
+                aria-label="Служебные уведомления SLink"
+                className={cn(
+                  'mb-2 flex w-full items-center gap-3 rounded-3xl border p-2.5 text-left transition-colors',
+                  activeChatId === serviceChatId(user?.uid || '')
+                    ? 'border-transparent bg-primary-container'
+                    : 'border-outline-variant/50 bg-surface-low hover:bg-on-surface/[0.05] active:bg-on-surface/[0.09]',
+                )}
+              >
+                <SlinkLogo className="h-12 w-12 shrink-0 rounded-full" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="truncate text-sm font-bold text-on-surface">SLink</p>
+                    <span className="shrink-0 rounded-full bg-primary/15 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary">
+                      {isOpeningBot ? '…' : 'БОТ'}
+                    </span>
+                  </div>
+                  <p className="truncate text-xs text-on-surface-variant">Служебные уведомления</p>
+                </div>
+              </button>
+
               <button
                 type="button"
                 onClick={handleOpenGlobalChat}

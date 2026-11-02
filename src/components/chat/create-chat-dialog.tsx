@@ -35,6 +35,7 @@ import { useToast } from '@/hooks/use-toast';
 import { UserAvatar } from '@/components/user-avatar';
 import { cn } from '@/lib/utils';
 import { sendSystemNotification } from '@/lib/system-notifications';
+import { notifyServiceBot } from '@/lib/service-bot';
 
 const CHUNK_SIZE = 800000; // ~800KB
 
@@ -206,6 +207,13 @@ export function CreateChatDialog({ children, onChatCreated }: CreateChatDialogPr
         'info',
       );
 
+      await notifyServiceBot(
+        db,
+        user,
+        user.displayName,
+        `Вы создали группу «${groupName.trim()}» — участников: ${memberIds.length + 1}`,
+      );
+
       toast({ title: 'Группа создана', description: `Участников: ${memberIds.length + 1}` });
       resetAndClose(newChat.id);
     } catch (e: any) {
@@ -252,6 +260,13 @@ export function CreateChatDialog({ children, onChatCreated }: CreateChatDialogPr
         newChat.id,
         `Канал «${channelName.trim()}» создан · slink/${finalSlug}`,
         'channel',
+      );
+
+      await notifyServiceBot(
+        db,
+        user,
+        user.displayName,
+        `Вы создали канал «${channelName.trim()}» — slink/${finalSlug}`,
       );
 
       toast({ title: 'Канал создан', description: `slink/${finalSlug}` });

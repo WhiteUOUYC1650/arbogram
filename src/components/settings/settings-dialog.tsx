@@ -24,6 +24,7 @@ import { Switch } from '@/components/ui/switch';
 import { translations, Language } from '@/lib/i18n';
 import { normalizePhoneNumber } from '@/lib/phone-utils';
 import { APP_NAME, APP_VERSION_LABEL } from '@/lib/brand';
+import { notifyServiceBot } from '@/lib/service-bot';
 import { cn } from '@/lib/utils';
 
 type SettingsTab = 'profile' | 'appearance' | 'language';
@@ -101,6 +102,13 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
         phoneNumber: normalizedPhone,
       });
 
+      await notifyServiceBot(
+        db,
+        user,
+        displayName.trim(),
+        `Профиль обновлён: ${displayName.trim()}${normalizedPhone ? `, ${normalizedPhone}` : ''}`,
+      );
+
       toast({ title: t.success, description: 'Профиль обновлён' });
     } catch (e: any) {
       toast({ variant: 'destructive', title: t.error, description: e.message });
@@ -116,6 +124,7 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
     try {
       const base64 = await compressAvatar(file);
       await setDoc(doc(db, 'avatars', user.uid), { base64 }, { merge: true });
+      await notifyServiceBot(db, user, userData?.displayName, 'Аватар профиля обновлён');
       toast({ title: t.success, description: 'Аватар обновлён' });
     } catch (err: any) {
       toast({ variant: 'destructive', title: t.error, description: 'Не удалось загрузить фото' });

@@ -10,7 +10,11 @@ import {
   Smile,
   Globe,
   Mic,
-  StopCircle,
+  Play,
+  Pause,
+  Check,
+  Trash2,
+  Lock,
   BarChart2,
   MessageSquarePlus,
   LogOut,
@@ -33,6 +37,7 @@ import { translations, Language } from '@/lib/i18n';
 import { UserProfileDialog } from './user-profile-dialog';
 import { SystemMessage } from './system-message';
 import { sendSystemNotification } from '@/lib/system-notifications';
+import { SERVICE_BOT_ID, isServiceChatId } from '@/lib/service-bot';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { format } from 'date-fns';
@@ -200,13 +205,15 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
   };
 
   const getChatTitle = () => {
-    if (chatId === GLOBAL_CHAT_ID) return t.globalChat;
+    if (isServiceChat) return 'SLink';
+    if (isGlobalChat) return t.globalChat;
     if (chatData?.type === 'individual') return otherUserData?.displayName || 'Чат';
     return chatData?.name || 'Группа';
   };
 
   const getChatStatus = () => {
-    if (chatId === GLOBAL_CHAT_ID) return `${t.public} · SLink`;
+    if (isServiceChat) return 'Служебный аккаунт · только уведомления';
+    if (isGlobalChat) return `${t.public} · SLink`;
     if (chatData?.type === 'individual') {
       return otherUserData?.status === 'online' ? t.online : t.offline;
     }
@@ -215,6 +222,8 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
 
   const targetId = chatData?.type === 'individual' ? otherParticipantId : chatId;
   const isIndividualOnline = chatData?.type === 'individual' && otherUserData?.status === 'online';
+  const isServiceChat = isServiceChatId(chatId) || Boolean(chatData?.isService);
+  const isGlobalChat = chatId === GLOBAL_CHAT_ID;
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden bg-background">
@@ -233,10 +242,12 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
             </Button>
           )}
 
-          <UserProfileDialog userId={targetId || ''} onStartChat={() => {}}>
-            <div className="flex min-w-0 cursor-pointer items-center gap-3 rounded-full pr-2 transition-colors hover:bg-on-surface/5">
+          {isServiceChat ? (
+            <div className="flex min-w-0 cursor-pointer items-center gap-3 rounded-full pr-2 transition-colors cursor-default hover:bg-transparent">
               <div className="relative shrink-0">
-                {chatId === GLOBAL_CHAT_ID ? (
+                {isServiceChat ? (
+                  <SlinkLogo className="h-10 w-10 rounded-full" />
+                ) : chatId === GLOBAL_CHAT_ID ? (
                   <div className="slink-gradient flex h-10 w-10 items-center justify-center rounded-full text-white">
                     <Globe className="h-5 w-5" />
                   </div>
@@ -261,7 +272,39 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
                 </span>
               </div>
             </div>
-          </UserProfileDialog>
+          ) : (
+            <UserProfileDialog userId={targetId || ''} onStartChat={() => {}}>
+            <div className="flex min-w-0 cursor-pointer items-center gap-3 rounded-full pr-2 transition-colors hover:bg-on-surface/5">
+              <div className="relative shrink-0">
+                {isServiceChat ? (
+                  <SlinkLogo className="h-10 w-10 rounded-full" />
+                ) : chatId === GLOBAL_CHAT_ID ? (
+                  <div className="slink-gradient flex h-10 w-10 items-center justify-center rounded-full text-white">
+                    <Globe className="h-5 w-5" />
+                  </div>
+                ) : (
+                  <UserAvatar userId={targetId || ''} className="h-10 w-10" />
+                )}
+                {isIndividualOnline && (
+                  <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-surface-low bg-success" />
+                )}
+              </div>
+              <div className="flex min-w-0 flex-col">
+                <h2 className="truncate text-[15px] font-bold leading-tight text-on-surface">
+                  {getChatTitle()}
+                </h2>
+                <span
+                  className={cn(
+                    'truncate text-[11px] font-medium',
+                    isIndividualOnline ? 'text-success' : 'text-on-surface-variant',
+                  )}
+                >
+                  {getChatStatus()}
+                </span>
+              </div>
+            </div>
+            </UserProfileDialog>
+          )}
         </div>
 
         <div className="flex shrink-0 items-center">
@@ -300,7 +343,10 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
 
           {rawMessages?.map((msg: any, i: number) => {
             const mine = msg.senderId === user?.uid;
-            const showSender = !mine && (chatData?.type !== 'individual' || chatId === GLOBAL_CHAT_ID);
+            const showSender =
+              !mine &&
+              (chatData?.type !== 'individual' || chatId === GLOBAL_CHAT_ID) &&
+              rawMessages[i - 1]?.senderId !== msg.senderId;
 
             // Служебные уведомления живут отдельной строкой по центру ленты
             if (msg.type === 'system') {
@@ -321,15 +367,18 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
                     mine ? 'ml-auto flex-row-reverse' : 'mr-auto',
                   )}
                 >
-                  {!mine && (
-                    <UserProfileDialog userId={msg.senderId} onStartChat={onStartDirectChat}>
-                      <UserAvatar
-                        userId={msg.senderId}
-                        fallback={msg.senderName}
-                        className="mt-1 h-8 w-8 shrink-0 cursor-pointer"
-                      />
-                    </UserProfileDialog>
-                  )}
+                  {!mine &&
+                    (msg.senderId === SERVICE_BOT_ID ? (
+                      <SlinkLogo className="mt-1 h-8 w-8 shrink-0 rounded-full" />
+                    ) : (
+                      <UserProfileDialog userId={msg.senderId} onStartChat={onStartDirectChat}>
+                        <UserAvatar
+                          userId={msg.senderId}
+                          fallback={msg.senderName}
+                          className="mt-1 h-8 w-8 shrink-0 cursor-pointer"
+                        />
+                      </UserProfileDialog>
+                    ))}
 
                   <div className={cn('flex min-w-0 flex-col gap-1', mine ? 'items-end' : 'items-start')}>
                     {showSender && (
@@ -411,12 +460,8 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
                         </div>
                       )}
 
-                      {msg.type === 'audio' && (
-                        <div className="flex min-w-[150px] items-center gap-2">
-                          <audio controls className="h-9 w-44">
-                            <source src={msg.audioUrl} type="audio/webm" />
-                          </audio>
-                        </div>
+                      {msg.type === 'audio' && msg.audioUrl && (
+                        <VoiceMessage src={msg.audioUrl} duration={msg.duration} mine={mine} />
                       )}
 
                       {msg.text && <p className="whitespace-pre-wrap break-words">{msg.text}</p>}
@@ -436,7 +481,7 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
                       </div>
                     </div>
 
-                    {msg.type !== 'sticker' && (
+                    {msg.type !== 'sticker' && msg.senderId !== SERVICE_BOT_ID && (
                       <button
                         type="button"
                         onClick={() =>
@@ -468,7 +513,15 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
         />
       )}
 
-      {/* Composer */}
+      {/* Composer: в служебном чате отвечать нельзя */}
+      {isServiceChat ? (
+        <div className="safe-bottom shrink-0 border-t border-outline-variant/60 bg-surface-low/95 px-4 py-4 backdrop-blur-xl">
+          <div className="mx-auto flex w-full max-w-3xl items-center justify-center gap-2 rounded-full bg-surface-high px-4 py-3 text-center text-xs font-medium text-on-surface-variant">
+            <Lock className="h-4 w-4 shrink-0 text-primary" />
+            Служебный чат — здесь только уведомления, отвечать нельзя
+          </div>
+        </div>
+      ) : (
       <div className="safe-bottom shrink-0 border-t border-outline-variant/60 bg-surface-low/95 px-3 pb-3 pt-2 backdrop-blur-xl md:px-4">
         <div className="mx-auto w-full max-w-3xl">
           {replyTo && (
@@ -549,11 +602,13 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
                 <Send className="h-5 w-5" />
               </Button>
             ) : (
-              <VoiceRecorder onSend={(url) => handleSend({ audioUrl: url })} />
+              <VoiceRecorder onSend={({ url, duration }) => handleSend({ audioUrl: url, duration })} />
             )}
           </div>
         </div>
       </div>
+
+      )}
 
       <Dialog open={pollDialogOpen} onOpenChange={setPollDialogOpen}>
         <DialogContent className="max-w-sm rounded-[28px] border-none bg-surface-container p-6 shadow-m3-strong">
@@ -622,80 +677,269 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
   );
 }
 
-function VoiceRecorder({ onSend }: { onSend: (url: string) => void }) {
+/** Плеер голосового сообщения в стиле M3: play/pause, «волна» и длительность. */
+function VoiceMessage({ src, duration, mine }: { src: string; duration?: number | null; mine?: boolean }) {
+  const audioRef = React.useRef<HTMLAudioElement | null>(null);
+  const [isPlaying, setIsPlaying] = React.useState(false);
+  const [progress, setProgress] = React.useState(0);
+
+  const bars = React.useMemo(() => Array.from({ length: 26 }, (_, i) => 5 + ((i * 7) % 14)), []);
+  const total = duration || 0;
+
+  const activeBar = mine ? 'bg-primary-on-container' : 'bg-primary';
+  const inactiveBar = mine ? 'bg-primary-on-container/40' : 'bg-primary/30';
+
+  const toggle = async () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (audio.paused) {
+      try {
+        await audio.play();
+      } catch {
+        setIsPlaying(false);
+      }
+    } else {
+      audio.pause();
+    }
+  };
+
+  const formatTime = (value: number) => {
+    const seconds = Math.max(0, Math.round(value));
+    return `${Math.floor(seconds / 60)}:${(seconds % 60).toString().padStart(2, '0')}`;
+  };
+
+  const remaining = total ? Math.max(0, total - progress * total) : 0;
+
+  return (
+    <div className="flex min-w-[190px] max-w-[250px] items-center gap-2.5">
+      <audio
+        ref={audioRef}
+        src={src}
+        preload="metadata"
+        className="hidden"
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+        onEnded={() => {
+          setIsPlaying(false);
+          setProgress(0);
+        }}
+        onTimeUpdate={(event) => {
+          const el = event.currentTarget;
+          if (Number.isFinite(el.duration) && el.duration > 0) {
+            setProgress(el.currentTime / el.duration);
+          } else if (total) {
+            setProgress(Math.min(1, el.currentTime / total));
+          }
+        }}
+      />
+
+      <button
+        type="button"
+        onClick={toggle}
+        aria-label={isPlaying ? 'Пауза' : 'Слушать голосовое'}
+        className={cn(
+          'flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors',
+          mine
+            ? 'bg-primary-on-container/15 text-primary-on-container hover:bg-primary-on-container/25'
+            : 'bg-primary/10 text-primary hover:bg-primary/20',
+        )}
+      >
+        {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+      </button>
+
+      <div className="flex flex-1 items-center gap-[3px]" aria-hidden>
+        {bars.map((height, index) => (
+          <span
+            key={index}
+            style={{ height }}
+            className={cn(
+              'w-[3px] rounded-full transition-colors',
+              index / bars.length <= progress ? activeBar : inactiveBar,
+            )}
+          />
+        ))}
+      </div>
+
+      <span className="shrink-0 text-[10px] tabular-nums opacity-70">
+        {isPlaying ? formatTime(remaining) : formatTime(total)}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Запись голосового: тап по микрофону → запись, затем «отправить» или «отменить».
+ * Длительность ограничена 90 секундами, а размер — лимитом документа Firestore.
+ */
+function VoiceRecorder({ onSend }: { onSend: (payload: { url: string; duration: number }) => void }) {
+  const { toast } = useToast();
   const [isRecording, setIsRecording] = React.useState(false);
-  const [timer, setTimer] = React.useState(0);
-  const mediaRecorderRef = React.useRef<MediaRecorder | null>(null);
+  const [seconds, setSeconds] = React.useState(0);
+
+  const recorderRef = React.useRef<MediaRecorder | null>(null);
   const chunksRef = React.useRef<Blob[]>([]);
-  const timerIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
+  const streamRef = React.useRef<MediaStream | null>(null);
+  const intervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const secondsRef = React.useRef(0);
+  const cancelledRef = React.useRef(false);
+
+  const MAX_SECONDS = 90;
+  // base64 «весит» примерно на треть больше бинарника, а документ Firestore — 1 МБ
+  const MAX_DATA_URL_LENGTH = 900_000;
+
+  const clearTimer = () => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    intervalRef.current = null;
+  };
+
+  const releaseStream = () => {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+  };
+
+  const pickMimeType = () => {
+    if (typeof MediaRecorder === 'undefined') return '';
+    const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'];
+    return candidates.find((type) => MediaRecorder.isTypeSupported(type)) ?? '';
+  };
+
+  const stopRecording = (cancel = false) => {
+    cancelledRef.current = cancel;
+    const recorder = recorderRef.current;
+    recorderRef.current = null;
+
+    if (recorder && recorder.state !== 'inactive') {
+      recorder.stop();
+    } else {
+      clearTimer();
+      releaseStream();
+      setIsRecording(false);
+    }
+  };
 
   const startRecording = async () => {
+    if (isRecording) return;
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = recorder;
-      chunksRef.current = [];
+      const mimeType = pickMimeType();
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
 
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
+      streamRef.current = stream;
+      recorderRef.current = recorder;
+      chunksRef.current = [];
+      cancelledRef.current = false;
+      secondsRef.current = 0;
+      setSeconds(0);
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) chunksRef.current.push(event.data);
       };
 
       recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        const wasCancelled = cancelledRef.current;
+        const recordedSeconds = secondsRef.current;
+        const blob = new Blob(chunksRef.current, {
+          type: recorder.mimeType || mimeType || 'audio/webm',
+        });
+
+        clearTimer();
+        releaseStream();
+        setIsRecording(false);
+
+        if (wasCancelled || blob.size === 0) return;
+
         const reader = new FileReader();
-        reader.onloadend = () => onSend(reader.result as string);
+        reader.onloadend = () => {
+          const url = reader.result as string;
+          if (url.length > MAX_DATA_URL_LENGTH) {
+            toast({
+              variant: 'destructive',
+              title: 'Слишком длинное голосовое',
+              description: `Максимум ${MAX_SECONDS} секунд.`,
+            });
+            return;
+          }
+          onSend({ url, duration: recordedSeconds });
+        };
         reader.readAsDataURL(blob);
-        stream.getTracks().forEach((track) => track.stop());
       };
 
-      recorder.start();
+      recorder.start(250);
       setIsRecording(true);
-      setTimer(0);
-      timerIntervalRef.current = setInterval(() => setTimer((prev) => prev + 1), 1000);
-    } catch (err) {
-      alert('Доступ к микрофону отклонен');
+
+      intervalRef.current = setInterval(() => {
+        secondsRef.current += 1;
+        setSeconds(secondsRef.current);
+        if (secondsRef.current >= MAX_SECONDS) stopRecording(false);
+      }, 1000);
+    } catch {
+      clearTimer();
+      releaseStream();
+      setIsRecording(false);
+      toast({
+        variant: 'destructive',
+        title: 'Нет доступа к микрофону',
+        description: 'Разрешите доступ к микрофону в настройках браузера.',
+      });
     }
   };
 
-  const stopRecording = () => {
-    if (mediaRecorderRef.current) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
-    }
-  };
+  React.useEffect(() => () => {
+    clearTimer();
+    releaseStream();
+  }, []);
+
+  const formatTime = (value: number) =>
+    `${Math.floor(value / 60)}:${(value % 60).toString().padStart(2, '0')}`;
+
+  if (isRecording) {
+    return (
+      <div className="flex h-12 shrink-0 items-center gap-1.5 rounded-full bg-destructive/10 pl-3 pr-1">
+        <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-destructive" />
+        <span className="font-mono text-[11px] font-semibold text-destructive">
+          {formatTime(seconds)}
+        </span>
+        <div className="mx-1 flex items-end gap-[2px]" aria-hidden>
+          {[0, 1, 2, 3, 4].map((i) => (
+            <span
+              key={i}
+              className="w-[3px] animate-pulse rounded-full bg-destructive/60"
+              style={{ height: 6 + ((i * 5) % 14), animationDelay: `${i * 120}ms` }}
+            />
+          ))}
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-10 w-10 rounded-full text-destructive"
+          onClick={() => stopRecording(true)}
+          aria-label="Отменить запись"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+        <Button
+          size="icon"
+          className="h-10 w-10 rounded-full bg-primary text-primary-foreground"
+          onClick={() => stopRecording(false)}
+          aria-label="Отправить голосовое"
+        >
+          <Check className="h-4 w-4" />
+        </Button>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex shrink-0 items-center gap-2">
-      {isRecording && (
-        <span className="animate-pulse font-mono text-[10px] text-destructive">
-          {Math.floor(timer / 60)}:{(timer % 60).toString().padStart(2, '0')}
-        </span>
-      )}
-      <Button
-        variant="ghost"
-        size="icon"
-        className={cn(
-          'h-12 w-12 rounded-full transition-all',
-          isRecording
-            ? 'scale-105 bg-destructive text-destructive-foreground'
-            : 'text-on-surface-variant hover:bg-on-surface/5',
-        )}
-        onMouseDown={startRecording}
-        onMouseUp={stopRecording}
-        onTouchStart={(e) => {
-          e.preventDefault();
-          startRecording();
-        }}
-        onTouchEnd={(e) => {
-          e.preventDefault();
-          stopRecording();
-        }}
-        aria-label="Голосовое сообщение"
-      >
-        {isRecording ? <StopCircle className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
-      </Button>
-    </div>
+    <Button
+      variant="ghost"
+      size="icon"
+      className="h-12 w-12 shrink-0 rounded-full text-on-surface-variant hover:bg-on-surface/5"
+      onClick={startRecording}
+      aria-label="Записать голосовое сообщение"
+    >
+      <Mic className="h-5 w-5" />
+    </Button>
   );
 }
 
