@@ -34,6 +34,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { UserAvatar } from '@/components/user-avatar';
 import { cn } from '@/lib/utils';
+import { sendSystemNotification } from '@/lib/system-notifications';
 
 const CHUNK_SIZE = 800000; // ~800KB
 
@@ -148,6 +149,13 @@ export function CreateChatDialog({ children, onChatCreated }: CreateChatDialogPr
         createdAt: serverTimestamp(),
       });
 
+      await sendSystemNotification(
+        db,
+        newChat.id,
+        'Диалог создан — напишите первое сообщение',
+        'created',
+      );
+
       resetAndClose(newChat.id);
     } catch (e: any) {
       toast({ variant: 'destructive', title: 'Ошибка', description: e.message });
@@ -189,6 +197,15 @@ export function CreateChatDialog({ children, onChatCreated }: CreateChatDialogPr
         lastMessageTime: Date.now(),
         createdAt: serverTimestamp(),
       });
+
+      await sendSystemNotification(db, newChat.id, `Группа «${groupName.trim()}» создана`, 'created');
+      await sendSystemNotification(
+        db,
+        newChat.id,
+        `Участников в группе: ${memberIds.length + 1}`,
+        'info',
+      );
+
       toast({ title: 'Группа создана', description: `Участников: ${memberIds.length + 1}` });
       resetAndClose(newChat.id);
     } catch (e: any) {
@@ -229,6 +246,13 @@ export function CreateChatDialog({ children, onChatCreated }: CreateChatDialogPr
         lastMessageTime: Date.now(),
         createdAt: serverTimestamp(),
       });
+
+      await sendSystemNotification(
+        db,
+        newChat.id,
+        `Канал «${channelName.trim()}» создан · slink/${finalSlug}`,
+        'channel',
+      );
 
       toast({ title: 'Канал создан', description: `slink/${finalSlug}` });
       resetAndClose(newChat.id);

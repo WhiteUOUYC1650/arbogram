@@ -31,6 +31,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { translations, Language } from '@/lib/i18n';
 import { UserProfileDialog } from './user-profile-dialog';
+import { SystemMessage } from './system-message';
+import { sendSystemNotification } from '@/lib/system-notifications';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { format } from 'date-fns';
@@ -160,6 +162,12 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
   const handleLeaveChat = async () => {
     if (!db || !user || !chatRef) return;
     try {
+      await sendSystemNotification(
+        db,
+        chatId,
+        `${user.displayName || 'Пользователь'} покинул(а) чат`,
+        'left',
+      );
       await updateDoc(chatRef, { participants: arrayRemove(user.uid) });
       toast({ title: 'Вы покинули чат' });
       onBack?.();
@@ -293,6 +301,16 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
           {rawMessages?.map((msg: any, i: number) => {
             const mine = msg.senderId === user?.uid;
             const showSender = !mine && (chatData?.type !== 'individual' || chatId === GLOBAL_CHAT_ID);
+
+            // Служебные уведомления живут отдельной строкой по центру ленты
+            if (msg.type === 'system') {
+              return (
+                <React.Fragment key={msg.id}>
+                  {renderDateSeparator(msg.timestamp, rawMessages[i - 1]?.timestamp)}
+                  <SystemMessage text={msg.text} kind={msg.systemKind} timestamp={msg.timestamp} />
+                </React.Fragment>
+              );
+            }
 
             return (
               <React.Fragment key={msg.id}>

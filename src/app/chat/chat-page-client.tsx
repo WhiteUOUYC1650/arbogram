@@ -12,6 +12,7 @@ import { collection, query, where, getDocs, addDoc, serverTimestamp, doc, getDoc
 import { useToast } from '@/hooks/use-toast';
 import { APP_NAME, APP_TAGLINE, APP_VERSION_LABEL } from '@/lib/brand';
 import { translations, Language } from '@/lib/i18n';
+import { sendSystemNotification } from '@/lib/system-notifications';
 
 export default function ChatPageClient() {
   const [activeChatId, setActiveChatId] = React.useState<string | null>(null);
@@ -73,6 +74,13 @@ export default function ChatPageClient() {
         lastMessageTime: Date.now(),
         createdAt: serverTimestamp(),
       });
+
+      await sendSystemNotification(
+        db,
+        newChat.id,
+        'Диалог создан — напишите первое сообщение',
+        'created',
+      );
 
       setActiveChatId(newChat.id);
     } catch (e) {

@@ -39,6 +39,7 @@ import { translations, Language } from '@/lib/i18n';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import Link from 'next/link';
 import { UserProfileDialog } from './user-profile-dialog';
+import { sendSystemNotification } from '@/lib/system-notifications';
 
 const GLOBAL_CHAT_ID = "p7gSC3o9OxVezsjDbrFq";
 
@@ -149,6 +150,12 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
         const data = snap.data();
         if (!data.participants.includes(user.uid)) {
           await updateDoc(globalChatRef, { participants: arrayUnion(user.uid) });
+          await sendSystemNotification(
+            db,
+            GLOBAL_CHAT_ID,
+            `${userData?.displayName || 'Новый участник'} присоединился к общему чату`,
+            'joined',
+          );
         }
       }
       onChatSelect(GLOBAL_CHAT_ID);
