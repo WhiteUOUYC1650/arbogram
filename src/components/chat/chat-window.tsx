@@ -308,6 +308,7 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
         </div>
 
         <div className="flex shrink-0 items-center">
+          {!isServiceChat && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="rounded-full" aria-label="Меню чата">
@@ -323,6 +324,7 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          )}
         </div>
       </header>
 
