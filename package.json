@@ -11,7 +11,8 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "static": "next build",
-    "cap:sync": "npx cap sync"
+    "cap:sync": "cap sync && node scripts/patch-android-permissions.mjs",
+    "android:permissions": "node scripts/patch-android-permissions.mjs"
   },
   "dependencies": {
     "@capacitor-community/contacts": "^6.0.0",
@@ -58,7 +59,8 @@
     "recharts": "^2.15.1",
     "tailwind-merge": "^3.0.1",
     "tailwindcss-animate": "^1.0.7",
-    "zod": "^3.24.2"
+    "zod": "^3.24.2",
+    "slink-native": "file:plugins/slink-native"
   },
   "devDependencies": {
     "@types/node": "^20",

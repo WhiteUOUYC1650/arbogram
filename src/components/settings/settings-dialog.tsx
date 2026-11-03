@@ -11,6 +11,15 @@ import {
   Languages,
   Settings as SettingsIcon,
   Palette,
+  HardDrive,
+  Trash2,
+  Download,
+  RotateCcw,
+  Info,
+  Sparkles,
+  List,
+  Image as ImageIcon,
+  CornerDownLeft,
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -25,9 +34,11 @@ import { translations, Language } from '@/lib/i18n';
 import { normalizePhoneNumber } from '@/lib/phone-utils';
 import { APP_NAME, APP_VERSION_LABEL } from '@/lib/brand';
 import { notifyServiceBot } from '@/lib/service-bot';
+import { getAppSettings, resetAppSettings, updateAppSettings, useAppSettings } from '@/lib/app-settings';
+import { clearAppCache, formatBytes, getCacheStats, type CacheStats } from '@/lib/cache';
 import { cn } from '@/lib/utils';
 
-type SettingsTab = 'profile' | 'appearance' | 'language';
+type SettingsTab = 'profile' | 'appearance' | 'data' | 'language';
 
 /** Сжимаем аватарку в квадрат 512×512, чтобы не раздувать Firestore. */
 function compressAvatar(file: File): Promise<string> {
@@ -55,6 +66,35 @@ function compressAvatar(file: File): Promise<string> {
   });
 }
 
+function SettingRow({
+  icon,
+  title,
+  description,
+  children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-3xl bg-surface-high/70 p-3.5">
+      <div className="flex min-w-0 items-center gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary-container text-primary-on-container">
+          {icon}
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-bold text-on-surface">{title}</p>
+          {description ? (
+            <p className="text-[11px] leading-snug text-on-surface-variant">{description}</p>
+          ) : null}
+        </div>
+      </div>
+      <div className="shrink-0">{children}</div>
+    </div>
+  );
+}
+
 export function SettingsDialog({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = React.useState(false);
   const [tab, setTab] = React.useState<SettingsTab>('profile');
@@ -62,6 +102,12 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
   const [isUploadingAvatar, setIsUploadingAvatar] = React.useState(false);
   const [isDarkMode, setIsDarkMode] = React.useState(false);
   const [lang, setLang] = React.useState<Language>('ru');
+  const [stats, setStats] = React.useState<CacheStats | null>(null);
+  const [isClearing, setIsClearing] = React.useState(false);
+  const [confirmClear, setConfirmClear] = React.useState(false);
+  const [lastCleared, setLastCleared] = React.useState<number | null>(null);
+
+  const settings = useAppSettings();
 
   const db = useFirestore();
   const { user } = useUser();
@@ -88,6 +134,17 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
     if (storedLang) setLang(storedLang);
     setIsDarkMode(document.documentElement.classList.contains('dark'));
   }, [userData]);
+
+  const refreshStats = React.useCallback(async () => {
+    setStats(await getCacheStats());
+  }, []);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const stored = localStorage.getItem('slink:lastCacheClear');
+    setLastCleared(stored ? Number(stored) : null);
+    if (tab === 'data') refreshStats();
+  }, [open, tab, refreshStats]);
 
   const t = translations[lang];
 
@@ -146,9 +203,59 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
     window.location.reload();
   };
 
+  const handleClearCache = async () => {
+    setIsClearing(true);
+    try {
+      const { freedBytes } = await clearAppCache();
+      setLastCleared(Date.now());
+      await refreshStats();
+      toast({
+        title: 'Кэш очищен',
+        description: freedBytes
+          ? `Освобождено ${formatBytes(freedBytes)}. Настройки и вход сохранены.`
+          : 'Настройки, тема и вход сохранены.',
+      });
+    } catch {
+      toast({ variant: 'destructive', title: 'Не удалось очистить кэш' });
+    } finally {
+      setIsClearing(false);
+      setConfirmClear(false);
+    }
+  };
+
+  const handleResetSettings = () => {
+    resetAppSettings();
+    toast({ title: 'Настройки сброшены', description: 'Тема и язык не изменились.' });
+  };
+
+  const handleExportProfile = () => {
+    if (!user) return;
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      profile: {
+        uid: user.uid,
+        displayName: userData?.displayName ?? user.displayName,
+        username: userData?.username ?? null,
+        email: userData?.email ?? user.email,
+        phoneNumber: userData?.phoneNumber ?? null,
+      },
+      settings: getAppSettings(),
+    };
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `slink-profile-${(userData?.username || 'me').replace('@', '')}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast({ title: 'Экспорт готов', description: 'JSON-файл профиля скачан' });
+  };
+
   const tabs: { key: SettingsTab; label: string; icon: typeof UserIcon }[] = [
     { key: 'profile', label: t.profile, icon: UserIcon },
     { key: 'appearance', label: t.appearance, icon: Palette },
+    { key: 'data', label: 'Данные', icon: HardDrive },
     { key: 'language', label: t.language, icon: Languages },
   ];
 
@@ -167,7 +274,7 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
         </DialogHeader>
 
         <div className="px-4 pt-4">
-          <div className="grid grid-cols-3 gap-1 rounded-full bg-surface-high p-1">
+          <div className="grid grid-cols-4 gap-1 rounded-full bg-surface-high p-1">
             {tabs.map(({ key, label, icon: Icon }) => (
               <button
                 key={key}
@@ -210,12 +317,7 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
                     ) : (
                       <Camera className="h-4 w-4" />
                     )}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleAvatarChange}
-                    />
+                    <input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
                   </label>
                 </div>
                 <p className="font-mono text-xs uppercase tracking-widest text-on-surface-variant">
@@ -260,19 +362,58 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
           )}
 
           {tab === 'appearance' && (
-            <div className="space-y-3 animate-in fade-in duration-200">
-              <div className="flex items-center justify-between gap-3 rounded-3xl bg-surface-high/70 p-4">
-                <div className="flex items-center gap-3">
-                  <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary-container text-primary-on-container">
-                    {isDarkMode ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
-                  </span>
-                  <div>
-                    <p className="text-sm font-bold text-on-surface">{t.darkMode}</p>
-                    <p className="text-[11px] text-on-surface-variant">{t.darkModeHint}</p>
-                  </div>
-                </div>
+            <div className="space-y-2.5 animate-in fade-in duration-200">
+              <SettingRow
+                icon={isDarkMode ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+                title={t.darkMode}
+                description={t.darkModeHint}
+              >
                 <Switch checked={isDarkMode} onCheckedChange={toggleTheme} />
-              </div>
+              </SettingRow>
+
+              <SettingRow
+                icon={<Sparkles className="h-5 w-5" />}
+                title="Анимации"
+                description="Плавные переходы, появление сообщений и списков"
+              >
+                <Switch
+                  checked={settings.animations}
+                  onCheckedChange={(value) => updateAppSettings({ animations: value })}
+                />
+              </SettingRow>
+
+              <SettingRow
+                icon={<List className="h-5 w-5" />}
+                title="Компактный список чатов"
+                description="Больше диалогов на экране"
+              >
+                <Switch
+                  checked={settings.compactChats}
+                  onCheckedChange={(value) => updateAppSettings({ compactChats: value })}
+                />
+              </SettingRow>
+
+              <SettingRow
+                icon={<ImageIcon className="h-5 w-5" />}
+                title="Показывать истории"
+                description="Блок историй над списком чатов"
+              >
+                <Switch
+                  checked={settings.showStories}
+                  onCheckedChange={(value) => updateAppSettings({ showStories: value })}
+                />
+              </SettingRow>
+
+              <SettingRow
+                icon={<CornerDownLeft className="h-5 w-5" />}
+                title="Enter отправляет сообщение"
+                description="Shift + Enter — перенос строки"
+              >
+                <Switch
+                  checked={settings.sendOnEnter}
+                  onCheckedChange={(value) => updateAppSettings({ sendOnEnter: value })}
+                />
+              </SettingRow>
 
               <div className="rounded-3xl border border-outline-variant/60 p-4">
                 <p className="m3-label mb-3">Палитра SLink</p>
@@ -284,6 +425,124 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
                   <span className="h-10 flex-1 rounded-xl bg-tertiary-container" />
                 </div>
               </div>
+            </div>
+          )}
+
+          {tab === 'data' && (
+            <div className="space-y-3 animate-in fade-in duration-200">
+              <div className="rounded-3xl border border-outline-variant/60 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary-container text-primary-on-container">
+                      <HardDrive className="h-5 w-5" />
+                    </span>
+                    <div>
+                      <p className="text-sm font-bold text-on-surface">Кэш приложения</p>
+                      <p className="text-[11px] text-on-surface-variant">
+                        {stats ? `${formatBytes(stats.totalBytes)} · файлов в кэше: ${stats.cacheEntries}` : 'Считаем…'}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="rounded-full"
+                    onClick={refreshStats}
+                    aria-label="Обновить размер кэша"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                {stats?.quota ? (
+                  <div className="mt-3 space-y-1">
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-highest">
+                      <div
+                        className="h-full rounded-full bg-primary transition-all duration-500"
+                        style={{ width: `${Math.min(100, ((stats.usage ?? 0) / stats.quota) * 100)}%` }}
+                      />
+                    </div>
+                    <p className="text-[10px] text-on-surface-variant">
+                      Хранилище браузера: {formatBytes(stats.usage ?? 0)} из {formatBytes(stats.quota)}
+                    </p>
+                  </div>
+                ) : null}
+
+                <div className="mt-3 flex items-center gap-2 rounded-2xl bg-surface-high/70 p-2.5">
+                  <Info className="h-4 w-4 shrink-0 text-primary" />
+                  <p className="text-[11px] leading-snug text-on-surface-variant">
+                    Очистка удаляет кэш страниц и временные данные. Настройки, тема, язык и вход
+                    сохраняются.
+                  </p>
+                </div>
+
+                {confirmClear ? (
+                  <div className="mt-3 flex gap-2">
+                    <Button
+                      variant="outline"
+                      className="h-11 flex-1 rounded-full"
+                      onClick={() => setConfirmClear(false)}
+                      disabled={isClearing}
+                    >
+                      Отмена
+                    </Button>
+                    <Button
+                      className="h-11 flex-1 rounded-full bg-destructive font-bold text-destructive-foreground"
+                      onClick={handleClearCache}
+                      disabled={isClearing}
+                    >
+                      {isClearing ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Очистить'}
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    className="mt-3 h-11 w-full gap-2 rounded-full bg-primary font-bold text-primary-foreground"
+                    onClick={() => setConfirmClear(true)}
+                  >
+                    <Trash2 className="h-4 w-4" /> Очистить кэш
+                  </Button>
+                )}
+
+                {lastCleared ? (
+                  <p className="mt-2 text-center text-[10px] text-on-surface-variant">
+                    Последняя очистка: {new Date(lastCleared).toLocaleString('ru-RU')}
+                  </p>
+                ) : null}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleExportProfile}
+                className="flex w-full items-center justify-between gap-3 rounded-3xl bg-surface-high/70 p-3.5 text-left transition-colors hover:bg-surface-high"
+              >
+                <span className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-secondary-container text-secondary-on-container">
+                    <Download className="h-5 w-5" />
+                  </span>
+                  <span>
+                    <span className="block text-sm font-bold text-on-surface">Экспорт профиля</span>
+                    <span className="block text-[11px] text-on-surface-variant">JSON с данными аккаунта</span>
+                  </span>
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleResetSettings}
+                className="flex w-full items-center justify-between gap-3 rounded-3xl bg-surface-high/70 p-3.5 text-left transition-colors hover:bg-surface-high"
+              >
+                <span className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-tertiary-container text-tertiary-on-container">
+                    <RotateCcw className="h-5 w-5" />
+                  </span>
+                  <span>
+                    <span className="block text-sm font-bold text-on-surface">Сбросить настройки</span>
+                    <span className="block text-[11px] text-on-surface-variant">
+                      Вернуть оформление по умолчанию
+                    </span>
+                  </span>
+                </span>
+              </button>
             </div>
           )}
 
@@ -308,9 +567,7 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
                   <span className="flex items-center gap-3 text-sm font-semibold text-on-surface">
                     <span className="text-xl">{option.flag}</span> {option.label}
                   </span>
-                  {lang === option.value && (
-                    <span className="h-2.5 w-2.5 rounded-full bg-primary" />
-                  )}
+                  {lang === option.value && <span className="h-2.5 w-2.5 rounded-full bg-primary" />}
                 </button>
               ))}
             </div>

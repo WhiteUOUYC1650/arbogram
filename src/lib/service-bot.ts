@@ -75,8 +75,20 @@ export async function ensureServiceChat(
   if (!db || !user) return null;
 
   const chatRef = doc(db, 'chats', serviceChatId(user.uid));
-  const existing = await getDoc(chatRef);
-  if (existing.exists()) return chatRef.id;
+
+  try {
+    const existing = await getDoc(chatRef);
+    if (existing.exists()) {
+      const participants = existing.data()?.participants as string[] | undefined;
+      // Если пользователь когда-то «вышел» из служебного чата — возвращаем доступ
+      if (participants && !participants.includes(user.uid)) {
+        await setDoc(chatRef, { participants: [...participants, user.uid] }, { merge: true });
+      }
+      return chatRef.id;
+    }
+  } catch (error) {
+    console.warn('[SLink] Не удалось прочитать служебный чат, пересоздаём:', error);
+  }
 
   const now = Date.now();
   const name = displayName?.trim() || user.displayName || 'друг';

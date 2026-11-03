@@ -31,7 +31,7 @@ export function SlinkLogo({ className }: SlinkLogoProps) {
       aria-label="SLink"
       role="img"
     >
-      <svg viewBox="0 0 64 64" className="h-full w-full">
+      <svg viewBox="0 0 64 64" className="h-full w-full" aria-hidden="true">
         <defs>
           <linearGradient id={`${gradientId}-g`} x1="0" y1="0" x2="1" y2="1">
             <stop offset="0%" stopColor="#7C5CFF" />

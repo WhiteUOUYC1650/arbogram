@@ -4,7 +4,7 @@ import { useFirestore, useUser, useDoc, useCollection } from '@/firebase';
 import { AuthGuard } from '@/components/auth-guard';
 import { doc, updateDoc, collection } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/user-avatar';
 import { Input } from '@/components/ui/input';
 import { ShieldAlert, Ban, UserCheck, Loader2, Key, ArrowLeft, Search, Users } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -139,12 +139,11 @@ export default function AdminPage() {
                     className="flex items-center justify-between gap-3 rounded-3xl border border-outline-variant/60 bg-surface-low p-3 md:p-4"
                   >
                     <div className="flex min-w-0 items-center gap-3">
-                      <Avatar className="h-11 w-11 rounded-2xl md:h-12 md:w-12">
-                        <AvatarImage src={u.photoURL} className="object-cover" />
-                        <AvatarFallback className="rounded-2xl bg-primary-container font-bold text-primary-on-container">
-                          {u.displayName?.[0]}
-                        </AvatarFallback>
-                      </Avatar>
+                      <UserAvatar
+                        userId={u.uid}
+                        fallback={u.displayName}
+                        className="h-11 w-11 rounded-2xl md:h-12 md:w-12"
+                      />
                       <div className="min-w-0">
                         <p className="flex items-center gap-2 truncate text-sm font-bold text-on-surface md:text-base">
                           {u.displayName}

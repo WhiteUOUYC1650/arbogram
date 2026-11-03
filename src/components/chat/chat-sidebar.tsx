@@ -41,6 +41,7 @@ import Link from 'next/link';
 import { UserProfileDialog } from './user-profile-dialog';
 import { sendSystemNotification } from '@/lib/system-notifications';
 import { ensureServiceChat, serviceChatId } from '@/lib/service-bot';
+import { useAppSettings } from '@/lib/app-settings';
 
 const GLOBAL_CHAT_ID = "p7gSC3o9OxVezsjDbrFq";
 
@@ -65,6 +66,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
   const db = useFirestore();
   const auth = useAuth();
   const { user } = useUser();
+  const settings = useAppSettings();
 
   React.useEffect(() => {
     const storedLang = localStorage.getItem('lang') as Language;
@@ -192,7 +194,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
       <div className="shrink-0 space-y-3 border-b border-outline-variant/50 bg-surface-low/90 px-4 pb-3 pt-4 backdrop-blur-xl">
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-3">
-            <SlinkLogo className="h-10 w-10" />
+            <SlinkLogo className="h-10 w-10 transition-transform duration-300 hover:rotate-3" />
             <div className="min-w-0">
               <h1 className="truncate text-[22px] font-extrabold leading-none tracking-tight text-on-surface">
                 {APP_NAME}
@@ -302,7 +304,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
         )}
       </div>
 
-      {!searchTerm && <StoriesBar onStartChat={onChatSelect} />}
+      {!searchTerm && settings.showStories && <StoriesBar onStartChat={onChatSelect} />}
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <div className="space-y-1 px-2 pb-24 pt-2">
@@ -373,7 +375,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
                 onClick={handleOpenServiceChat}
                 aria-label="Служебные уведомления SLink"
                 className={cn(
-                  'mb-2 flex w-full items-center gap-3 rounded-3xl border p-2.5 text-left transition-colors',
+                  'anim-fade-up mb-2 flex w-full items-center gap-3 rounded-3xl border p-2.5 text-left transition-colors',
                   activeChatId === serviceChatId(user?.uid || '')
                     ? 'border-transparent bg-primary-container'
                     : 'border-outline-variant/50 bg-surface-low hover:bg-on-surface/[0.05] active:bg-on-surface/[0.09]',
@@ -395,7 +397,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
                 type="button"
                 onClick={handleOpenGlobalChat}
                 className={cn(
-                  'mb-2 flex w-full items-center gap-3 rounded-3xl border border-transparent p-2.5 text-left transition-colors',
+                  'anim-fade-up anim-delay-1 mb-2 flex w-full items-center gap-3 rounded-3xl border border-transparent p-2.5 text-left transition-colors',
                   activeChatId === GLOBAL_CHAT_ID
                     ? 'bg-secondary-container'
                     : 'border-outline-variant/50 bg-secondary-container/40 hover:bg-secondary-container/60',
@@ -429,12 +431,14 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
                   <p className="text-sm font-medium text-on-surface-variant">{t.emptyChats}</p>
                 </div>
               ) : (
-                filteredChats.map((chat: any) => (
+                filteredChats.map((chat: any, index: number) => (
                   <ChatItem
                     key={chat.id}
                     chat={chat}
                     user={user}
                     isActive={activeChatId === chat.id}
+                    compact={settings.compactChats}
+                    animationDelay={Math.min(index, 10) * 35}
                     onSelect={() => onChatSelect(chat.id)}
                   />
                 ))
@@ -462,11 +466,15 @@ function ChatItem({
   chat,
   user,
   isActive,
+  compact = false,
+  animationDelay = 0,
   onSelect,
 }: {
   chat: any;
   user: any;
   isActive: boolean;
+  compact?: boolean;
+  animationDelay?: number;
   onSelect: () => void;
 }) {
   const db = useFirestore();
@@ -494,18 +502,29 @@ function ChatItem({
     <button
       type="button"
       onClick={onSelect}
+      style={{ animationDelay: `${animationDelay}ms` }}
       className={cn(
-        'flex w-full items-center gap-3 rounded-3xl p-2.5 text-left transition-colors duration-200',
+        'anim-fade-up flex w-full items-center gap-3 rounded-3xl text-left transition-colors duration-200',
+        compact ? 'p-2' : 'p-2.5',
         isActive ? 'bg-primary-container' : 'hover:bg-on-surface/[0.05] active:bg-on-surface/[0.09]',
       )}
     >
       <div className="relative shrink-0">
         {chat.type === 'group' || chat.type === 'channel' ? (
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-tertiary-container text-tertiary-on-container">
+          <div
+            className={cn(
+              'flex items-center justify-center rounded-full bg-tertiary-container text-tertiary-on-container',
+              compact ? 'h-10 w-10' : 'h-12 w-12',
+            )}
+          >
             {chat.type === 'channel' ? <Globe className="h-6 w-6" /> : <MessageSquare className="h-6 w-6" />}
           </div>
         ) : (
-          <UserAvatar userId={targetId} fallback={displayName} className="h-12 w-12" />
+          <UserAvatar
+            userId={targetId}
+            fallback={displayName}
+            className={compact ? 'h-10 w-10' : 'h-12 w-12'}
+          />
         )}
         {isOnline && (
           <span className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-surface-low bg-success" />

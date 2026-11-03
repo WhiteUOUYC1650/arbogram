@@ -29,7 +29,7 @@ export function SystemMessage({ text, kind = 'info', timestamp, className }: Sys
   const Icon = KIND_ICONS[kind] ?? Info;
 
   return (
-    <div className={cn('my-3 flex justify-center px-2', className)}>
+    <div className={cn('anim-pop my-3 flex justify-center px-2', className)}>
       <div className="inline-flex max-w-[92%] items-center gap-2 rounded-full bg-surface-high px-3.5 py-1.5 text-[11px] font-medium text-on-surface-variant">
         <Icon className="h-3.5 w-3.5 shrink-0 text-primary" />
         <span className="text-center leading-snug">{text}</span>

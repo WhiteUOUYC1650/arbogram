@@ -1,0 +1,21 @@
+{
+  "name": "slink-native",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SLink Android: разрешения микрофона (RECORD_AUDIO) для голосовых сообщений в WebView.",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "files": [
+    "android",
+    "index.js",
+    "index.d.ts"
+  ],
+  "capacitor": {
+    "android": {
+      "src": "android"
+    }
+  },
+  "peerDependencies": {
+    "@capacitor/core": ">=6.0.0"
+  }
+}

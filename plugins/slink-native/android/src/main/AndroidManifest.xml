@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Эти разрешения попадут в итоговый AndroidManifest приложения при Gradle-
+  манифест-мерже. Без RECORD_AUDIO getUserMedia() в WebView молча отклоняется,
+  и голосовые сообщения записать нельзя.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+</manifest>

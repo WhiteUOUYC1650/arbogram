@@ -98,3 +98,37 @@ src/lib/i18n.ts    локализации (ru/en)
 `FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_PROJECT_ID`, `FIREBASE_STORAGE_BUCKET`,
 `FIREBASE_MESSAGING_SENDER_ID`, `FIREBASE_APP_ID`. Если их нет — используются значения по умолчанию из
 `src/firebase/config.ts`.
+
+## Микрофон в Android APK
+
+Голосовые сообщения используют `getUserMedia` + `MediaRecorder` внутри WebView. Чтобы Android
+разрешил запись, в **итоговом** манифесте должны быть `RECORD_AUDIO` и `MODIFY_AUDIO_SETTINGS`:
+
+- [`plugins/slink-native`](plugins/slink-native) — локальный Android-плагин, чей манифест Gradle
+  вливает в манифест приложения при сборке. Он подключается автоматически при `npx cap sync`,
+  поэтому **менять CI-воркфлоу не нужно**: в `capacitor.settings.gradle` появляется
+  `include ':slink-native'`.
+- Runtime-разрешение запрашивает сам мост Capacitor
+  (`BridgeWebChromeClient.onPermissionRequest` → `RECORD_AUDIO`) в момент вызова `getUserMedia`.
+- `npm run android:permissions` (`scripts/patch-android-permissions.mjs`) — страховка для
+  локальных сборок: правит `android/app/src/main/AndroidManifest.xml`, если плагин не подключён.
+- В `docs/ci/build.yml` добавлен шаг проверки: билд падает, если `RECORD_AUDIO` нет в
+  merged-манифесте.
+
+## Настройки
+
+Вкладки: **Профиль**, **Оформление**, **Данные**, **Язык**.
+
+- Оформление: тёмная тема, анимации, компактный список чатов, показ историй, Enter-отправка.
+  Всё хранится в `localStorage` (`slink:settings`) и применяется до первой отрисовки.
+- Данные: размер кэша и хранилища, **очистка кэша** (`src/lib/cache.ts`), экспорт профиля в JSON,
+  сброс настроек оформления. Очистка удаляет кэш/Cache API/временные ключи, но **не трогает**
+  `slink:settings`, `theme`, `lang` и сессию входа (IndexedDB Firebase не чистится).
+
+## Анимации
+
+Набор утилит в `globals.css`: `anim-fade-up`, `anim-pop`, `anim-slide-right`, `anim-float`,
+`anim-pulse-ring`, `anim-shimmer`, `anim-gradient`, `anim-press`, задержки `anim-delay-1…5`.
+Используются в списке чатов, сообщениях, пустых состояниях, логине и диалогах.
+Отключаются тумблером «Анимации» (класс `animations-off` на `<html>`) и уважают системный
+`prefers-reduced-motion`.

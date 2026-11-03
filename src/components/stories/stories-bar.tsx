@@ -38,7 +38,7 @@ export function StoriesBar({ onStartChat }: { onStartChat?: (id: string) => void
     <div className="shrink-0 border-b border-outline-variant/50 bg-surface-low">
       <div className="no-scrollbar flex w-full gap-4 overflow-x-auto px-4 py-3">
         <CreateStoryDialog>
-          <button type="button" className="group flex shrink-0 flex-col items-center gap-1.5">
+          <button type="button" className="anim-press group flex shrink-0 flex-col items-center gap-1.5">
             <span className="flex h-14 w-14 items-center justify-center rounded-full border border-dashed border-outline bg-surface-high text-primary transition-colors group-hover:bg-surface-highest">
               <Plus className="h-6 w-6" />
             </span>
@@ -63,8 +63,17 @@ function StoryViewer({ group, onStartChat }: { group: any; onStartChat?: (id: st
   const db = useFirestore();
   const { toast } = useToast();
 
-  const currentStory = group.stories[currentIndex];
+  // Если историю удалили (свою) или она истекла — индекс мог выйти за границы
+  React.useEffect(() => {
+    if (currentIndex > group.stories.length - 1) {
+      setCurrentIndex(Math.max(0, group.stories.length - 1));
+    }
+  }, [group.stories.length, currentIndex]);
+
+  const currentStory = group.stories[currentIndex] ?? group.stories[group.stories.length - 1];
   const isOwner = user?.uid === group.userId;
+
+  if (!currentStory) return null;
 
   return (
     <Dialog
@@ -75,7 +84,7 @@ function StoryViewer({ group, onStartChat }: { group: any; onStartChat?: (id: st
       }}
     >
       <DialogTrigger asChild>
-        <button type="button" className="group flex shrink-0 flex-col items-center gap-1.5">
+        <button type="button" className="anim-press group flex shrink-0 flex-col items-center gap-1.5">
           <span className="slink-gradient flex h-14 w-14 items-center justify-center rounded-full p-[2px] transition-transform group-hover:scale-105 group-active:scale-95">
             <span className="flex h-full w-full items-center justify-center rounded-full bg-surface-low p-[2px]">
               <UserAvatar userId={group.userId} fallback={group.userName} className="h-full w-full" />

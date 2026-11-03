@@ -38,6 +38,7 @@ import { UserProfileDialog } from './user-profile-dialog';
 import { SystemMessage } from './system-message';
 import { sendSystemNotification } from '@/lib/system-notifications';
 import { SERVICE_BOT_ID, isServiceChatId } from '@/lib/service-bot';
+import { useAppSettings } from '@/lib/app-settings';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { format } from 'date-fns';
@@ -65,7 +66,10 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
   const db = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
+  const settings = useAppSettings();
   const scrollRef = React.useRef<HTMLDivElement>(null);
+  const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+  const stickToBottomRef = React.useRef(true);
 
   React.useEffect(() => {
     const storedLang = localStorage.getItem('lang') as Language;
@@ -94,11 +98,33 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
   }, [db, chatId]);
   const { data: rawMessages } = useCollection(messagesQuery);
 
+  // Скроллим вниз только если пользователь уже внизу ленты,
+  // иначе чтение истории будет постоянно «прыгать» вниз.
   React.useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollIntoView({ behavior: 'smooth' });
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const distance = container.scrollHeight - container.scrollTop - container.clientHeight;
+      stickToBottomRef.current = distance < 120;
+    };
+
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  React.useEffect(() => {
+    if (!scrollRef.current) return;
+    if (stickToBottomRef.current) {
+      scrollRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }
   }, [rawMessages]);
+
+  // При открытии чата всегда показываем последние сообщения
+  React.useEffect(() => {
+    stickToBottomRef.current = true;
+    scrollRef.current?.scrollIntoView({ block: 'end' });
+  }, [chatId]);
 
   const handleSend = async (
     options: { audioUrl?: string; duration?: number; poll?: any; sticker?: { id: string; packId: string } } = {},
@@ -139,7 +165,9 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
       if (sticker) last = '🎨 Стикер';
       if (poll) last = '📊 Опрос';
       if (audioUrl) last = '🎤 Голосовое сообщение';
-      await updateDoc(chatRef!, { lastMessage: last, lastMessageTime: Date.now() });
+      if (chatRef) {
+        await updateDoc(chatRef, { lastMessage: last, lastMessageTime: Date.now() });
+      }
       setMessage('');
       setSelectedImages([]);
       setReplyTo(null);
@@ -329,7 +357,10 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
       </header>
 
       {/* Messages */}
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 md:px-6">
+      <div
+        ref={scrollContainerRef}
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 md:px-6"
+      >
         <div className="mx-auto w-full max-w-3xl py-2">
           {!rawMessages?.length && (
             <div className="flex flex-col items-center justify-center gap-4 py-24 text-center">
@@ -589,7 +620,12 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
                 placeholder={t.message}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey && settings.sendOnEnter) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
                 className="h-12 rounded-3xl border-none bg-surface-high px-4 text-[15px] shadow-none focus-visible:ring-2 focus-visible:ring-primary/40"
               />
             </div>
@@ -821,6 +857,15 @@ function VoiceRecorder({ onSend }: { onSend: (payload: { url: string; duration: 
 
   const startRecording = async () => {
     if (isRecording) return;
+
+    if (typeof window === 'undefined' || typeof MediaRecorder === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      toast({
+        variant: 'destructive',
+        title: 'Запись недоступна',
+        description: 'Этот браузер не поддерживает запись звука.',
+      });
+      return;
+    }
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });

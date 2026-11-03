@@ -3,6 +3,7 @@ import './globals.css';
 import { FirebaseClientProvider } from '@/firebase';
 import { FirebaseErrorListener } from '@/components/firebase-error-listener';
 import { Toaster } from '@/components/ui/toaster';
+import { AppSettingsSync } from '@/components/app-settings-sync';
 import { APP_FULL_NAME, APP_NAME, APP_TAGLINE } from '@/lib/brand';
 
 export const metadata: Metadata = {
@@ -45,6 +46,13 @@ const themeInitScript = `
     var stored = localStorage.getItem('theme');
     var dark = stored ? stored === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
     document.documentElement.classList.toggle('dark', dark);
+
+    // Настройки интерфейса применяем до первой отрисовки, чтобы не было «прыжка».
+    var raw = localStorage.getItem('slink:settings');
+    if (raw) {
+      var settings = JSON.parse(raw);
+      if (settings.animations === false) document.documentElement.classList.add('animations-off');
+    }
   } catch (e) {}
 })();
 `;
@@ -70,6 +78,7 @@ export default function RootLayout({
       <body className="font-body antialiased overflow-hidden">
         <FirebaseClientProvider>
           <FirebaseErrorListener />
+          <AppSettingsSync />
           {children}
           <Toaster />
         </FirebaseClientProvider>

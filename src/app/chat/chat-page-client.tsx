@@ -128,7 +128,7 @@ export default function ChatPageClient() {
               />
 
               <div className="relative z-10 flex max-w-md flex-col items-center gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <SlinkLogo className="h-28 w-28" />
+                <SlinkLogo className="h-28 w-28 anim-float" />
 
                 <div className="space-y-2">
                   <h1 className="slink-text-gradient text-5xl font-extrabold tracking-tight">
@@ -145,10 +145,11 @@ export default function ChatPageClient() {
                     { icon: MessagesSquare, label: 'Чаты' },
                     { icon: Users, label: 'Группы' },
                     { icon: ShieldCheck, label: 'Приватно' },
-                  ].map(({ icon: Icon, label }) => (
+                  ].map(({ icon: Icon, label }, index) => (
                     <div
                       key={label}
-                      className="flex flex-col items-center gap-2 rounded-3xl border border-outline-variant/60 bg-surface-low/70 px-3 py-4"
+                      style={{ animationDelay: `${120 + index * 70}ms` }}
+                      className="anim-fade-up flex flex-col items-center gap-2 rounded-3xl border border-outline-variant/60 bg-surface-low/70 px-3 py-4"
                     >
                       <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary-container text-primary-on-container">
                         <Icon className="h-5 w-5" />
@@ -158,7 +159,7 @@ export default function ChatPageClient() {
                   ))}
                 </div>
 
-                <p className="flex items-center gap-2 text-xs text-on-surface-variant/80">
+                <p className="anim-fade-up anim-delay-5 flex items-center gap-2 text-xs text-on-surface-variant/80">
                   <Sparkles className="h-4 w-4 text-primary" />
                   {t.selectChatHint}
                 </p>

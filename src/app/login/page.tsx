@@ -303,7 +303,7 @@ export default function LoginPage() {
       <div className="relative z-10 mx-auto flex min-h-[100dvh] w-full max-w-6xl flex-col items-center justify-center gap-10 px-5 py-12 lg:flex-row lg:items-center lg:gap-20">
         {/* Brand panel */}
         <div className="flex w-full max-w-md flex-col items-center text-center lg:items-start lg:text-left">
-          <SlinkLogo className="h-20 w-20 lg:h-24 lg:w-24" />
+          <SlinkLogo className="anim-float h-20 w-20 lg:h-24 lg:w-24" />
           <h1 className="mt-5 text-4xl font-extrabold tracking-tight text-on-surface lg:text-5xl">
             {APP_NAME}
           </h1>
@@ -316,10 +316,11 @@ export default function LoginPage() {
               { icon: MessagesSquare, text: 'Быстрые личные диалоги и общий чат' },
               { icon: Users, text: 'Группы, каналы и истории в одном месте' },
               { icon: ShieldCheck, text: 'Приватность и восстановление доступа по ПИН' },
-            ].map(({ icon: Icon, text }) => (
+            ].map(({ icon: Icon, text }, index) => (
               <div
                 key={text}
-                className="flex items-center gap-3 rounded-2xl border border-outline-variant/50 bg-surface-low/70 px-4 py-3"
+                style={{ animationDelay: `${120 + index * 90}ms` }}
+                className="anim-fade-up flex items-center gap-3 rounded-2xl border border-outline-variant/50 bg-surface-low/70 px-4 py-3"
               >
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-container text-primary-on-container">
                   <Icon className="h-4 w-4" />
@@ -331,7 +332,7 @@ export default function LoginPage() {
         </div>
 
         {/* Auth card */}
-        <div className="w-full max-w-md rounded-[32px] border border-outline-variant/60 bg-surface-low p-6 shadow-m3 sm:p-8">
+        <div className="anim-pop w-full max-w-md rounded-[32px] border border-outline-variant/60 bg-surface-low p-6 shadow-m3 sm:p-8">
           {(mode === 'login' || mode === 'register') && (
             <div className="mb-6 grid grid-cols-2 gap-1 rounded-full bg-surface-high p-1">
               {segmentModes.map((m) => (
