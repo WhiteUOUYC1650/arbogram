@@ -26,6 +26,7 @@ import { useToast } from '@/hooks/use-toast';
 import { SlinkLogo } from '@/components/slink-logo';
 import { translations, Language } from '@/lib/i18n';
 import { normalizePhoneNumber } from '@/lib/phone-utils';
+import { updateAppSettings, useAppSettings } from '@/lib/app-settings';
 import { APP_NAME, APP_TAGLINE, PHONE_EMAIL_DOMAIN } from '@/lib/brand';
 import { cn } from '@/lib/utils';
 
@@ -46,6 +47,7 @@ export default function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lang, setLang] = useState<Language>('ru');
   const [isDark, setIsDark] = useState(false);
+  const settings = useAppSettings();
 
   // Recovery state
   const [recoveryPin, setRecoveryPin] = useState('');
@@ -56,7 +58,7 @@ export default function LoginPage() {
     const storedLang = localStorage.getItem('lang') as Language;
     if (storedLang) setLang(storedLang);
     setIsDark(document.documentElement.classList.contains('dark'));
-  }, []);
+  }, [settings.theme]);
 
   const t = translations[lang];
 
@@ -77,10 +79,8 @@ export default function LoginPage() {
   }, [user, loading, db, router, mode]);
 
   const toggleTheme = () => {
-    const next = !isDark;
-    setIsDark(next);
-    document.documentElement.classList.toggle('dark', next);
-    localStorage.setItem('theme', next ? 'dark' : 'light');
+    const next = !document.documentElement.classList.contains('dark');
+    updateAppSettings({ theme: next ? 'dark' : 'light' });
   };
 
   const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {

@@ -18,9 +18,17 @@ export function useCollection<T = DocumentData>(queryRef: Query<T> | null) {
 
   useEffect(() => {
     if (!queryRef) {
+      // Сбрасываем данные, иначе после смены чата/выхода остаётся чужая лента.
+      setData(null);
       setLoading(false);
+      setError(null);
       return;
     }
+
+    // Пока приходит новый snapshot, не показываем данные предыдущего запроса.
+    setData(null);
+    setLoading(true);
+    setError(null);
 
     const unsubscribe = onSnapshot(
       queryRef,

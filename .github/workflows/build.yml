@@ -64,6 +64,9 @@ jobs:
       - name: Sync web assets into Android project
         run: npx cap sync android
 
+      - name: Ensure microphone permissions in Android manifest
+        run: node scripts/patch-android-permissions.mjs
+
       - name: Set up Gradle cache
         uses: gradle/actions/setup-gradle@v3
 
@@ -72,6 +75,17 @@ jobs:
         run: |
           chmod +x ./gradlew
           ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Verify microphone permission in merged manifest
+        working-directory: android
+        run: |
+          MANIFEST=$(find app/build/intermediates -path "*merged_manifests*debug*AndroidManifest.xml" | head -1)
+          echo "merged manifest: $MANIFEST"
+          if [ -z "$MANIFEST" ] || ! grep -q "android.permission.RECORD_AUDIO" "$MANIFEST"; then
+            echo "::error::RECORD_AUDIO отсутствует в итоговом манифесте — голосовые не запишутся"
+            exit 1
+          fi
+          echo "RECORD_AUDIO на месте ✅"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

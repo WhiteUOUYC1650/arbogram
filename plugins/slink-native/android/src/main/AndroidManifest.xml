@@ -7,4 +7,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <!-- Микрофон не обязателен: приложение должно ставиться и на устройства без него. -->
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
 </manifest>

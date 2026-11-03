@@ -18,9 +18,16 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
 
   useEffect(() => {
     if (!docRef) {
+      setData(null);
       setLoading(false);
+      setError(null);
       return;
     }
+
+    // Не показываем данные предыдущего документа, пока не пришёл новый snapshot.
+    setData(null);
+    setLoading(true);
+    setError(null);
 
     const unsubscribe = onSnapshot(
       docRef,
@@ -28,12 +35,14 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
         setData(snapshot.exists() ? ({ ...snapshot.data(), id: snapshot.id } as T) : null);
         setLoading(false);
       },
-      async (err) => {
-        const permissionError = new FirestorePermissionError({
-          path: docRef.path,
-          operation: 'get',
-        });
-        errorEmitter.emit('permission-error', permissionError);
+      async (err: any) => {
+        if (err?.code === 'permission-denied') {
+          const permissionError = new FirestorePermissionError({
+            path: docRef.path,
+            operation: 'get',
+          });
+          errorEmitter.emit('permission-error', permissionError);
+        }
         setError(err);
         setLoading(false);
       }
