@@ -26,7 +26,7 @@ export function UserAvatar({ userId, fallback, className }: UserAvatarProps) {
       {avatarData?.base64 ? (
         <AvatarImage src={avatarData.base64} className="object-cover" />
       ) : null}
-      <AvatarFallback className="bg-accent/10 text-accent font-bold">
+      <AvatarFallback className="bg-primary-container font-bold text-primary-on-container">
         {fallback ? fallback[0].toUpperCase() : <User className="w-4 h-4" />}
       </AvatarFallback>
     </Avatar>

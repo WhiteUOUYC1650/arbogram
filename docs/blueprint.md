@@ -1,20 +1,20 @@
-# **App Name**: Arbogram
+# **App Name**: SLink Messenger
 
 ## Core Features:
 
-- User Authentication: Secure user registration, login, and profile management for personalized and protected access.
-- Individual & Group Chats: Seamlessly send and receive messages in private one-on-one conversations and dynamic group discussions.
-- Secure Message Delivery: Ensure messages are sent and received securely with reliable delivery confirmation.
-- Media Sharing: Ability to share images, videos, and other file types within chats.
-- Message History: Persistent storage and retrieval of chat conversations for users.
-- Customizable Chat Themes: Users can personalize the visual appearance of their chat interface with pre-defined or custom themes.
+- User Authentication: Secure user registration, login, and profile management (email, @username, phone) with PIN-based account recovery.
+- Individual & Group Chats: Private one-on-one conversations, group discussions and public channels.
+- Secure Message Delivery: Messages are stored in Firestore with membership-based access rules.
+- Media & Expression: Images, voice messages, stickers/GIF packs and polls inside chats.
+- Stories: 24-hour stories from people you talk to.
+- Customizable Appearance: Material 3 light/dark theme, persisted per device, plus ru/en localization.
 
-## Style Guidelines:
+## Style Guidelines (Material 3, standard — not expressive):
 
-- Primary Color: A soft, pale mint green (#94D1A9) to evoke freshness and tranquility, defining interactive elements.
-- Background Color: An extremely desaturated hint of green, almost white (#F0F5F1), providing a clean, modern, and spacious canvas.
-- Accent Color: A more vibrant yet earthy green (#66C653) to draw attention to call-to-action buttons and important highlights, maintaining harmony with the primary palette.
-- Font: 'Inter' (sans-serif) for all text elements, chosen for its excellent readability, modern aesthetic, and versatility across both headlines and body text, supporting seamless communication.
-- Icons: Clean, line-based icons with rounded edges, in a monochromatic style (using the primary or accent color) to maintain the app's fresh and modern aesthetic.
-- Layout: Minimalist and intuitive, prioritizing content clarity with generous use of white space, clearly separating chat bubbles, media, and interface controls for effortless navigation.
-- Animation: Subtle and fluid transitions for message sending/receiving, chat entry/exit, and menu interactions, contributing to a seamless and polished user experience without being distracting.
+- Palette: SLink violet (`#6C5CFF`) as primary with a lavender primary container, link teal as secondary and signal coral as tertiary.
+- Surfaces: Tonal elevation via `surface`, `surface-container-low/high`, `outline-variant` roles instead of heavy shadows.
+- Shape: Generous Material 3 radii — 28px for cards and dialogs, 20px for chat bubbles, 16px for list rows, full pills for buttons and chips.
+- Typography: Inter, tight display headings, 11px uppercase eyebrow labels, comfortable 14–15px message text.
+- Icons: lucide line icons, monochrome, placed in tonal containers (primary/secondary/tertiary containers).
+- Motion: Short, purposeful transitions (200–300 ms) for messages, sheets and state layers; no bouncy/expressive motion.
+- Layout: Two-pane desktop shell (list + conversation) collapsing to a single mobile pane; generous spacing and 44px+ touch targets.

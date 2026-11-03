@@ -12,7 +12,7 @@ export function FirebaseErrorListener() {
   useEffect(() => {
     const handlePermissionError = (error: FirestorePermissionError) => {
       // Выводим детальную информацию в консоль (F12)
-      console.group("%c[CoveChat Firestore Error]", "color: #ef4444; font-weight: bold;");
+      console.group("%c[SLink Firestore Error]", "color: #ef4444; font-weight: bold;");
       console.error("Message:", error.message);
       console.error("Path:", error.context?.path);
       console.error("Operation:", error.context?.operation);

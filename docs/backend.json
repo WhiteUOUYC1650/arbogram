@@ -1,4 +1,3 @@
-
 {
   "entities": {
     "User": {
@@ -6,39 +5,92 @@
       "description": "Профіль користувача.",
       "type": "object",
       "properties": {
-        "uid": { "type": "string" },
-        "displayName": { "type": "string" },
-        "username": { "type": "string" },
-        "photoURL": { "type": "string" },
-        "email": { "type": "string" },
-        "phoneNumber": { "type": "string" },
-        "lastSeen": { "type": "number" },
-        "status": { "type": "string", "enum": ["online", "offline"] },
-        "isBanned": { "type": "boolean" },
-        "blockedUsers": { "type": "array", "items": { "type": "string" } },
-        "secretPin": { "type": "string", "description": "Секретный код для восстановления доступа" }
+        "uid": {
+          "type": "string"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "username": {
+          "type": "string"
+        },
+        "photoURL": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "phoneNumber": {
+          "type": "string"
+        },
+        "lastSeen": {
+          "type": "number"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "online",
+            "offline"
+          ]
+        },
+        "isBanned": {
+          "type": "boolean"
+        },
+        "blockedUsers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "secretPin": {
+          "type": "string",
+          "description": "Секретный код для восстановления доступа"
+        }
       },
-      "required": ["uid", "email", "username"]
+      "required": [
+        "uid",
+        "email",
+        "username"
+      ]
     },
     "StickerPack": {
       "title": "StickerPack",
       "description": "Набор стикеров",
       "type": "object",
       "properties": {
-        "name": { "type": "string" },
-        "ownerId": { "type": "string" },
-        "createdAt": { "type": "number" }
+        "name": {
+          "type": "string"
+        },
+        "ownerId": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "number"
+        }
       },
-      "required": ["name", "ownerId"]
+      "required": [
+        "name",
+        "ownerId"
+      ]
     },
     "Sticker": {
       "title": "Sticker",
       "description": "Стикер или GIF",
       "type": "object",
       "properties": {
-        "packId": { "type": "string" },
-        "type": { "type": "string", "enum": ["sticker", "gif"] },
-        "chunkCount": { "type": "number" }
+        "packId": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "sticker",
+            "gif"
+          ]
+        },
+        "chunkCount": {
+          "type": "number"
+        }
       }
     },
     "Chat": {
@@ -46,42 +98,127 @@
       "description": "Метадані чату",
       "type": "object",
       "properties": {
-        "participants": { "type": "array", "items": { "type": "string" } },
-        "ownerId": { "type": "string" },
-        "lastMessage": { "type": "string" },
-        "lastMessageTime": { "type": "number" },
-        "type": { "type": "string", "enum": ["individual", "group", "channel"] },
-        "name": { "type": "string" },
-        "slug": { "type": "string" },
-        "isPublic": { "type": "boolean" },
-        "createdAt": { "type": "object" }
+        "participants": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "ownerId": {
+          "type": "string"
+        },
+        "lastMessage": {
+          "type": "string"
+        },
+        "lastMessageTime": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "individual",
+            "group",
+            "channel"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "slug": {
+          "type": "string"
+        },
+        "isPublic": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "object"
+        }
       },
-      "required": ["participants", "type", "lastMessageTime"]
+      "required": [
+        "participants",
+        "type",
+        "lastMessageTime"
+      ]
     },
     "Message": {
       "title": "Message",
-      "description": "Повідомлення",
+      "description": "Повідомлення або службове уведомлення чату.",
       "type": "object",
       "properties": {
-        "senderId": { "type": "string" },
-        "senderName": { "type": "string" },
-        "type": { "type": "string", "enum": ["text", "image", "audio", "poll", "sticker"] },
-        "text": { "type": "string" },
-        "stickerId": { "type": "string" },
-        "packId": { "type": "string" },
-        "timestamp": { "type": "number" }
+        "senderId": {
+          "type": "string"
+        },
+        "senderName": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "text",
+            "image",
+            "audio",
+            "poll",
+            "sticker",
+            "system"
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "stickerId": {
+          "type": "string"
+        },
+        "packId": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "number"
+        },
+        "systemKind": {
+          "type": "string",
+          "enum": [
+            "info",
+            "created",
+            "joined",
+            "left",
+            "channel"
+          ],
+          "description": "Тон/иконка служебного уведомления (type=system)"
+        }
       },
-      "required": ["senderId", "type", "timestamp"]
+      "required": [
+        "senderId",
+        "type",
+        "timestamp"
+      ]
     }
   },
   "auth": {
-    "providers": ["password", "google.com"]
+    "providers": [
+      "password",
+      "google.com"
+    ]
   },
   "firestore": {
-    "/users/{userId}": { "schema": "User", "description": "Профілі" },
-    "/stickerPacks/{packId}": { "schema": "StickerPack", "description": "Паки" },
-    "/stickerPacks/{packId}/stickers/{stickerId}": { "schema": "Sticker", "description": "Стикеры" },
-    "/chats/{chatId}": { "schema": "Chat", "description": "Чати" },
-    "/chats/{chatId}/messages/{messageId}": { "schema": "Message", "description": "Повідомлення" }
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Профілі"
+    },
+    "/stickerPacks/{packId}": {
+      "schema": "StickerPack",
+      "description": "Паки"
+    },
+    "/stickerPacks/{packId}/stickers/{stickerId}": {
+      "schema": "Sticker",
+      "description": "Стикеры"
+    },
+    "/chats/{chatId}": {
+      "schema": "Chat",
+      "description": "Чати"
+    },
+    "/chats/{chatId}/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Повідомлення"
+    }
   }
 }

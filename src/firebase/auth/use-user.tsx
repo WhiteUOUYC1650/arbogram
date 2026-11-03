@@ -11,7 +11,11 @@ export function useUser() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!auth) return;
+    if (!auth) {
+      // Firebase недоступен (например, неверный apiKey) — не держим вечный спиннер
+      setLoading(false);
+      return;
+    }
     return onAuthStateChanged(auth, (user) => {
       setUser(user);
       setLoading(false);
