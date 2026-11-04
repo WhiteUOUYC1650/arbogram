@@ -10,7 +10,7 @@ Firestore сам создаёт индексы для одиночных пол�
 |---|---|---|---|
 | `chats` | `isPublic` ASC, `name` ASC | Collection | глобальный поиск каналов (`chat-sidebar.tsx`) |
 | `chats` | `type` ASC, `participants` ARRAY | Collection | поиск существующего личного диалога (`create-chat-dialog.tsx`, `chat-page-client.tsx`) |
-| `chats` | `slug` ASC, `type` ASC | Collection | проверка уникальности слага канала |
+| `chats` | `isPublic` ASC, `slug` ASC | Collection | открытие канала по ссылке (старые каналы) |
 
 ## Как создать
 

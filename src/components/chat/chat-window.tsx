@@ -18,6 +18,10 @@ import {
   BarChart2,
   MessageSquarePlus,
   LogOut,
+  MessagesSquare,
+  Palette as PaletteIcon,
+  Hash,
+  Settings2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,6 +43,10 @@ import { SystemMessage } from './system-message';
 import { sendSystemNotification } from '@/lib/system-notifications';
 import { SERVICE_BOT_ID, isServiceChatId } from '@/lib/service-bot';
 import { useAppSettings } from '@/lib/app-settings';
+import { useUserPrefs } from '@/lib/user-prefs';
+import { DEFAULT_CHAT_APPEARANCE, WALLPAPERS } from '@/lib/palettes';
+import { ChatAppearanceDialog } from './chat-appearance-dialog';
+import { ChannelSettingsDialog } from './channel-settings-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { format } from 'date-fns';
@@ -50,9 +58,10 @@ interface ChatWindowProps {
   chatId: string;
   onBack?: () => void;
   onStartDirectChat?: (userId: string) => void;
+  onOpenChat?: (chatId: string) => void;
 }
 
-export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProps) {
+export function ChatWindow({ chatId, onBack, onStartDirectChat, onOpenChat }: ChatWindowProps) {
   const [message, setMessage] = React.useState('');
   const [isSending, setIsSending] = React.useState(false);
   const [lang, setLang] = React.useState<Language>('ru');
@@ -67,6 +76,9 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
   const { user } = useUser();
   const { toast } = useToast();
   const settings = useAppSettings();
+  const { prefs } = useUserPrefs();
+  const [appearanceOpen, setAppearanceOpen] = React.useState(false);
+  const [channelSettingsOpen, setChannelSettingsOpen] = React.useState(false);
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
   const stickToBottomRef = React.useRef(true);
@@ -258,9 +270,19 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
   const isIndividualOnline = chatData?.type === 'individual' && otherUserData?.status === 'online';
   const isServiceChat = isServiceChatId(chatId) || Boolean(chatData?.isService);
   const isGlobalChat = chatId === GLOBAL_CHAT_ID;
+  const appearance = prefs.chatSettings[chatId] ?? DEFAULT_CHAT_APPEARANCE;
+  const wallpaper = WALLPAPERS.find((item) => item.id === appearance.wallpaper) ?? WALLPAPERS[0];
+  const isChannel = chatData?.type === 'channel';
+  const linkedChatId: string | null = chatData?.linkedChatId || null;
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden bg-background">
+    <div
+      className={cn(
+        'relative flex h-full flex-col overflow-hidden bg-background',
+        `chat-theme-${appearance.palette}`,
+        `name-color-${appearance.nameColor}`,
+      )}
+    >
       {/* M3 top app bar */}
       <header className="z-10 flex h-16 shrink-0 items-center justify-between gap-2 border-b border-outline-variant/60 bg-surface-low/95 px-2 backdrop-blur-xl md:px-4">
         <div className="flex min-w-0 items-center gap-1">
@@ -341,7 +363,18 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
           )}
         </div>
 
-        <div className="flex shrink-0 items-center">
+        <div className="flex shrink-0 items-center gap-1">
+          {isChannel && linkedChatId && onOpenChat && (
+            <Button
+              variant="ghost"
+              className="h-10 gap-2 rounded-full px-3 text-xs font-semibold text-primary"
+              onClick={() => onOpenChat(linkedChatId)}
+              aria-label="Открыть обсуждение"
+            >
+              <MessagesSquare className="h-4 w-4" />
+              <span className="hidden sm:inline">Обсуждение</span>
+            </Button>
+          )}
           {!isServiceChat && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -349,7 +382,29 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
                 <MoreVertical className="h-5 w-5 text-on-surface-variant" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56 rounded-3xl border-outline-variant/60 p-2">
+            <DropdownMenuContent align="end" className="w-60 rounded-3xl border-outline-variant/60 p-2">
+              <DropdownMenuItem
+                className="cursor-pointer gap-2 rounded-2xl py-2.5"
+                onClick={() => setAppearanceOpen(true)}
+              >
+                <PaletteIcon className="h-4 w-4 text-primary" /> Оформление чата
+              </DropdownMenuItem>
+              {isChannel && (
+                <DropdownMenuItem
+                  className="cursor-pointer gap-2 rounded-2xl py-2.5"
+                  onClick={() => setChannelSettingsOpen(true)}
+                >
+                  <Settings2 className="h-4 w-4 text-secondary" /> Настройки канала
+                </DropdownMenuItem>
+              )}
+              {isChannel && linkedChatId && onOpenChat && (
+                <DropdownMenuItem
+                  className="cursor-pointer gap-2 rounded-2xl py-2.5"
+                  onClick={() => onOpenChat(linkedChatId)}
+                >
+                  <MessagesSquare className="h-4 w-4 text-secondary" /> Обсуждение
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem
                 className="gap-2 rounded-2xl py-2.5 text-destructive focus:text-destructive"
                 onClick={handleLeaveChat}
@@ -365,7 +420,10 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
       {/* Messages */}
       <div
         ref={scrollContainerRef}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 md:px-6"
+        className={cn(
+          'min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 md:px-6',
+          wallpaper.className,
+        )}
       >
         <div className="mx-auto w-full max-w-3xl py-2">
           {!rawMessages?.length && (
@@ -421,7 +479,7 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
 
                   <div className={cn('flex min-w-0 flex-col gap-1', mine ? 'items-end' : 'items-start')}>
                     {showSender && (
-                      <span className="ml-1 text-[11px] font-semibold text-primary">
+                      <span className="ml-1 text-[11px] font-semibold text-[hsl(var(--chat-name,var(--primary)))]">
                         {msg.senderName}
                       </span>
                     )}
@@ -430,7 +488,7 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
                       className={cn(
                         'relative min-w-0 rounded-[20px] px-4 py-2.5 text-[14px] leading-relaxed shadow-sm',
                         mine
-                          ? 'rounded-br-md bg-primary-container text-primary-on-container'
+                          ? 'rounded-br-md bg-[hsl(var(--chat-out))] text-[hsl(var(--chat-out-text))]'
                           : 'rounded-bl-md bg-surface-high text-on-surface',
                       )}
                     >
@@ -717,6 +775,22 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
           </div>
         </DialogContent>
       </Dialog>
+
+      <ChatAppearanceDialog
+        chatId={chatId}
+        chatTitle={getChatTitle()}
+        open={appearanceOpen}
+        onOpenChange={setAppearanceOpen}
+      />
+
+      {isChannel && (
+        <ChannelSettingsDialog
+          chatId={chatId}
+          chatData={chatData}
+          open={channelSettingsOpen}
+          onOpenChange={setChannelSettingsOpen}
+        />
+      )}
     </div>
   );
 }

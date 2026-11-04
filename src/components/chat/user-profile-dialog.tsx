@@ -34,6 +34,9 @@ export function UserProfileDialog({ userId, children, onStartChat }: UserProfile
   if (!userId || userId === 'p7gSC3o9OxVezsjDbrFq') return <>{children}</>;
 
   const isOnline = userData?.status === 'online';
+  // Приватность: точное время захода показываем только если владелец разрешил
+  const lastSeenVisibility = userData?.prefs?.privacy?.lastSeen ?? 'everyone';
+  const canSeeLastSeen = lastSeenVisibility === 'everyone';
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -109,7 +112,7 @@ export function UserProfileDialog({ userId, children, onStartChat }: UserProfile
               </div>
             </div>
 
-            {userData?.lastSeen && (
+            {userData?.lastSeen && canSeeLastSeen && (
               <div className="flex items-center gap-4 rounded-2xl bg-surface-high/70 p-3.5">
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-tertiary-container text-tertiary-on-container">
                   <Calendar className="h-5 w-5" />

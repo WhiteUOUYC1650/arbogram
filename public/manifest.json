@@ -8,20 +8,27 @@
   "orientation": "portrait",
   "background_color": "#fdfbff",
   "theme_color": "#6c5cff",
-  "categories": ["social", "communication"],
+  "categories": [
+    "social",
+    "communication"
+  ],
   "icons": [
     {
-      "src": "/icons/slink-icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/icons/SLinkBetaLogo.png",
+      "sizes": "512x512",
+      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icons/slink-icon-maskable.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/icons/SLinkBetaLogo.png",
+      "sizes": "512x512",
+      "type": "image/png",
       "purpose": "maskable"
     }
   ],
-  "permissions": ["camera", "microphone", "notifications"]
+  "permissions": [
+    "camera",
+    "microphone",
+    "notifications"
+  ]
 }

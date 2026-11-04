@@ -12,9 +12,14 @@ import {
   ShieldAlert,
   MessageSquare,
   X,
+  Folder,
+  FolderPlus,
+  Trash2,
+  Check,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useCollection, useFirestore, useAuth, useUser, useMemoFirebase, useDoc } from '@/firebase';
@@ -37,12 +42,13 @@ import { UserAvatar } from '@/components/user-avatar';
 import { SlinkLogo } from '@/components/slink-logo';
 import { APP_NAME, APP_VERSION_LABEL } from '@/lib/brand';
 import { translations, Language } from '@/lib/i18n';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import Link from 'next/link';
 import { UserProfileDialog } from './user-profile-dialog';
 import { sendSystemNotification } from '@/lib/system-notifications';
 import { ensureServiceChat, serviceChatId } from '@/lib/service-bot';
 import { useAppSettings } from '@/lib/app-settings';
+import { useUserPrefs, type ChatFolder } from '@/lib/user-prefs';
 
 const GLOBAL_CHAT_ID = "p7gSC3o9OxVezsjDbrFq";
 
@@ -69,6 +75,12 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
   const { user } = useUser();
   const settings = useAppSettings();
   const { toast } = useToast();
+  const { prefs, setFolders } = useUserPrefs();
+  const [activeFolderId, setActiveFolderId] = React.useState<string | null>(null);
+  const [folderDialogOpen, setFolderDialogOpen] = React.useState(false);
+  const [folderName, setFolderName] = React.useState('');
+  const [folderChatIds, setFolderChatIds] = React.useState<string[]>([]);
+  const [editingFolderId, setEditingFolderId] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     const storedLang = localStorage.getItem('lang') as Language;
@@ -97,6 +109,11 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
       .sort((a, b) => (b.lastMessageTime || 0) - (a.lastMessageTime || 0));
   }, [myChats]);
 
+  const activeFolder = React.useMemo(
+    () => prefs.folders.find((folder) => folder.id === activeFolderId) ?? null,
+    [prefs.folders, activeFolderId],
+  );
+
   const filteredChats = React.useMemo(() => {
     if (filter === 'all') return sortedChats;
     const typeMap: Record<Exclude<ChatFilter, 'all'>, string> = {
@@ -106,6 +123,11 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
     };
     return sortedChats.filter((c) => c.type === typeMap[filter]);
   }, [sortedChats, filter]);
+
+  const visibleChats = React.useMemo(() => {
+    if (!activeFolder) return filteredChats;
+    return sortedChats.filter((chat) => activeFolder.chatIds.includes(chat.id));
+  }, [activeFolder, filteredChats, sortedChats]);
 
   const handleGlobalSearch = async (val: string) => {
     setSearchTerm(val);
@@ -186,6 +208,59 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
       console.error('Service chat error:', e);
     } finally {
       setIsOpeningBot(false);
+    }
+  };
+
+  const openFolderDialog = (folder?: ChatFolder) => {
+    setEditingFolderId(folder?.id ?? null);
+    setFolderName(folder?.name ?? '');
+    setFolderChatIds(folder?.chatIds ?? []);
+    setFolderDialogOpen(true);
+  };
+
+  const toggleFolderChat = (chatId: string) => {
+    setFolderChatIds((prev) =>
+      prev.includes(chatId) ? prev.filter((id) => id !== chatId) : [...prev, chatId],
+    );
+  };
+
+  const saveFolder = async () => {
+    const name = folderName.trim();
+    if (!name) {
+      toast({ variant: 'destructive', title: 'Введите название папки' });
+      return;
+    }
+
+    try {
+      if (editingFolderId) {
+        await setFolders(
+          prefs.folders.map((folder) =>
+            folder.id === editingFolderId ? { ...folder, name, chatIds: folderChatIds } : folder,
+          ),
+        );
+      } else {
+        const folder: ChatFolder = {
+          id: `f_${Date.now().toString(36)}`,
+          name,
+          chatIds: folderChatIds,
+        };
+        await setFolders([...prefs.folders, folder]);
+        setActiveFolderId(folder.id);
+      }
+      toast({ title: 'Папка сохранена' });
+      setFolderDialogOpen(false);
+    } catch {
+      toast({ variant: 'destructive', title: 'Не удалось сохранить папку' });
+    }
+  };
+
+  const deleteFolder = async (id: string) => {
+    try {
+      await setFolders(prefs.folders.filter((folder) => folder.id !== id));
+      if (activeFolderId === id) setActiveFolderId(null);
+      toast({ title: 'Папка удалена' });
+    } catch {
+      toast({ variant: 'destructive', title: 'Не удалось удалить папку' });
     }
   };
 
@@ -302,12 +377,40 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
               <button
                 key={chip.key}
                 type="button"
-                onClick={() => setFilter(chip.key)}
-                className={cn('m3-chip shrink-0', filter === chip.key && 'm3-chip-active')}
+                onClick={() => {
+                  setFilter(chip.key);
+                  setActiveFolderId(null);
+                }}
+                className={cn(
+                  'm3-chip shrink-0',
+                  !activeFolder && filter === chip.key && 'm3-chip-active',
+                )}
               >
                 {chip.label}
               </button>
             ))}
+
+            {prefs.folders.map((folder) => (
+              <button
+                key={folder.id}
+                type="button"
+                onClick={() => setActiveFolderId(folder.id)}
+                className={cn('m3-chip shrink-0 gap-1.5', activeFolderId === folder.id && 'm3-chip-active')}
+              >
+                <Folder className="h-3.5 w-3.5" />
+                {folder.name}
+                <span className="text-[10px] opacity-70">{folder.chatIds.length}</span>
+              </button>
+            ))}
+
+            <button
+              type="button"
+              onClick={() => openFolderDialog()}
+              className="m3-chip shrink-0 gap-1 text-primary"
+              aria-label="Создать папку с чатами"
+            >
+              <FolderPlus className="h-3.5 w-3.5" /> Папка
+            </button>
           </div>
         )}
       </div>
@@ -431,15 +534,17 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
                 <div className="flex items-center justify-center p-8">
                   <Loader2 className="h-6 w-6 animate-spin text-primary opacity-60" />
                 </div>
-              ) : filteredChats.length === 0 ? (
+              ) : visibleChats.length === 0 ? (
                 <div className="mt-4 flex flex-col items-center gap-3 rounded-3xl border border-dashed border-outline-variant px-6 py-12 text-center">
                   <div className="flex h-14 w-14 items-center justify-center rounded-full bg-surface-high text-on-surface-variant">
                     <MessageSquare className="h-6 w-6" />
                   </div>
-                  <p className="text-sm font-medium text-on-surface-variant">{t.emptyChats}</p>
+                  <p className="text-sm font-medium text-on-surface-variant">
+                    {activeFolder ? 'В папке пока нет чатов' : t.emptyChats}
+                  </p>
                 </div>
               ) : (
-                filteredChats.map((chat: any, index: number) => (
+                visibleChats.map((chat: any, index: number) => (
                   <ChatItem
                     key={chat.id}
                     chat={chat}
@@ -466,6 +571,134 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
           </Button>
         </CreateChatDialog>
       </div>
+
+      <Dialog open={folderDialogOpen} onOpenChange={setFolderDialogOpen}>
+        <DialogContent className="flex max-h-[85vh] w-[95vw] flex-col overflow-hidden rounded-[28px] border-none bg-surface-low p-0 shadow-m3-strong sm:max-w-md">
+          <DialogHeader className="space-y-1 border-b border-outline-variant/60 px-6 pb-4 pt-6 text-left">
+            <DialogTitle className="flex items-center gap-2 text-xl font-bold tracking-tight">
+              <FolderPlus className="h-5 w-5 text-primary" /> Папки с чатами
+            </DialogTitle>
+            <DialogDescription className="text-xs text-on-surface-variant">
+              Сгруппируйте диалоги и переключайтесь одним тапом.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
+            {prefs.folders.length > 0 && (
+              <div className="space-y-2">
+                <p className="m3-label px-1">Мои папки</p>
+                {prefs.folders.map((folder) => (
+                  <div
+                    key={folder.id}
+                    className="flex items-center gap-2 rounded-2xl bg-surface-high/70 px-3 py-2"
+                  >
+                    <Folder className="h-4 w-4 shrink-0 text-primary" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-bold text-on-surface">{folder.name}</p>
+                      <p className="text-[10px] text-on-surface-variant">
+                        {folder.chatIds.length} чатов
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 rounded-full"
+                      onClick={() => openFolderDialog(folder)}
+                      aria-label="Изменить папку"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 rounded-full text-destructive"
+                      onClick={() => deleteFolder(folder.id)}
+                      aria-label="Удалить папку"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <Label className="m3-label ml-1">
+                {editingFolderId ? 'Название папки' : 'Новая папка'}
+              </Label>
+              <Input
+                value={folderName}
+                onChange={(e) => setFolderName(e.target.value)}
+                placeholder="Например, Работа"
+                className="m3-field"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <p className="m3-label px-1">Чаты в папке</p>
+              {sortedChats.length === 0 ? (
+                <p className="text-xs text-on-surface-variant">Пока нет чатов для группировки.</p>
+              ) : (
+                <ul className="space-y-1">
+                  {sortedChats.map((chat: any) => {
+                    const selected = folderChatIds.includes(chat.id);
+                    const otherId =
+                      chat.type === 'individual'
+                        ? chat.participants?.find((id: string) => id !== user?.uid)
+                        : null;
+                    const chatTitle =
+                      chat.type === 'individual'
+                        ? chat.metadata?.[otherId || '']?.displayName || 'Личный чат'
+                        : chat.name || 'Группа';
+                    return (
+                      <li key={chat.id}>
+                        <button
+                          type="button"
+                          onClick={() => toggleFolderChat(chat.id)}
+                          className={cn(
+                            'flex w-full items-center gap-2.5 rounded-2xl px-3 py-2 text-left transition-colors',
+                            selected ? 'bg-primary-container/60' : 'hover:bg-on-surface/5',
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              'flex h-5 w-5 shrink-0 items-center justify-center rounded-md border',
+                              selected
+                                ? 'border-primary bg-primary text-primary-foreground'
+                                : 'border-outline-variant',
+                            )}
+                          >
+                            {selected && <Check className="h-3.5 w-3.5" />}
+                          </span>
+                          <span className="truncate text-xs font-semibold text-on-surface">
+                            {chatTitle}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          </div>
+
+          <div className="flex shrink-0 gap-2 border-t border-outline-variant/60 p-4">
+            <Button
+              variant="outline"
+              className="h-11 flex-1 rounded-full"
+              onClick={() => setFolderDialogOpen(false)}
+            >
+              Отмена
+            </Button>
+            <Button
+              className="h-11 flex-1 rounded-full bg-primary font-bold text-primary-foreground"
+              onClick={saveFolder}
+            >
+              {editingFolderId ? 'Сохранить' : 'Создать'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
