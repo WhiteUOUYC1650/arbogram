@@ -25,7 +25,8 @@ export function openChatById(router: ReturnType<typeof useRouter>, chatId: strin
 }
 
 /** Страница канала по внутренней ссылке: описание, подписка, переход в чат. */
-export function ChannelJoin({ slug }: { slug: string }) {
+export function ChannelJoin({ slug, kind = 'channel' }: { slug: string; kind?: 'channel' | 'group' }) {
+  const isGroup = kind === 'group';
   const db = useFirestore();
   const router = useRouter();
   const { user, loading } = useUser();
@@ -49,7 +50,7 @@ export function ChannelJoin({ slug }: { slug: string }) {
 
       try {
         // 1) Новые каналы создаются с id `channel_<slug>` — читаем напрямую, без индексов
-        const directSnap = await getDoc(doc(db, 'chats', `channel_${normalized}`));
+        const directSnap = await getDoc(doc(db, 'chats', `${isGroup ? 'group' : 'channel'}_${normalized}`));
         if (!cancelled && directSnap.exists()) {
           setChat({ id: directSnap.id, ...directSnap.data() });
           setState('ready');
@@ -66,6 +67,7 @@ export function ChannelJoin({ slug }: { slug: string }) {
             collection(db, 'chats'),
             where('isPublic', '==', true),
             where('slug', '==', normalized),
+            where('type', '==', isGroup ? 'group' : 'channel'),
             limit(1),
           ),
         );
@@ -87,7 +89,7 @@ export function ChannelJoin({ slug }: { slug: string }) {
     return () => {
       cancelled = true;
     };
-  }, [db, user, slug]);
+  }, [db, user, slug, isGroup]);
 
   const isMember = Boolean(user && chat?.participants?.includes(user.uid));
 
@@ -103,13 +105,19 @@ export function ChannelJoin({ slug }: { slug: string }) {
       await sendSystemNotification(
         db,
         chat.id,
-        `${user.displayName || 'Новый подписчик'} подписался на канал`,
+        isGroup
+          ? `${user.displayName || 'Новый участник'} вступил(а) в супергруппу`
+          : `${user.displayName || 'Новый подписчик'} подписался на канал`,
         'joined',
       );
-      toast({ title: 'Вы подписались', description: chat.name });
+      toast({ title: isGroup ? 'Вы вступили в группу' : 'Вы подписались', description: chat.name });
       openChatById(router, chat.id);
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Не удалось подписаться', description: error.message });
+      toast({
+        variant: 'destructive',
+        title: isGroup ? 'Не удалось вступить' : 'Не удалось подписаться',
+        description: error.message,
+      });
     } finally {
       setIsJoining(false);
     }
@@ -140,7 +148,7 @@ export function ChannelJoin({ slug }: { slug: string }) {
               <Hash className="h-7 w-7" />
             </span>
             <div className="space-y-1">
-              <h1 className="text-lg font-bold text-on-surface">Канал не найден</h1>
+              <h1 className="text-lg font-bold text-on-surface">{isGroup ? 'Группа не найдена' : 'Канал не найден'}</h1>
               <p className="text-sm text-on-surface-variant">
                 Ссылка устарела или канал закрыли. Попросите новую у владельца.
               </p>
@@ -159,13 +167,15 @@ export function ChannelJoin({ slug }: { slug: string }) {
 
             <div className="flex flex-col items-center px-6 pb-6 -mt-12">
               <span className="flex h-24 w-24 items-center justify-center rounded-[28px] border-4 border-surface-low bg-secondary-container text-secondary-on-container shadow-m3">
-                <Hash className="h-9 w-9" />
+                {isGroup ? <Users className="h-9 w-9" /> : <Hash className="h-9 w-9" />}
               </span>
 
               <h1 className="mt-3 text-center text-xl font-extrabold tracking-tight text-on-surface">
-                {chat.name || 'Канал'}
+                {chat.name || (isGroup ? 'Группа' : 'Канал')}
               </h1>
-              <p className="mt-1 font-mono text-xs text-primary">slink/{chat.slug || slug}</p>
+              <p className="mt-1 font-mono text-xs text-primary">
+                slink/{isGroup ? 'g' : 'c'}/{chat.slug || slug}
+              </p>
 
               {chat.description ? (
                 <p className="mt-3 text-center text-sm leading-relaxed text-on-surface-variant">
@@ -175,7 +185,8 @@ export function ChannelJoin({ slug }: { slug: string }) {
 
               <div className="mt-4 flex items-center gap-3 text-[11px] font-semibold text-on-surface-variant">
                 <span className="flex items-center gap-1.5">
-                  <Users className="h-4 w-4" /> {chat.participants?.length || 0} подписчиков
+                  <Users className="h-4 w-4" /> {chat.participants?.length || 0}{' '}
+                  {isGroup ? 'участников' : 'подписчиков'}
                 </span>
                 <span className="flex items-center gap-1.5">
                   {chat.isPublic ? <MessageSquare className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
@@ -191,9 +202,9 @@ export function ChannelJoin({ slug }: { slug: string }) {
                 {isJoining ? (
                   <Loader2 className="h-5 w-5 animate-spin" />
                 ) : isMember ? (
-                  <><MessageSquare className="h-4 w-4" /> Открыть канал</>
+                  <><MessageSquare className="h-4 w-4" /> {isGroup ? 'Открыть группу' : 'Открыть канал'}</>
                 ) : (
-                  <><BellPlus className="h-4 w-4" /> Подписаться</>
+                  <><BellPlus className="h-4 w-4" /> {isGroup ? 'Вступить' : 'Подписаться'}</>
                 )}
               </Button>
             </div>

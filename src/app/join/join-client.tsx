@@ -6,7 +6,8 @@ import { ChannelJoin } from '@/components/channels/channel-join';
 
 export function ChannelJoinPage() {
   const params = useSearchParams();
-  const slug = (params.get('slug') || '').trim();
+  const group = (params.get('group') || '').trim();
+  const slug = (params.get('slug') || group || '').trim();
 
   if (!slug) {
     return (
@@ -16,5 +17,5 @@ export function ChannelJoinPage() {
     );
   }
 
-  return <ChannelJoin slug={slug} />;
+  return <ChannelJoin slug={slug} kind={group ? 'group' : 'channel'} />;
 }

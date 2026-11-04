@@ -11,6 +11,8 @@ export interface AppSettings {
   showStories: boolean;
   /** Enter отправляет сообщение (Shift+Enter — перенос строки) */
   sendOnEnter: boolean;
+  /** Локальные уведомления о новых сообщениях */
+  notifications: boolean;
 }
 
 export const SETTINGS_STORAGE_KEY = 'slink:settings';
@@ -23,6 +25,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   compactChats: false,
   showStories: true,
   sendOnEnter: true,
+  notifications: false,
 };
 
 let cached: AppSettings | null = null;

@@ -14,6 +14,7 @@ import {
   X,
   Folder,
   FolderPlus,
+  Archive,
   Trash2,
   Check,
 } from 'lucide-react';
@@ -76,6 +77,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
   const settings = useAppSettings();
   const { toast } = useToast();
   const { prefs, setFolders } = useUserPrefs();
+  const [showArchive, setShowArchive] = React.useState(false);
   const [activeFolderId, setActiveFolderId] = React.useState<string | null>(null);
   const [folderDialogOpen, setFolderDialogOpen] = React.useState(false);
   const [folderName, setFolderName] = React.useState('');
@@ -101,6 +103,34 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
   }, [db, user?.uid]);
 
   const { data: myChats, loading: chatsLoading } = useCollection(myChatsQuery);
+  const seenMessageTimes = React.useRef<Record<string, number>>({});
+
+  // Локальные уведомления о новых сообщениях (foreground).
+  // Настоящий background push требует FCM + серверных ключей.
+  React.useEffect(() => {
+    if (!settings.notifications) return;
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+
+    for (const chat of myChats || []) {
+      const time = Number(chat.lastMessageTime || 0);
+      const previous = seenMessageTimes.current[chat.id];
+      seenMessageTimes.current[chat.id] = Math.max(previous ?? 0, time);
+
+      if (!previous || time <= previous) continue;
+      if (chat.id === activeChatId) continue;
+      if (!chat.lastMessage || String(chat.lastMessage).startsWith('🎞')) continue;
+
+      try {
+        new Notification(chat.name || 'SLink', {
+          body: String(chat.lastMessage),
+          tag: chat.id,
+          icon: '/icons/SLinkBetaLogo.png',
+        });
+      } catch {
+        // браузер может запретить уведомление
+      }
+    }
+  }, [myChats, settings.notifications, activeChatId]);
 
   const sortedChats = React.useMemo(() => {
     if (!myChats) return [];
@@ -114,20 +144,27 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
     [prefs.folders, activeFolderId],
   );
 
+  const baseChats = React.useMemo(() => {
+    const archived = new Set(prefs.archivedChatIds);
+    return sortedChats.filter((chat) =>
+      showArchive ? archived.has(chat.id) : !archived.has(chat.id),
+    );
+  }, [sortedChats, prefs.archivedChatIds, showArchive]);
+
   const filteredChats = React.useMemo(() => {
-    if (filter === 'all') return sortedChats;
+    if (filter === 'all') return baseChats;
     const typeMap: Record<Exclude<ChatFilter, 'all'>, string> = {
       direct: 'individual',
       groups: 'group',
       channels: 'channel',
     };
     return sortedChats.filter((c) => c.type === typeMap[filter]);
-  }, [sortedChats, filter]);
+  }, [baseChats, filter]);
 
   const visibleChats = React.useMemo(() => {
     if (!activeFolder) return filteredChats;
-    return sortedChats.filter((chat) => activeFolder.chatIds.includes(chat.id));
-  }, [activeFolder, filteredChats, sortedChats]);
+    return baseChats.filter((chat) => activeFolder.chatIds.includes(chat.id));
+  }, [activeFolder, filteredChats, baseChats]);
 
   const handleGlobalSearch = async (val: string) => {
     setSearchTerm(val);
@@ -380,6 +417,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
                 onClick={() => {
                   setFilter(chip.key);
                   setActiveFolderId(null);
+                  setShowArchive(false);
                 }}
                 className={cn(
                   'm3-chip shrink-0',
@@ -402,6 +440,22 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
                 <span className="text-[10px] opacity-70">{folder.chatIds.length}</span>
               </button>
             ))}
+
+            {prefs.archivedChatIds.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setShowArchive((value) => !value);
+                  setActiveFolderId(null);
+                  setFilter('all');
+                }}
+                className={cn('m3-chip shrink-0 gap-1.5', showArchive && 'm3-chip-active')}
+              >
+                <Archive className="h-3.5 w-3.5" />
+                Архив
+                <span className="text-[10px] opacity-70">{prefs.archivedChatIds.length}</span>
+              </button>
+            )}
 
             <button
               type="button"
@@ -540,7 +594,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
                     <MessageSquare className="h-6 w-6" />
                   </div>
                   <p className="text-sm font-medium text-on-surface-variant">
-                    {activeFolder ? 'В папке пока нет чатов' : t.emptyChats}
+                    {showArchive ? 'Архив пуст' : activeFolder ? 'В папке пока нет чатов' : t.emptyChats}
                   </p>
                 </div>
               ) : (

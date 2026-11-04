@@ -18,6 +18,12 @@ import {
   BarChart2,
   MessageSquarePlus,
   LogOut,
+  CheckCheck,
+  Phone,
+  SmilePlus,
+  Archive,
+  ArchiveRestore,
+  ImagePlay,
   MessagesSquare,
   Palette as PaletteIcon,
   Hash,
@@ -27,7 +33,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useCollection, useFirestore, useUser, useDoc, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, addDoc, doc, updateDoc, getDoc, arrayRemove, limit } from 'firebase/firestore';
+import { collection, query, orderBy, addDoc, doc, updateDoc, getDoc, arrayRemove, arrayUnion, limit } from 'firebase/firestore';
 import { UserAvatar } from '@/components/user-avatar';
 import { SlinkLogo } from '@/components/slink-logo';
 import { useToast } from '@/hooks/use-toast';
@@ -45,6 +51,11 @@ import { SERVICE_BOT_ID, isServiceChatId } from '@/lib/service-bot';
 import { useAppSettings } from '@/lib/app-settings';
 import { useUserPrefs } from '@/lib/user-prefs';
 import { DEFAULT_CHAT_APPEARANCE, WALLPAPERS } from '@/lib/palettes';
+import { REACTIONS, getReactionEmoji } from '@/lib/reactions';
+import { GIF_LIBRARY } from '@/lib/gifs';
+import { formatLastSeen } from '@/lib/profile-extras';
+import { useAudioCall } from '@/lib/use-audio-call';
+import { CallOverlay } from './call-overlay';
 import { ChatAppearanceDialog } from './chat-appearance-dialog';
 import { ChannelSettingsDialog } from './channel-settings-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -76,9 +87,10 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat, onOpenChat }: Ch
   const { user } = useUser();
   const { toast } = useToast();
   const settings = useAppSettings();
-  const { prefs } = useUserPrefs();
+  const { prefs, setArchivedChatIds } = useUserPrefs();
   const [appearanceOpen, setAppearanceOpen] = React.useState(false);
   const [channelSettingsOpen, setChannelSettingsOpen] = React.useState(false);
+  const [gifDialogOpen, setGifDialogOpen] = React.useState(false);
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
   const stickToBottomRef = React.useRef(true);
@@ -109,6 +121,20 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat, onOpenChat }: Ch
     return query(collection(db, 'chats', chatId, 'messages'), orderBy('timestamp', 'asc'));
   }, [db, chatId]);
   const { data: rawMessages } = useCollection(messagesQuery);
+
+  // Отмечаем чат прочитанным (для галочек «доставлено/прочитано»)
+  React.useEffect(() => {
+    if (!db || !user || !chatRef) return;
+
+    const markRead = () => {
+      if (document.visibilityState !== 'visible') return;
+      updateDoc(chatRef, { [`reads.${user.uid}`]: Date.now() }).catch(() => {});
+    };
+
+    markRead();
+    const interval = setInterval(markRead, 45000);
+    return () => clearInterval(interval);
+  }, [db, user?.uid, chatRef, chatId, rawMessages?.length]);
 
   // Скроллим вниз только если пользователь уже внизу ленты,
   // иначе чтение истории будет постоянно «прыгать» вниз.
@@ -210,6 +236,64 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat, onOpenChat }: Ch
     }
   };
 
+  const handleReaction = async (messageId: string, key: string) => {
+    if (!db || !user) return;
+
+    const message = (rawMessages || []).find((item: any) => item.id === messageId);
+    const existing: string[] = message?.reactions?.[key] || [];
+    const isMine = existing.includes(user.uid);
+
+    try {
+      await updateDoc(doc(db, 'chats', chatId, 'messages', messageId), {
+        [`reactions.${key}`]: isMine ? arrayRemove(user.uid) : arrayUnion(user.uid),
+      });
+    } catch {
+      toast({ variant: 'destructive', title: 'Не удалось поставить реакцию' });
+    }
+  };
+
+  const sendGif = async (url: string) => {
+    if (!db || !user) return;
+
+    try {
+      await addDoc(collection(db, 'chats', chatId, 'messages'), {
+        senderId: user.uid,
+        senderName: user.displayName || 'User',
+        type: 'gif',
+        gifUrl: url,
+        text: null,
+        timestamp: Date.now(),
+        replyTo: replyTo
+          ? { id: replyTo.id, text: replyTo.text || 'Вложение', senderName: replyTo.senderName }
+          : null,
+      });
+
+      if (chatRef) {
+        await updateDoc(chatRef, { lastMessage: '🎞 GIF', lastMessageTime: Date.now() });
+      }
+
+      setReplyTo(null);
+      setGifDialogOpen(false);
+    } catch {
+      toast({ variant: 'destructive', title: 'Не удалось отправить GIF' });
+    }
+  };
+
+  const isArchived = prefs.archivedChatIds.includes(chatId);
+
+  const toggleArchive = async () => {
+    try {
+      await setArchivedChatIds(
+        isArchived
+          ? prefs.archivedChatIds.filter((id) => id !== chatId)
+          : [...prefs.archivedChatIds, chatId],
+      );
+      toast({ title: isArchived ? 'Чат возвращён из архива' : 'Чат в архиве' });
+    } catch {
+      toast({ variant: 'destructive', title: 'Не удалось обновить архив' });
+    }
+  };
+
   const handleLeaveChat = async () => {
     if (!db || !user || !chatRef) return;
     try {
@@ -261,9 +345,13 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat, onOpenChat }: Ch
     if (isServiceChat) return 'Служебный аккаунт · только уведомления';
     if (isGlobalChat) return `${t.public} · SLink`;
     if (chatData?.type === 'individual') {
-      return otherUserData?.status === 'online' ? t.online : t.offline;
+      if (otherUserData?.status === 'online') return t.online;
+      const canSeeLastSeen = (otherUserData?.prefs?.privacy?.lastSeen ?? 'everyone') === 'everyone';
+      return canSeeLastSeen
+        ? `был(а) в сети ${formatLastSeen(otherUserData?.lastSeen)}`
+        : t.offline;
     }
-    return `${chatData?.participants?.length || 0} ${t.members}`;
+    return `${chatData?.participants?.length || 0} ${t.members}${isSupergroup ? ' · супергруппа' : ''}`;
   };
 
   const targetId = chatData?.type === 'individual' ? otherParticipantId : chatId;
@@ -273,7 +361,16 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat, onOpenChat }: Ch
   const appearance = prefs.chatSettings[chatId] ?? DEFAULT_CHAT_APPEARANCE;
   const wallpaper = WALLPAPERS.find((item) => item.id === appearance.wallpaper) ?? WALLPAPERS[0];
   const isChannel = chatData?.type === 'channel';
+  const isSupergroup = Boolean(chatData?.isSupergroup);
   const linkedChatId: string | null = chatData?.linkedChatId || null;
+
+  const call = useAudioCall({
+    db,
+    chatId,
+    user,
+    messages: rawMessages || [],
+    title: chatData?.name || otherUserData?.displayName || 'SLink',
+  });
 
   return (
     <div
@@ -364,6 +461,17 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat, onOpenChat }: Ch
         </div>
 
         <div className="flex shrink-0 items-center gap-1">
+          {chatData?.type === 'individual' && !isServiceChat && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="rounded-full"
+              onClick={call.startCall}
+              aria-label="Аудиозвонок"
+            >
+              <Phone className="h-5 w-5 text-on-surface-variant" />
+            </Button>
+          )}
           {isChannel && linkedChatId && onOpenChat && (
             <Button
               variant="ghost"
@@ -389,12 +497,13 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat, onOpenChat }: Ch
               >
                 <PaletteIcon className="h-4 w-4 text-primary" /> Оформление чата
               </DropdownMenuItem>
-              {isChannel && (
+              {(isChannel || isSupergroup) && (
                 <DropdownMenuItem
                   className="cursor-pointer gap-2 rounded-2xl py-2.5"
                   onClick={() => setChannelSettingsOpen(true)}
                 >
-                  <Settings2 className="h-4 w-4 text-secondary" /> Настройки канала
+                  <Settings2 className="h-4 w-4 text-secondary" />
+                  {isChannel ? 'Настройки канала' : 'Настройки супергруппы'}
                 </DropdownMenuItem>
               )}
               {isChannel && linkedChatId && onOpenChat && (
@@ -405,6 +514,14 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat, onOpenChat }: Ch
                   <MessagesSquare className="h-4 w-4 text-secondary" /> Обсуждение
                 </DropdownMenuItem>
               )}
+              <DropdownMenuItem className="cursor-pointer gap-2 rounded-2xl py-2.5" onClick={toggleArchive}>
+                {isArchived ? (
+                  <ArchiveRestore className="h-4 w-4 text-secondary" />
+                ) : (
+                  <Archive className="h-4 w-4 text-secondary" />
+                )}
+                {isArchived ? 'Вернуть из архива' : 'В архив'}
+              </DropdownMenuItem>
               <DropdownMenuItem
                 className="gap-2 rounded-2xl py-2.5 text-destructive focus:text-destructive"
                 onClick={handleLeaveChat}
@@ -439,7 +556,20 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat, onOpenChat }: Ch
           )}
 
           {rawMessages?.map((msg: any, i: number) => {
+            // Сигнальные сообщения звонка (offer/answer/ice) в ленте не показываем
+            if (msg.type === 'call') return null;
+
             const mine = msg.senderId === user?.uid;
+            const reads = (chatData?.reads || {}) as Record<string, number>;
+            const readByOthers = Object.entries(reads).some(
+              ([uid, timestamp]) => uid !== user?.uid && Number(timestamp) >= msg.timestamp,
+            );
+            const deliveredToOther =
+              readByOthers ||
+              Boolean(otherUserData?.lastSeen && Number(otherUserData.lastSeen) >= msg.timestamp);
+            const reactionEntries = Object.entries(msg.reactions || {}).filter(
+              ([, users]) => Array.isArray(users) && users.length > 0,
+            ) as [string, string[]][];
             const showSender =
               !mine &&
               (chatData?.type !== 'individual' || chatId === GLOBAL_CHAT_ID) &&
@@ -503,6 +633,14 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat, onOpenChat }: Ch
                         <StickerRenderer packId={msg.packId} stickerId={msg.stickerId} />
                       )}
 
+                      {msg.type === 'gif' && msg.gifUrl && (
+                        <img
+                          src={msg.gifUrl}
+                          alt="GIF"
+                          className="max-h-56 w-full rounded-xl object-cover"
+                        />
+                      )}
+
                       {msg.type === 'image' && msg.imageUrls?.length > 0 && (
                         <div className="mb-1 grid grid-cols-2 gap-1.5">
                           {msg.imageUrls.map((src: string, idx: number) => (
@@ -563,6 +701,27 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat, onOpenChat }: Ch
 
                       {msg.text && <p className="whitespace-pre-wrap break-words">{msg.text}</p>}
 
+                      {reactionEntries.length > 0 && (
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          {reactionEntries.map(([key, users]) => (
+                            <button
+                              key={key}
+                              type="button"
+                              onClick={() => handleReaction(msg.id, key)}
+                              className={cn(
+                                'flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold transition-colors',
+                                users.includes(user?.uid || '')
+                                  ? 'bg-primary/25'
+                                  : 'bg-on-surface/10 hover:bg-on-surface/15',
+                              )}
+                            >
+                              <span>{getReactionEmoji(key)}</span>
+                              <span>{users.length}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
                       <div
                         className={cn(
                           'mt-1 flex items-center justify-end gap-1 text-[10px]',
@@ -575,23 +734,58 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat, onOpenChat }: Ch
                             minute: '2-digit',
                           })}
                         </span>
+                        {mine &&
+                          (readByOthers ? (
+                            <CheckCheck className="h-3.5 w-3.5 text-sky-500" aria-label="Прочитано" />
+                          ) : deliveredToOther ? (
+                            <CheckCheck className="h-3.5 w-3.5" aria-label="Доставлено" />
+                          ) : (
+                            <Check className="h-3.5 w-3.5" aria-label="Отправлено" />
+                          ))}
                       </div>
                     </div>
 
                     {msg.type !== 'sticker' && msg.senderId !== SERVICE_BOT_ID && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setReplyTo({
-                            id: msg.id,
-                            text: msg.text || 'Вложение',
-                            senderName: msg.senderName,
-                          })
-                        }
-                        className="flex items-center gap-1 px-1 text-[10px] font-medium text-on-surface-variant/80 transition-colors hover:text-primary"
-                      >
-                        <Reply className="h-3 w-3" /> {t.reply}
-                      </button>
+                      <div className="flex items-center gap-2 px-1">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setReplyTo({
+                              id: msg.id,
+                              text: msg.text || 'Вложение',
+                              senderName: msg.senderName,
+                            })
+                          }
+                          className="flex items-center gap-1 text-[10px] font-medium text-on-surface-variant/80 transition-colors hover:text-primary"
+                        >
+                          <Reply className="h-3 w-3" /> {t.reply}
+                        </button>
+
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              aria-label="Поставить реакцию"
+                              className="text-on-surface-variant/80 transition-colors hover:text-primary"
+                            >
+                              <SmilePlus className="h-3.5 w-3.5" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent side="top" className="flex gap-0.5 rounded-full p-1.5">
+                            {REACTIONS.map((reaction) => (
+                              <button
+                                key={reaction.key}
+                                type="button"
+                                onClick={() => handleReaction(msg.id, reaction.key)}
+                                aria-label={reaction.label}
+                                className="flex h-8 w-8 items-center justify-center rounded-full text-lg transition-transform hover:scale-110"
+                              >
+                                {reaction.emoji}
+                              </button>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -665,6 +859,12 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat, onOpenChat }: Ch
                   onClick={() => setStickerPickerOpen((v) => !v)}
                 >
                   <Smile className="h-4 w-4 text-secondary" /> Стикеры
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="cursor-pointer gap-3 rounded-2xl py-2.5"
+                  onClick={() => setGifDialogOpen(true)}
+                >
+                  <ImagePlay className="h-4 w-4 text-tertiary" /> GIF
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -776,6 +976,49 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat, onOpenChat }: Ch
         </DialogContent>
       </Dialog>
 
+      <Dialog open={gifDialogOpen} onOpenChange={setGifDialogOpen}>
+        <DialogContent className="flex max-h-[80vh] w-[95vw] flex-col overflow-hidden rounded-[28px] border-none bg-surface-container p-0 shadow-m3-strong sm:max-w-md">
+          <DialogHeader className="space-y-1 border-b border-outline-variant/60 px-6 pb-4 pt-6 text-left">
+            <DialogTitle className="flex items-center gap-2 text-lg font-bold tracking-tight">
+              <ImagePlay className="h-5 w-5 text-primary" /> GIF
+            </DialogTitle>
+          </DialogHeader>
+          <div className="grid min-h-0 flex-1 grid-cols-2 gap-2 overflow-y-auto p-4">
+            {GIF_LIBRARY.map((gif) => (
+              <button
+                key={gif.id}
+                type="button"
+                onClick={() => sendGif(gif.url)}
+                className="group relative overflow-hidden rounded-2xl border border-outline-variant/60"
+              >
+                <img
+                  src={gif.url}
+                  alt={gif.title}
+                  loading="lazy"
+                  className="h-32 w-full object-cover transition-transform group-hover:scale-105"
+                />
+                <span className="absolute inset-x-0 bottom-0 bg-black/45 px-2 py-1 text-left text-[10px] font-semibold text-white">
+                  {gif.title}
+                </span>
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <CallOverlay
+        status={call.status}
+        incoming={call.incoming}
+        seconds={call.seconds}
+        isMuted={call.isMuted}
+        title={call.title}
+        remoteAudioRef={call.remoteAudioRef}
+        onEnd={call.endCall}
+        onMute={call.toggleMute}
+        onAccept={call.acceptCall}
+        onDecline={call.declineCall}
+      />
+
       <ChatAppearanceDialog
         chatId={chatId}
         chatTitle={getChatTitle()}
@@ -783,7 +1026,7 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat, onOpenChat }: Ch
         onOpenChange={setAppearanceOpen}
       />
 
-      {isChannel && (
+      {(isChannel || isSupergroup) && (
         <ChannelSettingsDialog
           chatId={chatId}
           chatData={chatData}

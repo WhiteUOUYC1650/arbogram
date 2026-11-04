@@ -41,6 +41,7 @@ export interface UserPrefs {
   folders: ChatFolder[];
   sessions: DeviceSession[];
   accessKeys: AccessKey[];
+  archivedChatIds: string[];
 }
 
 export const DEFAULT_PRIVACY: PrivacySettings = {
@@ -57,6 +58,7 @@ export const DEFAULT_PREFS: UserPrefs = {
   folders: [],
   sessions: [],
   accessKeys: [],
+  archivedChatIds: [],
 };
 
 export const DEVICE_ID_STORAGE_KEY = 'slink:device-id';
@@ -123,6 +125,7 @@ export function mergePrefs(raw: any): UserPrefs {
     folders: Array.isArray(raw.folders) ? raw.folders : [],
     sessions: Array.isArray(raw.sessions) ? raw.sessions : [],
     accessKeys: Array.isArray(raw.accessKeys) ? raw.accessKeys : [],
+    archivedChatIds: Array.isArray(raw.archivedChatIds) ? raw.archivedChatIds : [],
   };
 }
 
@@ -157,5 +160,7 @@ export function useUserPrefs() {
     setFolders: (folders: ChatFolder[]) => update({ 'prefs.folders': folders }),
     setSessions: (sessions: DeviceSession[]) => update({ 'prefs.sessions': sessions }),
     setAccessKeys: (accessKeys: AccessKey[]) => update({ 'prefs.accessKeys': accessKeys }),
+    setArchivedChatIds: (archivedChatIds: string[]) =>
+      update({ 'prefs.archivedChatIds': archivedChatIds }),
   };
 }

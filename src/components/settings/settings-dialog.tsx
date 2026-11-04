@@ -28,13 +28,19 @@ import {
   Eye,
   LogIn,
   CheckCheck,
+  Cake,
+  Music,
+  Bell,
+  Lock as LockIcon,
+  Play,
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useFirestore, useUser, useDoc, useMemoFirebase } from '@/firebase';
+import { useFirestore, useUser, useDoc, useMemoFirebase, useAuth } from '@/firebase';
+import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth';
 import { doc, updateDoc, setDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Switch } from '@/components/ui/switch';
@@ -44,6 +50,7 @@ import { APP_NAME, APP_VERSION_LABEL } from '@/lib/brand';
 import { notifyServiceBot } from '@/lib/service-bot';
 import { getAppSettings, resetAppSettings, updateAppSettings, useAppSettings } from '@/lib/app-settings';
 import { clearAppCache, formatBytes, getCacheStats, type CacheStats } from '@/lib/cache';
+import { BANNER_PRESETS, MUSIC_PRESETS, getBannerClass } from '@/lib/profile-extras';
 import { ACCENT_PALETTES, applyGlobalPalette } from '@/lib/palettes';
 import {
   getDeviceId,
@@ -161,6 +168,33 @@ function SettingRow({
   );
 }
 
+/** Баннер профиля: 1200×400 JPEG, чтобы уложиться в лимит документа Firestore. */
+function compressBanner(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const WIDTH = 1200;
+        const HEIGHT = 400;
+        const canvas = document.createElement('canvas');
+        canvas.width = WIDTH;
+        canvas.height = HEIGHT;
+        const ctx = canvas.getContext('2d');
+        const scale = Math.max(WIDTH / img.width, HEIGHT / img.height);
+        const w = img.width * scale;
+        const h = img.height * scale;
+        ctx?.drawImage(img, (WIDTH - w) / 2, (HEIGHT - h) / 2, w, h);
+        resolve(canvas.toDataURL('image/jpeg', 0.75));
+      };
+      img.onerror = reject;
+    };
+    reader.onerror = reject;
+  });
+}
+
 export function SettingsDialog({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = React.useState(false);
   const [tab, setTab] = React.useState<SettingsTab>('profile');
@@ -172,11 +206,21 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
   const [isClearing, setIsClearing] = React.useState(false);
   const [confirmClear, setConfirmClear] = React.useState(false);
   const [lastCleared, setLastCleared] = React.useState<number | null>(null);
+  const [birthDate, setBirthDate] = React.useState('');
+  const [bannerPreset, setBannerPreset] = React.useState('violet');
+  const [bannerBase64, setBannerBase64] = React.useState('');
+  const [isUploadingBanner, setIsUploadingBanner] = React.useState(false);
+  const [musicTitle, setMusicTitle] = React.useState('');
+  const [musicUrl, setMusicUrl] = React.useState('');
+  const [currentPassword, setCurrentPassword] = React.useState('');
+  const [newPassword, setNewPassword] = React.useState('');
+  const [isChangingPassword, setIsChangingPassword] = React.useState(false);
 
   const settings = useAppSettings();
   const { prefs, setPalette, setPrivacy, setSessions, setAccessKeys } = useUserPrefs();
 
   const db = useFirestore();
+  const auth = useAuth();
   const { user } = useUser();
   const { toast } = useToast();
 
@@ -196,6 +240,11 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
     if (userData) {
       setDisplayName(userData.displayName || '');
       setPhoneNumber(userData.phoneNumber || '');
+      setBirthDate(userData.birthDate || '');
+      setBannerPreset(userData.bannerPreset || 'violet');
+      setBannerBase64(userData.banner || '');
+      setMusicTitle(userData.music?.title || '');
+      setMusicUrl(userData.music?.url || '');
     }
     const storedLang = localStorage.getItem('lang') as Language;
     if (storedLang) setLang(storedLang);
@@ -224,6 +273,16 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
       await updateDoc(doc(db, 'users', user.uid), {
         displayName: displayName.trim(),
         phoneNumber: normalizedPhone,
+        birthDate: birthDate || null,
+        bannerPreset,
+        banner: bannerBase64 || null,
+        music: musicUrl
+          ? {
+              title: musicTitle.trim() || 'Моя музыка',
+              artist: MUSIC_PRESETS.find((track) => track.url === musicUrl)?.artist || 'SLink',
+              url: musicUrl,
+            }
+          : null,
       });
 
       await notifyServiceBot(
@@ -256,6 +315,79 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
       setIsUploadingAvatar(false);
       e.target.value = '';
     }
+  };
+
+  const handleBannerChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingBanner(true);
+    try {
+      const base64 = await compressBanner(file);
+      setBannerBase64(base64);
+      toast({ title: 'Баннер готов', description: 'Нажмите «Сохранить», чтобы применить' });
+    } catch {
+      toast({ variant: 'destructive', title: 'Не удалось загрузить баннер' });
+    } finally {
+      setIsUploadingBanner(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (!auth?.currentUser || !user?.email) return;
+
+    if (newPassword.length < 6) {
+      toast({ variant: 'destructive', title: 'Пароль слишком короткий', description: 'Минимум 6 символов' });
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      const credential = EmailAuthProvider.credential(user.email, currentPassword);
+      await reauthenticateWithCredential(auth.currentUser, credential);
+      await updatePassword(auth.currentUser, newPassword);
+      setCurrentPassword('');
+      setNewPassword('');
+      toast({ title: 'Пароль изменён' });
+    } catch (error: any) {
+      let message = error?.message || 'Попробуйте ещё раз';
+      if (error?.code === 'auth/wrong-password' || error?.code === 'auth/invalid-credential') {
+        message = 'Текущий пароль неверен';
+      }
+      if (error?.code === 'auth/weak-password') message = 'Слишком простой пароль';
+      toast({ variant: 'destructive', title: 'Не удалось изменить пароль', description: message });
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
+  const handleNotificationsToggle = async (value: boolean) => {
+    if (!value) {
+      updateAppSettings({ notifications: false });
+      return;
+    }
+
+    if (typeof Notification === 'undefined') {
+      toast({ variant: 'destructive', title: 'Браузер не поддерживает уведомления' });
+      return;
+    }
+
+    const permission =
+      Notification.permission === 'default'
+        ? await Notification.requestPermission()
+        : Notification.permission;
+
+    if (permission !== 'granted') {
+      toast({
+        variant: 'destructive',
+        title: 'Разрешение не выдано',
+        description: 'Включите уведомления для SLink в настройках браузера',
+      });
+      return;
+    }
+
+    updateAppSettings({ notifications: true });
+    new Notification('SLink', { body: 'Уведомления включены' });
   };
 
   const toggleTheme = (val: boolean) => {
@@ -407,9 +539,9 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
             <div className="space-y-6 animate-in fade-in duration-200">
               <div className="flex flex-col items-center gap-3">
                 <div className="relative">
-                  <Avatar className="h-24 w-24 rounded-[28px] shadow-m3">
+                  <Avatar className="h-24 w-24 rounded-full shadow-m3">
                     <AvatarImage src={avatarData?.base64} className="object-cover" />
-                    <AvatarFallback className="rounded-[28px] bg-primary-container text-2xl font-bold text-primary-on-container">
+                    <AvatarFallback className="rounded-full bg-primary-container text-2xl font-bold text-primary-on-container">
                       {userData?.displayName?.[0] || <UserIcon className="h-8 w-8" />}
                     </AvatarFallback>
                   </Avatar>
@@ -434,6 +566,49 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
               </div>
 
               <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="m3-label ml-1">Баннер профиля</Label>
+                  <div
+                    className={cn(
+                      'relative h-24 w-full overflow-hidden rounded-2xl',
+                      bannerBase64 ? 'bg-surface-high' : getBannerClass(bannerPreset),
+                    )}
+                  >
+                    {bannerBase64 ? (
+                      <img src={bannerBase64} alt="Баннер" className="h-full w-full object-cover" />
+                    ) : null}
+                    <label className="absolute bottom-2 right-2 flex h-8 cursor-pointer items-center gap-1 rounded-full bg-black/45 px-3 text-[10px] font-semibold text-white backdrop-blur">
+                      {isUploadingBanner ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Camera className="h-3.5 w-3.5" />
+                      )}
+                      Загрузить
+                      <input type="file" accept="image/*" className="hidden" onChange={handleBannerChange} />
+                    </label>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {BANNER_PRESETS.map((preset) => (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => {
+                          setBannerPreset(preset.id);
+                          setBannerBase64('');
+                        }}
+                        aria-label={preset.label}
+                        className={cn(
+                          'h-8 w-8 rounded-full',
+                          preset.className,
+                          bannerPreset === preset.id && !bannerBase64
+                            ? 'ring-2 ring-primary ring-offset-2 ring-offset-surface-low'
+                            : 'ring-1 ring-outline-variant',
+                        )}
+                      />
+                    ))}
+                  </div>
+                </div>
+
                 <div className="space-y-1.5">
                   <Label className="m3-label ml-1">{t.name}</Label>
                   <div className="relative">
@@ -456,6 +631,74 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
                       className="m3-field pl-12"
                     />
                   </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="m3-label ml-1">Дата рождения</Label>
+                  <div className="relative">
+                    <Cake className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-on-surface-variant" />
+                    <Input
+                      type="date"
+                      value={birthDate}
+                      onChange={(e) => setBirthDate(e.target.value)}
+                      className="m3-field pl-12"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="m3-label ml-1">Музыка профиля</Label>
+                  <div className="space-y-1.5">
+                    {MUSIC_PRESETS.map((track) => (
+                      <button
+                        key={track.id}
+                        type="button"
+                        onClick={() => {
+                          setMusicUrl(track.url);
+                          setMusicTitle(track.title);
+                        }}
+                        className={cn(
+                          'flex w-full items-center gap-2 rounded-2xl border px-3 py-2 text-left transition-colors',
+                          musicUrl === track.url
+                            ? 'border-primary bg-primary-container/40'
+                            : 'border-outline-variant/60 hover:bg-on-surface/5',
+                        )}
+                      >
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                          <Play className="h-3.5 w-3.5" />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-xs font-bold text-on-surface">
+                            {track.title}
+                          </span>
+                          <span className="block truncate text-[10px] text-on-surface-variant">
+                            {track.artist}
+                          </span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="relative">
+                    <Music className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-on-surface-variant" />
+                    <Input
+                      placeholder="или ссылка на mp3"
+                      value={musicUrl}
+                      onChange={(e) => setMusicUrl(e.target.value)}
+                      className="m3-field pl-12 text-xs"
+                    />
+                  </div>
+                  {musicUrl ? (
+                    <Button
+                      variant="outline"
+                      className="h-9 w-full rounded-full text-[11px]"
+                      onClick={() => {
+                        setMusicUrl('');
+                        setMusicTitle('');
+                      }}
+                    >
+                      Убрать музыку
+                    </Button>
+                  ) : null}
                 </div>
 
                 <Button
@@ -521,6 +764,14 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
                   checked={settings.sendOnEnter}
                   onCheckedChange={(value) => updateAppSettings({ sendOnEnter: value })}
                 />
+              </SettingRow>
+
+              <SettingRow
+                icon={<Bell className="h-5 w-5" />}
+                title="Уведомления"
+                description="Всплывающие уведомления о новых сообщениях"
+              >
+                <Switch checked={settings.notifications} onCheckedChange={handleNotificationsToggle} />
               </SettingRow>
 
               <div className="rounded-3xl border border-outline-variant/60 p-4">
@@ -684,6 +935,33 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
                 <p className="mt-2 text-[10px] leading-snug text-on-surface-variant">
                   Список хранится в профиле пользователя; удаление убирает устройство из списка.
                 </p>
+              </div>
+
+              <div className="space-y-2 rounded-3xl border border-outline-variant/60 p-4">
+                <p className="m3-label flex items-center gap-1.5">
+                  <LockIcon className="h-3.5 w-3.5" /> Смена пароля
+                </p>
+                <Input
+                  type="password"
+                  placeholder="Текущий пароль"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  className="m3-field"
+                />
+                <Input
+                  type="password"
+                  placeholder="Новый пароль (минимум 6 символов)"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="m3-field"
+                />
+                <Button
+                  className="h-11 w-full rounded-full bg-primary font-bold text-primary-foreground"
+                  onClick={handleChangePassword}
+                  disabled={!currentPassword || newPassword.length < 6 || isChangingPassword}
+                >
+                  {isChangingPassword ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Изменить пароль'}
+                </Button>
               </div>
 
               <div className="rounded-3xl border border-outline-variant/60 p-4">

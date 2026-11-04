@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from 'react';
-import { Check, Copy, Hash, Link2, Loader2, Share2, ShieldCheck } from 'lucide-react';
+import { Check, Copy, Hash, Loader2, Share2, ShieldCheck, Users } from 'lucide-react';
 import { doc, updateDoc } from 'firebase/firestore';
 
 import { Button } from '@/components/ui/button';
@@ -56,10 +56,11 @@ export function ChannelSettingsDialog({
     [myChats],
   );
 
+  const isGroup = chatData?.type === 'group';
   const isOwner = Boolean(user && chatData?.ownerId === user.uid);
   const shareUrl =
     chatData?.slug && typeof window !== 'undefined'
-      ? `${window.location.origin}/agc/${chatData.slug}/`
+      ? `${window.location.origin}/join/?${isGroup ? 'group' : 'slug'}=${chatData.slug}`
       : '';
 
   React.useEffect(() => {
@@ -117,10 +118,11 @@ export function ChannelSettingsDialog({
       <DialogContent className="flex max-h-[88vh] w-[95vw] flex-col overflow-hidden rounded-[28px] border-none bg-surface-low p-0 shadow-m3-strong sm:max-w-md">
         <DialogHeader className="space-y-1 border-b border-outline-variant/60 px-6 pb-4 pt-6 text-left">
           <DialogTitle className="flex items-center gap-2 text-xl font-bold tracking-tight">
-            <Hash className="h-5 w-5 text-primary" /> Настройки канала
+            {isGroup ? <Users className="h-5 w-5 text-primary" /> : <Hash className="h-5 w-5 text-primary" />}
+            {isGroup ? 'Настройки супергруппы' : 'Настройки канала'}
           </DialogTitle>
           <DialogDescription className="text-xs text-on-surface-variant">
-            {chatData?.slug ? `slink/${chatData.slug}` : 'Канал SLink'}
+            {chatData?.slug ? `slink/${isGroup ? 'g' : 'c'}/${chatData.slug}` : 'SLink'}
           </DialogDescription>
         </DialogHeader>
 
@@ -158,6 +160,7 @@ export function ChannelSettingsDialog({
                 />
               </div>
 
+              {!isGroup && (
               <div className="space-y-1.5">
                 <Label className="m3-label ml-1">Группа для комментариев</Label>
                 <select
@@ -176,6 +179,7 @@ export function ChannelSettingsDialog({
                   В канале появится кнопка «Обсуждение», ведущая в эту группу.
                 </p>
               </div>
+              )}
 
               <div className="flex items-center justify-between gap-3 rounded-3xl bg-surface-high/70 p-4">
                 <div className="flex items-center gap-3">
@@ -183,7 +187,9 @@ export function ChannelSettingsDialog({
                     <ShieldCheck className="h-5 w-5" />
                   </span>
                   <div>
-                    <p className="text-sm font-bold text-on-surface">Публичный канал</p>
+                    <p className="text-sm font-bold text-on-surface">
+                      {isGroup ? 'Публичная супергруппа' : 'Публичный канал'}
+                    </p>
                     <p className="text-[11px] text-on-surface-variant">Открывается по ссылке</p>
                   </div>
                 </div>
