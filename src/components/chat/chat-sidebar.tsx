@@ -16,6 +16,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 import { useCollection, useFirestore, useAuth, useUser, useMemoFirebase, useDoc } from '@/firebase';
 import {
   collection,
@@ -67,6 +68,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
   const auth = useAuth();
   const { user } = useUser();
   const settings = useAppSettings();
+  const { toast } = useToast();
 
   React.useEffect(() => {
     const storedLang = localStorage.getItem('lang') as Language;
@@ -137,8 +139,14 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
           .filter((u) => u.uid !== user?.uid),
         chats: chatSnap.docs.map((d) => ({ ...d.data(), id: d.id })),
       });
-    } catch (e) {
+    } catch (e: any) {
       console.error('Search error:', e);
+      setSearchResults({ users: [], chats: [] });
+      toast({
+        variant: 'destructive',
+        title: 'Поиск недоступен',
+        description: 'Firestore отклонил запрос. Проверьте составные индексы (docs/firestore-indexes.md).',
+      });
     } finally {
       setIsSearching(false);
     }

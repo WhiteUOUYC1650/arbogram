@@ -181,15 +181,21 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
 
   const handleVote = async (msgId: string, optionIndex: number) => {
     if (!db || !user) return;
-    const msgRef = doc(db, 'chats', chatId, 'messages', msgId);
-    const snap = await getDoc(msgRef);
-    if (!snap.exists()) return;
 
-    const poll = snap.data().poll;
-    const votes = poll.votes || {};
-    votes[user.uid] = optionIndex;
+    try {
+      const msgRef = doc(db, 'chats', chatId, 'messages', msgId);
+      const snap = await getDoc(msgRef);
+      if (!snap.exists()) return;
 
-    await updateDoc(msgRef, { 'poll.votes': votes });
+      const poll = snap.data().poll;
+      const votes = poll.votes || {};
+      votes[user.uid] = optionIndex;
+
+      await updateDoc(msgRef, { 'poll.votes': votes });
+    } catch (error) {
+      console.error('Vote error:', error);
+      toast({ variant: 'destructive', title: 'Не удалось проголосовать' });
+    }
   };
 
   const handleLeaveChat = async () => {
