@@ -24,6 +24,11 @@ import {
   Archive,
   ArchiveRestore,
   ImagePlay,
+  ImagePlus,
+  Volume2,
+  VolumeX,
+  Video,
+  Loader2,
   MessagesSquare,
   Palette as PaletteIcon,
   Hash,
@@ -55,6 +60,8 @@ import { REACTIONS, getReactionEmoji } from '@/lib/reactions';
 import { GIF_LIBRARY } from '@/lib/gifs';
 import { formatLastSeen } from '@/lib/profile-extras';
 import { useAudioCall } from '@/lib/use-audio-call';
+import { MAX_INLINE_MEDIA_LENGTH, compressImage, formatDuration } from '@/lib/media';
+import { VideoNoteRecorder } from './video-note-recorder';
 import { CallOverlay } from './call-overlay';
 import { ChatAppearanceDialog } from './chat-appearance-dialog';
 import { ChannelSettingsDialog } from './channel-settings-dialog';
@@ -91,6 +98,10 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat, onOpenChat }: Ch
   const [appearanceOpen, setAppearanceOpen] = React.useState(false);
   const [channelSettingsOpen, setChannelSettingsOpen] = React.useState(false);
   const [gifDialogOpen, setGifDialogOpen] = React.useState(false);
+  const [videoNoteOpen, setVideoNoteOpen] = React.useState(false);
+  const [isSendingMedia, setIsSendingMedia] = React.useState(false);
+  const photoInputRef = React.useRef<HTMLInputElement | null>(null);
+  const typingSentAtRef = React.useRef(0);
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
   const stickToBottomRef = React.useRef(true);
@@ -204,7 +215,11 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat, onOpenChat }: Ch
       if (poll) last = '📊 Опрос';
       if (audioUrl) last = '🎤 Голосовое сообщение';
       if (chatRef) {
-        await updateDoc(chatRef, { lastMessage: last, lastMessageTime: Date.now() });
+        await updateDoc(chatRef, {
+          lastMessage: last,
+          lastMessageTime: Date.now(),
+          [`typing.${user.uid}`]: 0,
+        });
       }
       setMessage('');
       setSelectedImages([]);
@@ -233,6 +248,125 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat, onOpenChat }: Ch
     } catch (error) {
       console.error('Vote error:', error);
       toast({ variant: 'destructive', title: 'Не удалось проголосовать' });
+    }
+  };
+
+  const [typingTick, setTypingTick] = React.useState(() => Date.now());
+
+  React.useEffect(() => {
+    const interval = setInterval(() => setTypingTick(Date.now()), 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const typingUsers = React.useMemo(
+    () =>
+      Object.entries((chatData?.typing || {}) as Record<string, number>).filter(
+        ([uid, timestamp]) => uid !== user?.uid && Number(timestamp) > typingTick - 7000,
+      ),
+    [chatData?.typing, user?.uid, typingTick],
+  );
+
+  const isOtherTyping = typingUsers.length > 0;
+
+  const handleTyping = () => {
+    if (!db || !user || !chatRef) return;
+    const now = Date.now();
+    if (now - typingSentAtRef.current < 3000) return;
+    typingSentAtRef.current = now;
+    updateDoc(chatRef, { [`typing.${user.uid}`]: now }).catch(() => {});
+  };
+
+  React.useEffect(() => {
+    return () => {
+      if (db && user && chatRef) {
+        updateDoc(chatRef, { [`typing.${user.uid}`]: 0 }).catch(() => {});
+      }
+    };
+  }, [db, user?.uid, chatRef]);
+
+  const appendReply = () =>
+    replyTo
+      ? { id: replyTo.id, text: replyTo.text || 'Вложение', senderName: replyTo.senderName }
+      : null;
+
+  const sendPhotos = async (files: FileList | null) => {
+    if (!files || files.length === 0 || !db || !user) return;
+
+    const selected = Array.from(files).slice(0, 4);
+    setIsSendingMedia(true);
+
+    try {
+      const urls: string[] = [];
+      for (const file of selected) {
+        const url = await compressImage(file);
+        if (url.length > MAX_INLINE_MEDIA_LENGTH / 2) {
+          toast({
+            variant: 'destructive',
+            title: 'Фото слишком большое',
+            description: 'Выберите изображение меньшего размера',
+          });
+          continue;
+        }
+        urls.push(url);
+      }
+
+      if (urls.length === 0) return;
+      if (urls.join('').length > MAX_INLINE_MEDIA_LENGTH) {
+        toast({ variant: 'destructive', title: 'Слишком много фото', description: 'Попробуйте меньше' });
+        return;
+      }
+
+      await addDoc(collection(db, 'chats', chatId, 'messages'), {
+        senderId: user.uid,
+        senderName: user.displayName || 'User',
+        type: 'image',
+        imageUrls: urls,
+        text: null,
+        timestamp: Date.now(),
+        replyTo: appendReply(),
+      });
+
+      if (chatRef) {
+        await updateDoc(chatRef, {
+          lastMessage: urls.length > 1 ? `📷 ${urls.length} фото` : '📷 Фото',
+          lastMessageTime: Date.now(),
+        });
+      }
+
+      setReplyTo(null);
+    } catch {
+      toast({ variant: 'destructive', title: 'Не удалось отправить фото' });
+    } finally {
+      setIsSendingMedia(false);
+      if (photoInputRef.current) photoInputRef.current.value = '';
+    }
+  };
+
+  const sendVideoNote = async ({ url, duration }: { url: string; duration: number }) => {
+    if (!db || !user) return;
+
+    try {
+      await addDoc(collection(db, 'chats', chatId, 'messages'), {
+        senderId: user.uid,
+        senderName: user.displayName || 'User',
+        type: 'video-note',
+        videoUrl: url,
+        duration,
+        text: null,
+        timestamp: Date.now(),
+        replyTo: appendReply(),
+      });
+
+      if (chatRef) {
+        await updateDoc(chatRef, {
+          lastMessage: '📹 Видеокружок',
+          lastMessageTime: Date.now(),
+        });
+      }
+
+      setReplyTo(null);
+    } catch {
+      toast({ variant: 'destructive', title: 'Не удалось отправить видеокружок' });
     }
   };
 
@@ -344,12 +478,18 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat, onOpenChat }: Ch
   const getChatStatus = () => {
     if (isServiceChat) return 'Служебный аккаунт · только уведомления';
     if (isGlobalChat) return `${t.public} · SLink`;
+
+    if (isOtherTyping) {
+      const firstUid = typingUsers[0]?.[0];
+      const name = firstUid ? chatData?.metadata?.[firstUid]?.displayName : null;
+      return name && chatData?.type !== 'individual' ? `${name} печатает…` : 'печатает…';
+    }
     if (chatData?.type === 'individual') {
       if (otherUserData?.status === 'online') return t.online;
-      const canSeeLastSeen = (otherUserData?.prefs?.privacy?.lastSeen ?? 'everyone') === 'everyone';
-      return canSeeLastSeen
-        ? `был(а) в сети ${formatLastSeen(otherUserData?.lastSeen)}`
-        : t.offline;
+      const canSeeLastSeen =
+        (otherUserData?.prefs?.privacy?.lastSeen ?? 'everyone') === 'everyone';
+      if (!canSeeLastSeen || !otherUserData?.lastSeen) return t.offline;
+      return `был(а) в сети ${formatLastSeen(otherUserData.lastSeen)}`;
     }
     return `${chatData?.participants?.length || 0} ${t.members}${isSupergroup ? ' · супергруппа' : ''}`;
   };
@@ -418,7 +558,11 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat, onOpenChat }: Ch
                 <span
                   className={cn(
                     'truncate text-[11px] font-medium',
-                    isIndividualOnline ? 'text-success' : 'text-on-surface-variant',
+                    isOtherTyping
+                      ? 'text-primary'
+                      : isIndividualOnline
+                        ? 'text-success'
+                        : 'text-on-surface-variant',
                   )}
                 >
                   {getChatStatus()}
@@ -642,16 +786,28 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat, onOpenChat }: Ch
                       )}
 
                       {msg.type === 'image' && msg.imageUrls?.length > 0 && (
-                        <div className="mb-1 grid grid-cols-2 gap-1.5">
+                        <div
+                          className={cn(
+                            'mb-1 grid gap-1.5',
+                            msg.imageUrls.length > 1 ? 'grid-cols-2' : 'grid-cols-1',
+                          )}
+                        >
                           {msg.imageUrls.map((src: string, idx: number) => (
                             <img
                               key={idx}
                               src={src}
                               alt="Вложение"
-                              className="max-h-56 w-full rounded-xl object-cover"
+                              className={cn(
+                                'w-full rounded-xl object-cover',
+                                msg.imageUrls.length > 1 ? 'max-h-40' : 'max-h-80',
+                              )}
                             />
                           ))}
                         </div>
+                      )}
+
+                      {msg.type === 'video-note' && msg.videoUrl && (
+                        <VideoNoteBubble src={msg.videoUrl} duration={msg.duration} />
                       )}
 
                       {msg.type === 'poll' && msg.poll && (
@@ -847,7 +1003,25 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat, onOpenChat }: Ch
                   <Paperclip className="h-5 w-5" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" side="top" className="w-52 rounded-3xl p-2">
+              <DropdownMenuContent align="start" side="top" className="w-56 rounded-3xl p-2">
+                <DropdownMenuItem
+                  className="cursor-pointer gap-3 rounded-2xl py-2.5"
+                  onClick={() => photoInputRef.current?.click()}
+                  disabled={isSendingMedia}
+                >
+                  {isSendingMedia ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                  ) : (
+                    <ImagePlus className="h-4 w-4 text-primary" />
+                  )}
+                  Фото
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="cursor-pointer gap-3 rounded-2xl py-2.5"
+                  onClick={() => setVideoNoteOpen(true)}
+                >
+                  <Video className="h-4 w-4 text-tertiary" /> Видеокружок
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   className="cursor-pointer gap-3 rounded-2xl py-2.5"
                   onClick={() => setPollDialogOpen(true)}
@@ -883,7 +1057,10 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat, onOpenChat }: Ch
               <Input
                 placeholder={t.message}
                 value={message}
-                onChange={(e) => setMessage(e.target.value)}
+                onChange={(e) => {
+                  setMessage(e.target.value);
+                  handleTyping();
+                }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey && settings.sendOnEnter) {
                     e.preventDefault();
@@ -975,6 +1152,21 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat, onOpenChat }: Ch
           </div>
         </DialogContent>
       </Dialog>
+
+      <input
+        ref={photoInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={(event) => sendPhotos(event.target.files)}
+      />
+
+      <VideoNoteRecorder
+        open={videoNoteOpen}
+        onOpenChange={setVideoNoteOpen}
+        onSend={sendVideoNote}
+      />
 
       <Dialog open={gifDialogOpen} onOpenChange={setGifDialogOpen}>
         <DialogContent className="flex max-h-[80vh] w-[95vw] flex-col overflow-hidden rounded-[28px] border-none bg-surface-container p-0 shadow-m3-strong sm:max-w-md">
@@ -1310,6 +1502,47 @@ function VoiceRecorder({ onSend }: { onSend: (payload: { url: string; duration: 
     >
       <Mic className="h-5 w-5" />
     </Button>
+  );
+}
+
+/** Видеокружок: круглый автоплей без звука, звук включается кнопкой. */
+function VideoNoteBubble({ src, duration }: { src: string; duration?: number | null }) {
+  const videoRef = React.useRef<HTMLVideoElement | null>(null);
+  const [isMuted, setIsMuted] = React.useState(true);
+
+  return (
+    <div className="relative h-44 w-44 overflow-hidden rounded-full bg-black">
+      <video
+        ref={videoRef}
+        src={src}
+        autoPlay
+        loop
+        playsInline
+        muted={isMuted}
+        onClick={() => {
+          const video = videoRef.current;
+          if (!video) return;
+          if (video.paused) video.play().catch(() => {});
+          else video.pause();
+        }}
+        className="h-full w-full object-cover"
+      />
+
+      <button
+        type="button"
+        onClick={() => setIsMuted((value) => !value)}
+        aria-label={isMuted ? 'Включить звук' : 'Выключить звук'}
+        className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur"
+      >
+        {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+      </button>
+
+      {duration ? (
+        <span className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-black/50 px-2 py-0.5 text-[10px] font-semibold text-white">
+          {formatDuration(duration)}
+        </span>
+      ) : null}
+    </div>
   );
 }
 

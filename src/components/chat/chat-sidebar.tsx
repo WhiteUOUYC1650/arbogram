@@ -791,7 +791,17 @@ function ChatItem({
   const { data: targetUserData } = useDoc(userRef);
 
   const isOnline = targetUserData?.status === 'online';
-  const lastMessage = chat.lastMessage || 'Нет сообщений';
+
+  const [now, setNow] = React.useState(() => Date.now());
+  React.useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 4000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const isTyping = Object.entries((chat.typing || {}) as Record<string, number>).some(
+    ([uid, timestamp]) => uid !== user?.uid && Number(timestamp) > now - 7000,
+  );
+  const lastMessage = isTyping ? 'печатает…' : chat.lastMessage || 'Нет сообщений';
 
   return (
     <button
@@ -853,7 +863,11 @@ function ChatItem({
         <p
           className={cn(
             'mt-0.5 truncate text-[13px]',
-            isActive ? 'text-primary-on-container/80' : 'text-on-surface-variant',
+            isTyping
+              ? 'font-medium text-primary'
+              : isActive
+                ? 'text-primary-on-container/80'
+                : 'text-on-surface-variant',
           )}
         >
           {lastMessage}
