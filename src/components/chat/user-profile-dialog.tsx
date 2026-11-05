@@ -51,7 +51,9 @@ export function UserProfileDialog({ userId, children, onStartChat }: UserProfile
   const bannerUrl: string | undefined = userData?.banner;
   const bannerClass = getBannerClass(userData?.bannerPreset);
   const email: string | undefined = userData?.email;
-  const showEmail = Boolean(email && !email.endsWith('@covechat.local'));
+  const showEmail = Boolean(
+    email && !email.endsWith('@covechat.local') && !/@example\./i.test(email),
+  );
 
   const toggleMusic = async () => {
     const audio = audioRef.current;
