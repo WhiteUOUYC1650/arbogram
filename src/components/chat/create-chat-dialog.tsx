@@ -29,6 +29,7 @@ import {
   serverTimestamp,
   doc,
   getDoc,
+  setDoc,
   limit,
 } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -58,9 +59,12 @@ export function CreateChatDialog({ children, onChatCreated }: CreateChatDialogPr
   // Group
   const [groupName, setGroupName] = React.useState('');
   const [groupMembers, setGroupMembers] = React.useState('');
+  const [isSupergroup, setIsSupergroup] = React.useState(false);
+  const [groupSlug, setGroupSlug] = React.useState('');
 
   // Channel
   const [channelName, setChannelName] = React.useState('');
+  const [channelDescription, setChannelDescription] = React.useState('');
   const [channelSlug, setChannelSlug] = React.useState('');
   const [isPublic, setIsPublic] = React.useState(true);
 
@@ -80,8 +84,11 @@ export function CreateChatDialog({ children, onChatCreated }: CreateChatDialogPr
     setFoundUser(null);
     setGroupName('');
     setGroupMembers('');
+    setIsSupergroup(false);
+    setGroupSlug('');
     setChannelName('');
     setChannelSlug('');
+    setChannelDescription('');
     setPackName('');
     setStickerFiles([]);
     if (chatId) onChatCreated?.(chatId);
@@ -117,18 +124,25 @@ export function CreateChatDialog({ children, onChatCreated }: CreateChatDialogPr
     setIsCreating(true);
     try {
       const participants = [user.uid, foundUser.uid].sort();
-      const existing = await getDocs(
-        query(
-          collection(db, 'chats'),
-          where('type', '==', 'individual'),
-          where('participants', '==', participants),
-          limit(1),
-        ),
-      );
 
-      if (!existing.empty) {
-        resetAndClose(existing.docs[0].id);
-        return;
+      // Поиск существующего диалога не должен ломать создание: если Firestore
+      // отклонит запрос (индекс/правила) — просто создаём новый чат.
+      try {
+        const existing = await getDocs(
+          query(
+            collection(db, 'chats'),
+            where('type', '==', 'individual'),
+            where('participants', '==', participants),
+            limit(1),
+          ),
+        );
+
+        if (!existing.empty) {
+          resetAndClose(existing.docs[0].id);
+          return;
+        }
+      } catch (lookupError) {
+        console.warn('[SLink] Не удалось проверить существующий диалог:', lookupError);
       }
 
       const meSnap = await getDoc(doc(db, 'users', user.uid));
@@ -189,6 +203,55 @@ export function CreateChatDialog({ children, onChatCreated }: CreateChatDialogPr
     setIsCreating(true);
     try {
       const memberIds = await resolveMembers(groupMembers);
+
+      if (isSupergroup) {
+        const baseSlug =
+          slugify(groupSlug || groupName) || `group-${Date.now().toString(36).slice(-6)}`;
+
+        let finalSlug = baseSlug;
+        let chatRef = doc(db, 'chats', `group_${finalSlug}`);
+        for (let attempt = 0; attempt < 6; attempt += 1) {
+          const existing = await getDoc(chatRef).catch(() => null);
+          if (!existing || !existing.exists()) break;
+          finalSlug = `${baseSlug}-${Math.random().toString(36).slice(2, 6)}`;
+          chatRef = doc(db, 'chats', `group_${finalSlug}`);
+        }
+
+        await setDoc(chatRef, {
+          participants: [user.uid, ...memberIds],
+          type: 'group',
+          name: groupName.trim(),
+          slug: finalSlug,
+          isSupergroup: true,
+          isPublic: true,
+          admins: [user.uid],
+          ownerId: user.uid,
+          lastMessage: 'Супергруппа создана',
+          lastMessageTime: Date.now(),
+          createdAt: serverTimestamp(),
+        });
+
+        await sendSystemNotification(
+          db,
+          chatRef.id,
+          `Супергруппа «${groupName.trim()}» создана`,
+          'created',
+        );
+        await notifyServiceBot(
+          db,
+          user,
+          user.displayName,
+          `Вы создали супергруппу «${groupName.trim()}» — slink/g/${finalSlug}`,
+        );
+
+        toast({
+          title: 'Супергруппа создана',
+          description: `Ссылка: /join/?group=${finalSlug}`,
+        });
+        resetAndClose(chatRef.id);
+        return;
+      }
+
       const newChat = await addDoc(collection(db, 'chats'), {
         participants: [user.uid, ...memberIds],
         type: 'group',
@@ -223,30 +286,48 @@ export function CreateChatDialog({ children, onChatCreated }: CreateChatDialogPr
     }
   };
 
+  // Транслитерация, чтобы ссылки были стабильными и без кириллицы
+  const TRANSLIT: Record<string, string> = {
+    а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'e', ж: 'zh', з: 'z', и: 'i', й: 'y',
+    к: 'k', л: 'l', м: 'm', н: 'n', о: 'o', п: 'p', р: 'r', с: 's', т: 't', у: 'u', ф: 'f',
+    х: 'h', ц: 'ts', ч: 'ch', ш: 'sh', щ: 'sch', ъ: '', ы: 'y', ь: '', э: 'e', ю: 'yu', я: 'ya',
+  };
+
   const slugify = (value: string) =>
     value
       .toLowerCase()
+      .split('')
+      .map((char) => TRANSLIT[char] ?? char)
+      .join('')
       .trim()
-      .replace(/[^a-z0-9а-я\s-]/gi, '')
+      .replace(/[^a-z0-9\s-]/g, '')
       .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
       .slice(0, 32);
 
   const createChannel = async () => {
     if (!db || !user || !channelName.trim()) return;
     setIsCreating(true);
     try {
-      const desiredSlug = slugify(channelSlug || channelName) || `channel-${Date.now().toString(36)}`;
+      const baseSlug =
+        slugify(channelSlug || channelName) || `channel-${Date.now().toString(36).slice(-6)}`;
 
-      const existing = await getDocs(
-        query(collection(db, 'chats'), where('slug', '==', desiredSlug), where('type', '==', 'channel'), limit(1)),
-      );
+      // id документа = channel_<slug>: уникальность через id, без составных индексов
+      let finalSlug = baseSlug;
+      let chatRef = doc(db, 'chats', `channel_${finalSlug}`);
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        const existing = await getDoc(chatRef).catch(() => null);
+        if (!existing || !existing.exists()) break;
+        finalSlug = `${baseSlug}-${Math.random().toString(36).slice(2, 6)}`;
+        chatRef = doc(db, 'chats', `channel_${finalSlug}`);
+      }
 
-      const finalSlug = existing.empty ? desiredSlug : `${desiredSlug}-${Date.now().toString(36).slice(-4)}`;
-
-      const newChat = await addDoc(collection(db, 'chats'), {
+      await setDoc(chatRef, {
         participants: [user.uid],
         type: 'channel',
         name: channelName.trim(),
+        description: channelDescription.trim(),
         slug: finalSlug,
         isPublic,
         ownerId: user.uid,
@@ -257,7 +338,7 @@ export function CreateChatDialog({ children, onChatCreated }: CreateChatDialogPr
 
       await sendSystemNotification(
         db,
-        newChat.id,
+        chatRef.id,
         `Канал «${channelName.trim()}» создан · slink/${finalSlug}`,
         'channel',
       );
@@ -270,9 +351,9 @@ export function CreateChatDialog({ children, onChatCreated }: CreateChatDialogPr
       );
 
       toast({ title: 'Канал создан', description: `slink/${finalSlug}` });
-      resetAndClose(newChat.id);
+      resetAndClose(chatRef.id);
     } catch (e: any) {
-      toast({ variant: 'destructive', title: 'Ошибка', description: e.message });
+      toast({ variant: 'destructive', title: 'Не удалось создать канал', description: e.message });
     } finally {
       setIsCreating(false);
     }
@@ -446,12 +527,51 @@ export function CreateChatDialog({ children, onChatCreated }: CreateChatDialogPr
                   Вы добавитесь автоматически. Неизвестные юзернеймы будут пропущены.
                 </p>
               </div>
+              <div className="flex items-center justify-between gap-3 rounded-3xl bg-surface-high/70 p-4">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-tertiary-container text-tertiary-on-container">
+                    <Users className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-bold text-on-surface">Супергруппа</p>
+                    <p className="text-[11px] text-on-surface-variant">Публичная, вход по ссылке</p>
+                  </div>
+                </div>
+                <Switch checked={isSupergroup} onCheckedChange={setIsSupergroup} />
+              </div>
+
+              {isSupergroup && (
+                <div className="space-y-1.5 animate-in fade-in duration-200">
+                  <Label className="m3-label ml-1">Ссылка-слаг</Label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 font-mono text-xs text-on-surface-variant">
+                      slink/g/
+                    </span>
+                    <Input
+                      placeholder="project-slink"
+                      value={groupSlug}
+                      onChange={(e) => setGroupSlug(slugify(e.target.value))}
+                      className="m3-field pl-24 font-mono text-sm"
+                    />
+                  </div>
+                  <p className="px-1 text-[11px] text-on-surface-variant">
+                    После создания группа откроется по /join/?group=… — ссылку можно переслать.
+                  </p>
+                </div>
+              )}
+
               <Button
                 className="h-12 w-full rounded-full bg-primary font-bold text-primary-foreground shadow-m3"
                 onClick={createGroup}
                 disabled={isCreating || !groupName.trim()}
               >
-                {isCreating ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Создать группу'}
+                {isCreating ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : isSupergroup ? (
+                  'Создать супергруппу'
+                ) : (
+                  'Создать группу'
+                )}
               </Button>
             </div>
           )}
@@ -485,6 +605,16 @@ export function CreateChatDialog({ children, onChatCreated }: CreateChatDialogPr
                 </div>
               </div>
 
+              <div className="space-y-1.5">
+                <Label className="m3-label ml-1">Описание (необязательно)</Label>
+                <Input
+                  placeholder="О чём канал? Видно по ссылке"
+                  value={channelDescription}
+                  onChange={(e) => setChannelDescription(e.target.value)}
+                  className="m3-field"
+                />
+              </div>
+
               <div className="flex items-center justify-between gap-3 rounded-3xl bg-surface-high/70 p-4">
                 <div className="flex items-center gap-3">
                   <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-secondary-container text-secondary-on-container">
@@ -492,7 +622,7 @@ export function CreateChatDialog({ children, onChatCreated }: CreateChatDialogPr
                   </span>
                   <div>
                     <p className="text-sm font-bold text-on-surface">Публичный канал</p>
-                    <p className="text-[11px] text-on-surface-variant">Виден в поиске всем</p>
+                    <p className="text-[11px] text-on-surface-variant">Открывается по ссылке /join/?slug=…</p>
                   </div>
                 </div>
                 <Switch checked={isPublic} onCheckedChange={setIsPublic} />

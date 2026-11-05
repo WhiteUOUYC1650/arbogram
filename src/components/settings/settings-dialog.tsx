@@ -20,13 +20,27 @@ import {
   List,
   Image as ImageIcon,
   CornerDownLeft,
+  ShieldCheck,
+  Smartphone,
+  KeyRound,
+  Plus,
+  Copy,
+  Eye,
+  LogIn,
+  CheckCheck,
+  Cake,
+  Music,
+  Bell,
+  Lock as LockIcon,
+  Play,
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useFirestore, useUser, useDoc, useMemoFirebase } from '@/firebase';
+import { useFirestore, useUser, useDoc, useMemoFirebase, useAuth } from '@/firebase';
+import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth';
 import { doc, updateDoc, setDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Switch } from '@/components/ui/switch';
@@ -36,9 +50,18 @@ import { APP_NAME, APP_VERSION_LABEL } from '@/lib/brand';
 import { notifyServiceBot } from '@/lib/service-bot';
 import { getAppSettings, resetAppSettings, updateAppSettings, useAppSettings } from '@/lib/app-settings';
 import { clearAppCache, formatBytes, getCacheStats, type CacheStats } from '@/lib/cache';
+import { BANNER_PRESETS, MUSIC_PRESETS, getBannerClass } from '@/lib/profile-extras';
+import { ACCENT_PALETTES, applyGlobalPalette } from '@/lib/palettes';
+import {
+  getDeviceId,
+  useUserPrefs,
+  type AccessKey,
+  type DeviceSession,
+  type Visibility,
+} from '@/lib/user-prefs';
 import { cn } from '@/lib/utils';
 
-type SettingsTab = 'profile' | 'appearance' | 'data' | 'language';
+type SettingsTab = 'profile' | 'appearance' | 'privacy' | 'data' | 'language';
 
 /** Сжимаем аватарку в квадрат 512×512, чтобы не раздувать Firestore. */
 function compressAvatar(file: File): Promise<string> {
@@ -64,6 +87,56 @@ function compressAvatar(file: File): Promise<string> {
     };
     reader.onerror = reject;
   });
+}
+
+function generateAccessKey(): string {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const block = () => {
+    const bytes = new Uint8Array(4);
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+      crypto.getRandomValues(bytes);
+    } else {
+      for (let i = 0; i < 4; i += 1) bytes[i] = Math.floor(Math.random() * 256);
+    }
+    return Array.from(bytes)
+      .map((byte) => alphabet[byte % alphabet.length])
+      .join('');
+  };
+  return `SL-${block()}-${block()}-${block()}`;
+}
+
+function VisibilityPicker({
+  value,
+  onChange,
+}: {
+  value: Visibility;
+  onChange: (value: Visibility) => void;
+}) {
+  const options: { id: Visibility; label: string }[] = [
+    { id: 'everyone', label: 'Все' },
+    { id: 'contacts', label: 'Контакты' },
+    { id: 'nobody', label: 'Никто' },
+  ];
+
+  return (
+    <div className="flex shrink-0 gap-1 rounded-full bg-surface-lowest p-1">
+      {options.map((option) => (
+        <button
+          key={option.id}
+          type="button"
+          onClick={() => onChange(option.id)}
+          className={cn(
+            'h-8 rounded-full px-2.5 text-[11px] font-semibold transition-colors',
+            value === option.id
+              ? 'bg-primary text-primary-foreground'
+              : 'text-on-surface-variant hover:text-on-surface',
+          )}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 function SettingRow({
@@ -95,6 +168,33 @@ function SettingRow({
   );
 }
 
+/** Баннер профиля: 1200×400 JPEG, чтобы уложиться в лимит документа Firestore. */
+function compressBanner(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const WIDTH = 1200;
+        const HEIGHT = 400;
+        const canvas = document.createElement('canvas');
+        canvas.width = WIDTH;
+        canvas.height = HEIGHT;
+        const ctx = canvas.getContext('2d');
+        const scale = Math.max(WIDTH / img.width, HEIGHT / img.height);
+        const w = img.width * scale;
+        const h = img.height * scale;
+        ctx?.drawImage(img, (WIDTH - w) / 2, (HEIGHT - h) / 2, w, h);
+        resolve(canvas.toDataURL('image/jpeg', 0.75));
+      };
+      img.onerror = reject;
+    };
+    reader.onerror = reject;
+  });
+}
+
 export function SettingsDialog({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = React.useState(false);
   const [tab, setTab] = React.useState<SettingsTab>('profile');
@@ -106,10 +206,21 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
   const [isClearing, setIsClearing] = React.useState(false);
   const [confirmClear, setConfirmClear] = React.useState(false);
   const [lastCleared, setLastCleared] = React.useState<number | null>(null);
+  const [birthDate, setBirthDate] = React.useState('');
+  const [bannerPreset, setBannerPreset] = React.useState('violet');
+  const [bannerBase64, setBannerBase64] = React.useState('');
+  const [isUploadingBanner, setIsUploadingBanner] = React.useState(false);
+  const [musicTitle, setMusicTitle] = React.useState('');
+  const [musicUrl, setMusicUrl] = React.useState('');
+  const [currentPassword, setCurrentPassword] = React.useState('');
+  const [newPassword, setNewPassword] = React.useState('');
+  const [isChangingPassword, setIsChangingPassword] = React.useState(false);
 
   const settings = useAppSettings();
+  const { prefs, setPalette, setPrivacy, setSessions, setAccessKeys } = useUserPrefs();
 
   const db = useFirestore();
+  const auth = useAuth();
   const { user } = useUser();
   const { toast } = useToast();
 
@@ -129,6 +240,11 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
     if (userData) {
       setDisplayName(userData.displayName || '');
       setPhoneNumber(userData.phoneNumber || '');
+      setBirthDate(userData.birthDate || '');
+      setBannerPreset(userData.bannerPreset || 'violet');
+      setBannerBase64(userData.banner || '');
+      setMusicTitle(userData.music?.title || '');
+      setMusicUrl(userData.music?.url || '');
     }
     const storedLang = localStorage.getItem('lang') as Language;
     if (storedLang) setLang(storedLang);
@@ -157,6 +273,16 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
       await updateDoc(doc(db, 'users', user.uid), {
         displayName: displayName.trim(),
         phoneNumber: normalizedPhone,
+        birthDate: birthDate || null,
+        bannerPreset,
+        banner: bannerBase64 || null,
+        music: musicUrl
+          ? {
+              title: musicTitle.trim() || 'Моя музыка',
+              artist: MUSIC_PRESETS.find((track) => track.url === musicUrl)?.artist || 'SLink',
+              url: musicUrl,
+            }
+          : null,
       });
 
       await notifyServiceBot(
@@ -189,6 +315,79 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
       setIsUploadingAvatar(false);
       e.target.value = '';
     }
+  };
+
+  const handleBannerChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingBanner(true);
+    try {
+      const base64 = await compressBanner(file);
+      setBannerBase64(base64);
+      toast({ title: 'Баннер готов', description: 'Нажмите «Сохранить», чтобы применить' });
+    } catch {
+      toast({ variant: 'destructive', title: 'Не удалось загрузить баннер' });
+    } finally {
+      setIsUploadingBanner(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (!auth?.currentUser || !user?.email) return;
+
+    if (newPassword.length < 6) {
+      toast({ variant: 'destructive', title: 'Пароль слишком короткий', description: 'Минимум 6 символов' });
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      const credential = EmailAuthProvider.credential(user.email, currentPassword);
+      await reauthenticateWithCredential(auth.currentUser, credential);
+      await updatePassword(auth.currentUser, newPassword);
+      setCurrentPassword('');
+      setNewPassword('');
+      toast({ title: 'Пароль изменён' });
+    } catch (error: any) {
+      let message = error?.message || 'Попробуйте ещё раз';
+      if (error?.code === 'auth/wrong-password' || error?.code === 'auth/invalid-credential') {
+        message = 'Текущий пароль неверен';
+      }
+      if (error?.code === 'auth/weak-password') message = 'Слишком простой пароль';
+      toast({ variant: 'destructive', title: 'Не удалось изменить пароль', description: message });
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
+  const handleNotificationsToggle = async (value: boolean) => {
+    if (!value) {
+      updateAppSettings({ notifications: false });
+      return;
+    }
+
+    if (typeof Notification === 'undefined') {
+      toast({ variant: 'destructive', title: 'Браузер не поддерживает уведомления' });
+      return;
+    }
+
+    const permission =
+      Notification.permission === 'default'
+        ? await Notification.requestPermission()
+        : Notification.permission;
+
+    if (permission !== 'granted') {
+      toast({
+        variant: 'destructive',
+        title: 'Разрешение не выдано',
+        description: 'Включите уведомления для SLink в настройках браузера',
+      });
+      return;
+    }
+
+    updateAppSettings({ notifications: true });
+    new Notification('SLink', { body: 'Уведомления включены' });
   };
 
   const toggleTheme = (val: boolean) => {
@@ -252,9 +451,48 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
     toast({ title: 'Экспорт готов', description: 'JSON-файл профиля скачан' });
   };
 
+  const handleCreateAccessKey = async () => {
+    const key: AccessKey = {
+      id: `key_${Date.now().toString(36)}`,
+      value: generateAccessKey(),
+      createdAt: Date.now(),
+    };
+
+    try {
+      await setAccessKeys([...prefs.accessKeys, key]);
+      try {
+        await navigator.clipboard.writeText(key.value);
+      } catch {
+        // буфер обмена может быть недоступен
+      }
+      toast({ title: 'Ключ создан', description: 'Скопирован в буфер обмена' });
+    } catch {
+      toast({ variant: 'destructive', title: 'Не удалось создать ключ' });
+    }
+  };
+
+  const handleCopyAccessKey = async (value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      toast({ title: 'Ключ скопирован' });
+    } catch {
+      toast({ variant: 'destructive', title: 'Не удалось скопировать' });
+    }
+  };
+
+  const handleRevokeAccessKey = async (id: string) => {
+    try {
+      await setAccessKeys(prefs.accessKeys.filter((key) => key.id !== id));
+      toast({ title: 'Ключ отозван' });
+    } catch {
+      toast({ variant: 'destructive', title: 'Не удалось отозвать ключ' });
+    }
+  };
+
   const tabs: { key: SettingsTab; label: string; icon: typeof UserIcon }[] = [
     { key: 'profile', label: t.profile, icon: UserIcon },
-    { key: 'appearance', label: t.appearance, icon: Palette },
+    { key: 'appearance', label: 'Тема', icon: Palette },
+    { key: 'privacy', label: 'Приват.', icon: ShieldCheck },
     { key: 'data', label: 'Данные', icon: HardDrive },
     { key: 'language', label: t.language, icon: Languages },
   ];
@@ -274,21 +512,23 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
         </DialogHeader>
 
         <div className="px-4 pt-4">
-          <div className="grid grid-cols-4 gap-1 rounded-full bg-surface-high p-1">
+          <div className="grid grid-cols-5 gap-0.5 rounded-full bg-surface-high p-1">
             {tabs.map(({ key, label, icon: Icon }) => (
               <button
                 key={key}
                 type="button"
                 onClick={() => setTab(key)}
+                title={label}
+                aria-label={label}
                 className={cn(
-                  'flex h-10 items-center justify-center gap-1.5 rounded-full text-xs font-semibold transition-all',
+                  'flex h-10 min-w-0 items-center justify-center gap-1 rounded-full px-1 text-[10px] font-semibold transition-all',
                   tab === key
                     ? 'bg-surface-lowest text-primary shadow-sm'
                     : 'text-on-surface-variant hover:text-on-surface',
                 )}
               >
-                <Icon className="h-4 w-4" />
-                <span className="hidden sm:inline">{label}</span>
+                <Icon className="h-4 w-4 shrink-0" />
+                <span className="hidden truncate md:inline">{label}</span>
               </button>
             ))}
           </div>
@@ -299,9 +539,9 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
             <div className="space-y-6 animate-in fade-in duration-200">
               <div className="flex flex-col items-center gap-3">
                 <div className="relative">
-                  <Avatar className="h-24 w-24 rounded-[28px] shadow-m3">
+                  <Avatar className="h-24 w-24 rounded-full shadow-m3">
                     <AvatarImage src={avatarData?.base64} className="object-cover" />
-                    <AvatarFallback className="rounded-[28px] bg-primary-container text-2xl font-bold text-primary-on-container">
+                    <AvatarFallback className="rounded-full bg-primary-container text-2xl font-bold text-primary-on-container">
                       {userData?.displayName?.[0] || <UserIcon className="h-8 w-8" />}
                     </AvatarFallback>
                   </Avatar>
@@ -326,6 +566,49 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
               </div>
 
               <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="m3-label ml-1">Баннер профиля</Label>
+                  <div
+                    className={cn(
+                      'relative h-24 w-full overflow-hidden rounded-2xl',
+                      bannerBase64 ? 'bg-surface-high' : getBannerClass(bannerPreset),
+                    )}
+                  >
+                    {bannerBase64 ? (
+                      <img src={bannerBase64} alt="Баннер" className="h-full w-full object-cover" />
+                    ) : null}
+                    <label className="absolute bottom-2 right-2 flex h-8 cursor-pointer items-center gap-1 rounded-full bg-black/45 px-3 text-[10px] font-semibold text-white backdrop-blur">
+                      {isUploadingBanner ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Camera className="h-3.5 w-3.5" />
+                      )}
+                      Загрузить
+                      <input type="file" accept="image/*" className="hidden" onChange={handleBannerChange} />
+                    </label>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {BANNER_PRESETS.map((preset) => (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => {
+                          setBannerPreset(preset.id);
+                          setBannerBase64('');
+                        }}
+                        aria-label={preset.label}
+                        className={cn(
+                          'h-8 w-8 rounded-full',
+                          preset.className,
+                          bannerPreset === preset.id && !bannerBase64
+                            ? 'ring-2 ring-primary ring-offset-2 ring-offset-surface-low'
+                            : 'ring-1 ring-outline-variant',
+                        )}
+                      />
+                    ))}
+                  </div>
+                </div>
+
                 <div className="space-y-1.5">
                   <Label className="m3-label ml-1">{t.name}</Label>
                   <div className="relative">
@@ -348,6 +631,74 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
                       className="m3-field pl-12"
                     />
                   </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="m3-label ml-1">Дата рождения</Label>
+                  <div className="relative">
+                    <Cake className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-on-surface-variant" />
+                    <Input
+                      type="date"
+                      value={birthDate}
+                      onChange={(e) => setBirthDate(e.target.value)}
+                      className="m3-field pl-12"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="m3-label ml-1">Музыка профиля</Label>
+                  <div className="space-y-1.5">
+                    {MUSIC_PRESETS.map((track) => (
+                      <button
+                        key={track.id}
+                        type="button"
+                        onClick={() => {
+                          setMusicUrl(track.url);
+                          setMusicTitle(track.title);
+                        }}
+                        className={cn(
+                          'flex w-full items-center gap-2 rounded-2xl border px-3 py-2 text-left transition-colors',
+                          musicUrl === track.url
+                            ? 'border-primary bg-primary-container/40'
+                            : 'border-outline-variant/60 hover:bg-on-surface/5',
+                        )}
+                      >
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                          <Play className="h-3.5 w-3.5" />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-xs font-bold text-on-surface">
+                            {track.title}
+                          </span>
+                          <span className="block truncate text-[10px] text-on-surface-variant">
+                            {track.artist}
+                          </span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="relative">
+                    <Music className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-on-surface-variant" />
+                    <Input
+                      placeholder="или ссылка на mp3"
+                      value={musicUrl}
+                      onChange={(e) => setMusicUrl(e.target.value)}
+                      className="m3-field pl-12 text-xs"
+                    />
+                  </div>
+                  {musicUrl ? (
+                    <Button
+                      variant="outline"
+                      className="h-9 w-full rounded-full text-[11px]"
+                      onClick={() => {
+                        setMusicUrl('');
+                        setMusicTitle('');
+                      }}
+                    >
+                      Убрать музыку
+                    </Button>
+                  ) : null}
                 </div>
 
                 <Button
@@ -415,15 +766,264 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
                 />
               </SettingRow>
 
+              <SettingRow
+                icon={<Bell className="h-5 w-5" />}
+                title="Уведомления"
+                description="Всплывающие уведомления о новых сообщениях"
+              >
+                <Switch checked={settings.notifications} onCheckedChange={handleNotificationsToggle} />
+              </SettingRow>
+
               <div className="rounded-3xl border border-outline-variant/60 p-4">
-                <p className="m3-label mb-3">Палитра SLink</p>
-                <div className="flex gap-2">
-                  <span className="h-10 flex-1 rounded-xl bg-primary" />
-                  <span className="h-10 flex-1 rounded-xl bg-primary-container" />
-                  <span className="h-10 flex-1 rounded-xl bg-secondary" />
-                  <span className="h-10 flex-1 rounded-xl bg-secondary-container" />
-                  <span className="h-10 flex-1 rounded-xl bg-tertiary-container" />
+                <p className="m3-label mb-3">Расцветка приложения</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {ACCENT_PALETTES.map((palette) => (
+                    <button
+                      key={palette.id}
+                      type="button"
+                      onClick={() => {
+                        applyGlobalPalette(palette.id);
+                        setPalette(palette.id);
+                      }}
+                      className={cn(
+                        'flex items-center gap-2 rounded-2xl border-2 px-2.5 py-2 text-left transition-all',
+                        prefs.palette === palette.id
+                          ? 'border-primary bg-primary-container/40'
+                          : 'border-outline-variant/60 hover:bg-on-surface/5',
+                      )}
+                    >
+                      <span
+                        className="h-6 w-6 shrink-0 rounded-full ring-1 ring-inset ring-black/10"
+                        style={{ backgroundColor: palette.swatch }}
+                      />
+                      <span className="truncate text-[11px] font-semibold text-on-surface">
+                        {palette.label}
+                      </span>
+                    </button>
+                  ))}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {tab === 'privacy' && (
+            <div className="space-y-3 animate-in fade-in duration-200">
+              <div className="space-y-2.5 rounded-3xl border border-outline-variant/60 p-4">
+                <p className="m3-label px-1">Кто видит</p>
+
+                <SettingRow
+                  icon={<Eye className="h-5 w-5" />}
+                  title="Время захода"
+                  description="Статус «был(а) недавно»"
+                >
+                  <VisibilityPicker
+                    value={prefs.privacy.lastSeen}
+                    onChange={(value) => setPrivacy({ ...prefs.privacy, lastSeen: value })}
+                  />
+                </SettingRow>
+
+                <SettingRow
+                  icon={<ImageIcon className="h-5 w-5" />}
+                  title="Фото профиля"
+                  description="Кто видит ваш аватар"
+                >
+                  <VisibilityPicker
+                    value={prefs.privacy.profilePhoto}
+                    onChange={(value) => setPrivacy({ ...prefs.privacy, profilePhoto: value })}
+                  />
+                </SettingRow>
+
+                <SettingRow
+                  icon={<LogIn className="h-5 w-5" />}
+                  title="Кто может писать"
+                  description="Личные сообщения"
+                >
+                  <VisibilityPicker
+                    value={prefs.privacy.whoCanMessage}
+                    onChange={(value) => setPrivacy({ ...prefs.privacy, whoCanMessage: value })}
+                  />
+                </SettingRow>
+
+                <SettingRow
+                  icon={<CheckCheck className="h-5 w-5" />}
+                  title="Отчёты о прочтении"
+                  description="Показывать собеседнику, что вы прочитали"
+                >
+                  <Switch
+                    checked={prefs.privacy.readReceipts}
+                    onCheckedChange={(value) =>
+                      setPrivacy({ ...prefs.privacy, readReceipts: value })
+                    }
+                  />
+                </SettingRow>
+              </div>
+
+              <div className="rounded-3xl border border-outline-variant/60 p-4">
+                <div className="flex items-center justify-between">
+                  <p className="m3-label">Ваш последний визит</p>
+                  <span className="text-[11px] text-on-surface-variant">
+                    {prefs.privacy.lastSeen === 'everyone'
+                      ? 'виден всем'
+                      : prefs.privacy.lastSeen === 'contacts'
+                        ? 'виден контактам'
+                        : 'скрыт'}
+                  </span>
+                </div>
+                <p className="mt-2 text-sm font-semibold text-on-surface">
+                  {userData?.lastSeen
+                    ? new Date(userData.lastSeen).toLocaleString('ru-RU')
+                    : 'Пока нет данных'}
+                </p>
+              </div>
+
+              <div className="rounded-3xl border border-outline-variant/60 p-4">
+                <div className="flex items-center justify-between">
+                  <p className="m3-label">Активные сеансы</p>
+                  <span className="rounded-full bg-surface-high px-2 py-0.5 text-[10px] font-bold text-on-surface-variant">
+                    {prefs.sessions.length}
+                  </span>
+                </div>
+
+                {prefs.sessions.length === 0 ? (
+                  <p className="mt-3 text-[11px] text-on-surface-variant">
+                    Данные о устройствах появятся после повторного входа.
+                  </p>
+                ) : (
+                  <ul className="mt-3 space-y-2">
+                    {prefs.sessions.map((session: DeviceSession) => {
+                      const isCurrent = session.id === getDeviceId();
+                      return (
+                        <li
+                          key={session.id}
+                          className="flex items-center gap-3 rounded-2xl bg-surface-high/70 p-3"
+                        >
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-container text-primary-on-container">
+                            <Smartphone className="h-4 w-4" />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="flex items-center gap-1.5 truncate text-xs font-bold text-on-surface">
+                              {session.device}
+                              {isCurrent && (
+                                <span className="rounded-full bg-success/15 px-1.5 py-0.5 text-[9px] font-bold uppercase text-success">
+                                  это устройство
+                                </span>
+                              )}
+                            </p>
+                            <p className="truncate text-[10px] text-on-surface-variant">
+                              {new Date(session.lastActive).toLocaleString('ru-RU')}
+                            </p>
+                          </div>
+                          {!isCurrent && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 rounded-full text-destructive"
+                              onClick={() =>
+                                setSessions(prefs.sessions.filter((item) => item.id !== session.id))
+                              }
+                              aria-label="Завершить сеанс"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+
+                <p className="mt-2 text-[10px] leading-snug text-on-surface-variant">
+                  Список хранится в профиле пользователя; удаление убирает устройство из списка.
+                </p>
+              </div>
+
+              <div className="space-y-2 rounded-3xl border border-outline-variant/60 p-4">
+                <p className="m3-label flex items-center gap-1.5">
+                  <LockIcon className="h-3.5 w-3.5" /> Смена пароля
+                </p>
+                <Input
+                  type="password"
+                  placeholder="Текущий пароль"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  className="m3-field"
+                />
+                <Input
+                  type="password"
+                  placeholder="Новый пароль (минимум 6 символов)"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="m3-field"
+                />
+                <Button
+                  className="h-11 w-full rounded-full bg-primary font-bold text-primary-foreground"
+                  onClick={handleChangePassword}
+                  disabled={!currentPassword || newPassword.length < 6 || isChangingPassword}
+                >
+                  {isChangingPassword ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Изменить пароль'}
+                </Button>
+              </div>
+
+              <div className="rounded-3xl border border-outline-variant/60 p-4">
+                <div className="flex items-center justify-between">
+                  <p className="m3-label">Ключи доступа</p>
+                  <Button
+                    variant="outline"
+                    className="h-8 gap-1 rounded-full px-3 text-[11px] font-semibold"
+                    onClick={handleCreateAccessKey}
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Создать
+                  </Button>
+                </div>
+
+                {prefs.accessKeys.length === 0 ? (
+                  <p className="mt-3 text-[11px] text-on-surface-variant">
+                    Ключей пока нет. Создайте резервный ключ для восстановления доступа.
+                  </p>
+                ) : (
+                  <ul className="mt-3 space-y-2">
+                    {prefs.accessKeys.map((key: AccessKey) => (
+                      <li
+                        key={key.id}
+                        className="flex items-center gap-2 rounded-2xl bg-surface-high/70 p-3"
+                      >
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-tertiary-container text-tertiary-on-container">
+                          <KeyRound className="h-4 w-4" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-mono text-xs font-semibold text-on-surface">
+                            {key.value}
+                          </p>
+                          <p className="text-[10px] text-on-surface-variant">
+                            {new Date(key.createdAt).toLocaleDateString('ru-RU')}
+                          </p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 rounded-full"
+                          onClick={() => handleCopyAccessKey(key.value)}
+                          aria-label="Скопировать ключ"
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 rounded-full text-destructive"
+                          onClick={() => handleRevokeAccessKey(key.id)}
+                          aria-label="Отозвать ключ"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                <p className="mt-2 text-[10px] leading-snug text-on-surface-variant">
+                  Ключи нужны для входа в аккаунт, если пароль утерян. Храните их в надёжном месте.
+                </p>
               </div>
             </div>
           )}

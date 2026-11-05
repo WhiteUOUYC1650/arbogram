@@ -4,6 +4,8 @@ import { FirebaseClientProvider } from '@/firebase';
 import { FirebaseErrorListener } from '@/components/firebase-error-listener';
 import { Toaster } from '@/components/ui/toaster';
 import { AppSettingsSync } from '@/components/app-settings-sync';
+import { PreferencesSync } from '@/components/preferences-sync';
+import { SessionTracker } from '@/components/session-tracker';
 import { APP_FULL_NAME, APP_NAME, APP_TAGLINE } from '@/lib/brand';
 
 export const metadata: Metadata = {
@@ -15,8 +17,8 @@ export const metadata: Metadata = {
   applicationName: APP_NAME,
   manifest: '/manifest.json',
   icons: {
-    icon: [{ url: '/icons/slink-icon.svg', type: 'image/svg+xml' }],
-    apple: [{ url: '/icons/slink-icon.svg', type: 'image/svg+xml' }],
+    icon: [{ url: '/icons/SLinkBetaLogo.png', type: 'image/png' }],
+    apple: [{ url: '/icons/SLinkBetaLogo.png', type: 'image/png' }],
   },
   appleWebApp: {
     capable: true,
@@ -46,6 +48,10 @@ const themeInitScript = `
     var stored = localStorage.getItem('theme');
     var dark = stored ? stored === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
     document.documentElement.classList.toggle('dark', dark);
+
+    // Палитра: мгновенно из localStorage, затем уточняется из профиля.
+    var palette = localStorage.getItem('slink:palette');
+    if (palette && palette !== 'violet') document.documentElement.setAttribute('data-palette', palette);
 
     // Настройки интерфейса применяем до первой отрисовки, чтобы не было «прыжка».
     var raw = localStorage.getItem('slink:settings');
@@ -79,6 +85,8 @@ export default function RootLayout({
         <FirebaseClientProvider>
           <FirebaseErrorListener />
           <AppSettingsSync />
+          <PreferencesSync />
+          <SessionTracker />
           {children}
           <Toaster />
         </FirebaseClientProvider>

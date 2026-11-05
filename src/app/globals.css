@@ -247,14 +247,17 @@
   }
 
   .animate-message-in {
-    animation: message-in 0.22s cubic-bezier(0.2, 0, 0, 1);
+    animation: message-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 }
 
 @keyframes message-in {
   from {
     opacity: 0;
-    transform: translateY(6px) scale(0.985);
+    transform: translateY(10px) scale(0.98);
+  }
+  60% {
+    opacity: 1;
   }
   to {
     opacity: 1;
@@ -439,4 +442,287 @@ html.animations-off *::after {
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* ============================================================
+   Палитры (акцент приложения) — по умолчанию violet, как было
+   ============================================================ */
+
+html[data-palette='teal'] {
+  --primary: 187 92% 30%;
+  --primary-foreground: 0 0% 100%;
+  --primary-container: 186 86% 90%;
+  --on-primary-container: 190 100% 17%;
+  --accent: 186 86% 90%;
+  --accent-foreground: 190 100% 17%;
+  --ring: 187 92% 30%;
+  --sidebar-primary: 187 92% 30%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-ring: 187 92% 30%;
+}
+html.dark[data-palette='teal'] {
+  --primary: 186 72% 66%;
+  --primary-foreground: 190 100% 12%;
+  --primary-container: 190 64% 22%;
+  --on-primary-container: 186 90% 88%;
+  --accent: 190 64% 22%;
+  --accent-foreground: 186 90% 88%;
+  --ring: 186 72% 66%;
+  --sidebar-primary: 186 72% 66%;
+  --sidebar-primary-foreground: 190 100% 12%;
+  --sidebar-ring: 186 72% 66%;
+}
+
+html[data-palette='rose'] {
+  --primary: 337 82% 55%;
+  --primary-foreground: 0 0% 100%;
+  --primary-container: 337 100% 93%;
+  --on-primary-container: 337 62% 27%;
+  --accent: 337 100% 93%;
+  --accent-foreground: 337 62% 27%;
+  --ring: 337 82% 55%;
+  --sidebar-primary: 337 82% 55%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-ring: 337 82% 55%;
+}
+html.dark[data-palette='rose'] {
+  --primary: 337 92% 78%;
+  --primary-foreground: 337 62% 18%;
+  --primary-container: 337 52% 28%;
+  --on-primary-container: 337 100% 94%;
+  --accent: 337 52% 28%;
+  --accent-foreground: 337 100% 94%;
+  --ring: 337 92% 78%;
+  --sidebar-primary: 337 92% 78%;
+  --sidebar-primary-foreground: 337 62% 18%;
+  --sidebar-ring: 337 92% 78%;
+}
+
+html[data-palette='amber'] {
+  --primary: 33 90% 38%;
+  --primary-foreground: 0 0% 100%;
+  --primary-container: 40 100% 90%;
+  --on-primary-container: 30 90% 18%;
+  --accent: 40 100% 90%;
+  --accent-foreground: 30 90% 18%;
+  --ring: 33 90% 38%;
+  --sidebar-primary: 33 90% 38%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-ring: 33 90% 38%;
+}
+html.dark[data-palette='amber'] {
+  --primary: 40 95% 70%;
+  --primary-foreground: 30 90% 12%;
+  --primary-container: 35 60% 24%;
+  --on-primary-container: 45 100% 90%;
+  --accent: 35 60% 24%;
+  --accent-foreground: 45 100% 90%;
+  --ring: 40 95% 70%;
+  --sidebar-primary: 40 95% 70%;
+  --sidebar-primary-foreground: 30 90% 12%;
+  --sidebar-ring: 40 95% 70%;
+}
+
+html[data-palette='emerald'] {
+  --primary: 152 62% 32%;
+  --primary-foreground: 0 0% 100%;
+  --primary-container: 150 60% 90%;
+  --on-primary-container: 155 80% 16%;
+  --accent: 150 60% 90%;
+  --accent-foreground: 155 80% 16%;
+  --ring: 152 62% 32%;
+  --sidebar-primary: 152 62% 32%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-ring: 152 62% 32%;
+}
+html.dark[data-palette='emerald'] {
+  --primary: 152 60% 62%;
+  --primary-foreground: 155 80% 12%;
+  --primary-container: 155 50% 24%;
+  --on-primary-container: 150 80% 88%;
+  --accent: 155 50% 24%;
+  --accent-foreground: 150 80% 88%;
+  --ring: 152 60% 62%;
+  --sidebar-primary: 152 60% 62%;
+  --sidebar-primary-foreground: 155 80% 12%;
+  --sidebar-ring: 152 60% 62%;
+}
+
+html[data-palette='ocean'] {
+  --primary: 214 90% 46%;
+  --primary-foreground: 0 0% 100%;
+  --primary-container: 214 100% 93%;
+  --on-primary-container: 218 80% 25%;
+  --accent: 214 100% 93%;
+  --accent-foreground: 218 80% 25%;
+  --ring: 214 90% 46%;
+  --sidebar-primary: 214 90% 46%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-ring: 214 90% 46%;
+}
+html.dark[data-palette='ocean'] {
+  --primary: 213 95% 75%;
+  --primary-foreground: 218 80% 15%;
+  --primary-container: 216 60% 28%;
+  --on-primary-container: 214 100% 92%;
+  --accent: 216 60% 28%;
+  --accent-foreground: 214 100% 92%;
+  --ring: 213 95% 75%;
+  --sidebar-primary: 213 95% 75%;
+  --sidebar-primary-foreground: 218 80% 15%;
+  --sidebar-ring: 213 95% 75%;
+}
+
+/* ============================================================
+   Тема конкретного чата: пузыри, имя, обои
+   ============================================================ */
+
+.chat-theme-violet {
+  --chat-out: 258 100% 93%;
+  --chat-out-text: 258 62% 28%;
+  --chat-name: 258 84% 52%;
+  --chat-wall: 258 84% 60%;
+}
+.chat-theme-teal {
+  --chat-out: 186 86% 90%;
+  --chat-out-text: 190 100% 17%;
+  --chat-name: 187 92% 28%;
+  --chat-wall: 187 92% 32%;
+}
+.chat-theme-rose {
+  --chat-out: 337 100% 93%;
+  --chat-out-text: 337 62% 27%;
+  --chat-name: 337 82% 45%;
+  --chat-wall: 337 82% 55%;
+}
+.chat-theme-amber {
+  --chat-out: 40 100% 90%;
+  --chat-out-text: 30 90% 18%;
+  --chat-name: 33 90% 34%;
+  --chat-wall: 33 90% 45%;
+}
+.chat-theme-emerald {
+  --chat-out: 150 60% 90%;
+  --chat-out-text: 155 80% 16%;
+  --chat-name: 152 62% 28%;
+  --chat-wall: 152 62% 34%;
+}
+.chat-theme-ocean {
+  --chat-out: 214 100% 93%;
+  --chat-out-text: 218 80% 25%;
+  --chat-name: 214 90% 42%;
+  --chat-wall: 214 90% 48%;
+}
+
+html.dark .chat-theme-violet {
+  --chat-out: 258 46% 29%;
+  --chat-out-text: 258 100% 92%;
+  --chat-name: 258 100% 82%;
+  --chat-wall: 258 100% 80%;
+}
+html.dark .chat-theme-teal {
+  --chat-out: 190 64% 22%;
+  --chat-out-text: 186 90% 88%;
+  --chat-name: 186 72% 68%;
+  --chat-wall: 186 72% 66%;
+}
+html.dark .chat-theme-rose {
+  --chat-out: 337 52% 28%;
+  --chat-out-text: 337 100% 94%;
+  --chat-name: 337 92% 80%;
+  --chat-wall: 337 92% 78%;
+}
+html.dark .chat-theme-amber {
+  --chat-out: 35 60% 24%;
+  --chat-out-text: 45 100% 90%;
+  --chat-name: 40 95% 72%;
+  --chat-wall: 40 95% 70%;
+}
+html.dark .chat-theme-emerald {
+  --chat-out: 155 50% 24%;
+  --chat-out-text: 150 80% 88%;
+  --chat-name: 152 60% 64%;
+  --chat-wall: 152 60% 62%;
+}
+html.dark .chat-theme-ocean {
+  --chat-out: 216 60% 28%;
+  --chat-out-text: 214 100% 92%;
+  --chat-name: 213 95% 77%;
+  --chat-wall: 213 95% 75%;
+}
+
+/* Явный цвет имени перекрывает цвет темы чата */
+.name-color-default {
+  /* наследует --chat-name темы */
+}
+.name-color-violet {
+  --chat-name: 258 84% 50%;
+}
+.name-color-teal {
+  --chat-name: 187 92% 26%;
+}
+.name-color-rose {
+  --chat-name: 337 82% 44%;
+}
+.name-color-amber {
+  --chat-name: 33 90% 32%;
+}
+.name-color-emerald {
+  --chat-name: 152 62% 26%;
+}
+.name-color-ocean {
+  --chat-name: 214 90% 40%;
+}
+.name-color-graphite {
+  --chat-name: 260 8% 40%;
+}
+html.dark .name-color-violet {
+  --chat-name: 258 100% 82%;
+}
+html.dark .name-color-teal {
+  --chat-name: 186 72% 70%;
+}
+html.dark .name-color-rose {
+  --chat-name: 337 92% 80%;
+}
+html.dark .name-color-amber {
+  --chat-name: 40 95% 72%;
+}
+html.dark .name-color-emerald {
+  --chat-name: 152 60% 66%;
+}
+html.dark .name-color-ocean {
+  --chat-name: 213 95% 78%;
+}
+html.dark .name-color-graphite {
+  --chat-name: 260 10% 74%;
+}
+
+/* Обои чата */
+.wallpaper-none {
+  background-image: none;
+}
+.wallpaper-dots {
+  background-image: radial-gradient(hsl(var(--outline) / 0.45) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+.wallpaper-grid {
+  background-image: linear-gradient(hsl(var(--outline) / 0.35) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(var(--outline) / 0.35) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+.wallpaper-gradient {
+  background-image: radial-gradient(120% 110% at 8% 0%, hsl(var(--chat-wall) / 0.18) 0%, transparent 55%),
+    radial-gradient(110% 110% at 95% 100%, hsl(var(--chat-wall) / 0.12) 0%, transparent 60%);
+}
+.wallpaper-waves {
+  background-image: repeating-radial-gradient(
+    circle at 50% 130%,
+    transparent 0 26px,
+    hsl(var(--chat-wall) / 0.1) 26px 28px
+  );
+}
+.wallpaper-bloom {
+  background-image: radial-gradient(circle at 20% 20%, hsl(var(--chat-wall) / 0.2), transparent 45%),
+    radial-gradient(circle at 80% 70%, hsl(var(--chat-wall) / 0.14), transparent 45%);
 }

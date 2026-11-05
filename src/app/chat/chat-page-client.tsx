@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { APP_NAME, APP_TAGLINE, APP_VERSION_LABEL } from '@/lib/brand';
 import { translations, Language } from '@/lib/i18n';
 import { sendSystemNotification } from '@/lib/system-notifications';
+import { PENDING_CHAT_KEY } from '@/components/channels/channel-join';
 
 export default function ChatPageClient() {
   const [activeChatId, setActiveChatId] = React.useState<string | null>(null);
@@ -25,6 +26,17 @@ export default function ChatPageClient() {
   React.useEffect(() => {
     const storedLang = localStorage.getItem('lang') as Language;
     if (storedLang) setLang(storedLang);
+
+    // Чат, открытый по внутренней ссылке (/join/?slug=… или /agc/<slug>)
+    try {
+      const pending = sessionStorage.getItem(PENDING_CHAT_KEY);
+      if (pending) {
+        sessionStorage.removeItem(PENDING_CHAT_KEY);
+        setActiveChatId(pending);
+      }
+    } catch {
+      // приватный режим
+    }
   }, []);
 
   const t = translations[lang];
@@ -35,16 +47,20 @@ export default function ChatPageClient() {
     try {
       const participants = [user.uid, targetUserId].sort();
 
-      const q = query(
-        collection(db, 'chats'),
-        where('type', '==', 'individual'),
-        where('participants', '==', participants),
-      );
+      try {
+        const q = query(
+          collection(db, 'chats'),
+          where('type', '==', 'individual'),
+          where('participants', '==', participants),
+        );
 
-      const snap = await getDocs(q);
-      if (!snap.empty) {
-        setActiveChatId(snap.docs[0].id);
-        return;
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          setActiveChatId(snap.docs[0].id);
+          return;
+        }
+      } catch (lookupError) {
+        console.warn('[SLink] Не удалось найти существующий диалог:', lookupError);
       }
 
       const [userSnap, targetSnap] = await Promise.all([
@@ -115,6 +131,7 @@ export default function ChatPageClient() {
               chatId={activeChatId}
               onBack={() => setActiveChatId(null)}
               onStartDirectChat={handleStartDirectChat}
+              onOpenChat={(id) => setActiveChatId(id)}
             />
           ) : (
             <div className="relative hidden h-full flex-col items-center justify-center overflow-hidden p-10 text-center md:flex">
