@@ -59,7 +59,7 @@ function readFromStorage(): AppSettings {
       theme: parsed.theme === 'light' || parsed.theme === 'dark' || parsed.theme === 'system' ? parsed.theme : 'system',
       chatFontSize: parsed.chatFontSize === 'small' || parsed.chatFontSize === 'medium' || parsed.chatFontSize === 'large' ? parsed.chatFontSize : 'medium',
       chatWallpaper: parsed.chatWallpaper === 'default' || parsed.chatWallpaper === 'banner' || parsed.chatWallpaper === 'pattern' ? parsed.chatWallpaper : 'default',
-      chatBanner: parsed.chatBanner,
+      chatBanner: parsed.chatBanner || null,
     };
   } catch {
     return DEFAULT_SETTINGS;
