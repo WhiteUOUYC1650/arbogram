@@ -27,7 +27,6 @@ export default function AdminPage() {
   const usersQuery = React.useMemo(() => (db ? collection(db, 'users') : null), [db]);
   const { data: allUsers, loading: usersLoading } = useCollection(usersQuery);
 
-  const [broadcastMessage, setBroadcastMessage] = useState('');
   const [sendingBroadcast, setSendingBroadcast] = useState(false);
 
   const handleSendBroadcast = async () => {
