@@ -28,6 +28,7 @@ export default function AdminPage() {
   const { data: allUsers, loading: usersLoading } = useCollection(usersQuery);
 
   const [sendingBroadcast, setSendingBroadcast] = useState(false);
+  const [search, setSearch] = useState("");
 
   const handleSendBroadcast = async () => {
     if (!broadcastMessage.trim() || !db || !isAdmin) return;
