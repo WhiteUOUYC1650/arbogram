@@ -4,7 +4,7 @@ import { useSyncExternalStore } from 'react';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 export type ChatFontSize = 'small' | 'medium' | 'large';
-export type ChatWallpaper = 'default' | 'banner' | 'pattern';
+export type ChatWallpaper = 'default' | 'banner' | 'pattern' | 'plain';
 export type MusicProfile = 'none' | 'custom';
 
 export interface AppSettings {
@@ -73,11 +73,31 @@ function subscribeAppSettings(listener: () => void) {
   };
 }
 
-function getAppSettings(): AppSettings {
+export function getAppSettings(): AppSettings {
   if (!cached) {
     cached = readFromStorage();
   }
   return cached;
+}
+
+export function resetAppSettings() {
+  return updateAppSettings({
+    ...DEFAULT_SETTINGS,
+    theme: getAppSettings().theme,
+  });
+}
+
+export function updateAppSettings(patch: Partial<AppSettings>) {
+  const next = { ...getAppSettings(), ...patch };
+  cached = next;
+  try {
+    window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(next));
+  } catch {
+    // приватный режим / нет места — просто живём без сохранения
+  }
+  applyAppSettings(next);
+  listeners.forEach((listener) => listener());
+  return next;
 }
 
 export function useAppSettings(): AppSettings {
@@ -90,7 +110,7 @@ export function syncAppSettingsFromStorage() {
   listeners.forEach((listener) => listener());
 }
 
-function applyAppSettings(settings: AppSettings) {
+export function applyAppSettings(settings: AppSettings) {
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
 
