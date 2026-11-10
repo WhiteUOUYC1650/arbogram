@@ -15,8 +15,8 @@ export const metadata: Metadata = {
   applicationName: APP_NAME,
   manifest: '/manifest.json',
   icons: {
-    icon: [{ url: '/icons/slink-icon.svg', type: 'image/svg+xml' }],
-    apple: [{ url: '/icons/slink-icon.svg', type: 'image/svg+xml' }],
+    icon: [{ url: '/icons/SLinkLogo.jpg', type: 'image/jpeg' }],
+    apple: [{ url: '/icons/SLinkLogo.jpg', type: 'image/jpeg' }],
   },
   appleWebApp: {
     capable: true,

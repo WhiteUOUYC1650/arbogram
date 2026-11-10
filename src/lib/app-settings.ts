@@ -4,7 +4,8 @@ import { useSyncExternalStore } from 'react';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 export type ChatFontSize = 'small' | 'medium' | 'large';
-export type ChatWallpaper = 'default' | 'plain' | 'pattern';
+export type ChatWallpaper = 'default' | 'banner' | 'pattern';
+export type MusicProfile = 'none' | 'custom';
 
 export interface AppSettings {
   /** Плавные анимации интерфейса */
@@ -51,6 +52,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   vibration: true,
   desktopNotifications: false,
   notificationPreview: true,
+  chatBanner: null,
+  musicProfile: 'none',
 };
 
 const FONT_CLASSES = ['text-size-small', 'text-size-medium', 'text-size-large'] as const;
@@ -89,6 +92,7 @@ function readFromStorage(): AppSettings {
       theme,
       chatFontSize: isFontSize(parsed.chatFontSize) ? parsed.chatFontSize : DEFAULT_SETTINGS.chatFontSize,
       chatWallpaper: isWallpaper(parsed.chatWallpaper) ? parsed.chatWallpaper : DEFAULT_SETTINGS.chatWallpaper,
+      chatBanner: parsed.chatBanner,
     };
   } catch {
     return DEFAULT_SETTINGS;
@@ -122,6 +126,9 @@ export function applyAppSettings(settings: AppSettings) {
   const theme = resolveTheme(settings.theme);
   root.classList.toggle('dark', theme === 'dark');
   root.style.colorScheme = theme;
+
+  // Apply chat banner
+  root.dataset.chatBanner = settings.chatBanner || '';
 }
 
 export function getAppSettings(): AppSettings {
