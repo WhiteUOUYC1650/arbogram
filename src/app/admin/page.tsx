@@ -27,30 +27,7 @@ export default function AdminPage() {
   const usersQuery = React.useMemo(() => (db ? collection(db, 'users') : null), [db]);
   const { data: allUsers, loading: usersLoading } = useCollection(usersQuery);
 
-  const [sendingBroadcast, setSendingBroadcast] = useState(false);
   const [search, setSearch] = useState("");
-
-  const handleSendBroadcast = async () => {
-    if (!broadcastMessage.trim() || !db || !isAdmin) return;
-    setSendingBroadcast(true);
-    try {
-      if (allUsers) {
-        const batch = [];
-        allUsers.forEach((u: any) => {
-          batch.push(
-            notifyServiceBot(db, u, userData?.displayName || user.displayName, broadcastMessage)
-          );
-        });
-        await Promise.all(batch);
-      }
-      toast({ title: 'Рассылка отправлена' });
-      setBroadcastMessage('');
-    } catch (e) {
-      toast({ title: 'Ошибка рассылки', variant: 'destructive' });
-    } finally {
-      setSendingBroadcast(false);
-    }
-  };
 
   useEffect(() => {
     if (!authLoading && !userRef.loading && !isAdmin && userUsername !== '') {
