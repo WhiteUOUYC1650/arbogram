@@ -41,4 +41,6 @@
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Микрофон не обязателен для установки приложения. -->
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
 </manifest>

@@ -1,6 +1,6 @@
 'use client';
 
-import { PRESERVED_STORAGE_KEYS } from './app-settings';
+import { PRESERVED_STORAGE_KEYS, PRESERVED_STORAGE_PREFIXES } from './app-settings';
 
 export interface CacheStats {
   localStorageBytes: number;
@@ -82,7 +82,8 @@ export async function getCacheStats(): Promise<CacheStats> {
     sessionStorageBytes,
     cacheEntries: entries,
     cacheBytes: bytes,
-    totalBytes: localStorageBytes + sessionStorageBytes + bytes + (usage ?? 0),
+    // `usage` уже включает localStorage и Cache API, поэтому не суммируем его повторно.
+    totalBytes: localStorageBytes + sessionStorageBytes + bytes,
     usage,
     quota,
   };
@@ -101,7 +102,11 @@ export async function clearAppCache(): Promise<{ freedBytes: number }> {
     const keysToRemove: string[] = [];
     for (let i = 0; i < window.localStorage.length; i += 1) {
       const key = window.localStorage.key(i);
-      if (key && !PRESERVED_STORAGE_KEYS.includes(key)) keysToRemove.push(key);
+      if (!key) continue;
+      const preserved =
+        PRESERVED_STORAGE_KEYS.includes(key) ||
+        PRESERVED_STORAGE_PREFIXES.some((prefix) => key.startsWith(prefix));
+      if (!preserved) keysToRemove.push(key);
     }
     keysToRemove.forEach((key) => window.localStorage.removeItem(key));
   } catch {

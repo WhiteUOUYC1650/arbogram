@@ -18,6 +18,9 @@ import {
   BarChart2,
   MessageSquarePlus,
   LogOut,
+  ImagePlus,
+  MessageSquare,
+  Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,12 +42,52 @@ import { SystemMessage } from './system-message';
 import { sendSystemNotification } from '@/lib/system-notifications';
 import { SERVICE_BOT_ID, isServiceChatId } from '@/lib/service-bot';
 import { useAppSettings } from '@/lib/app-settings';
+import { playMessageSound, showMessageNotification, vibrate } from '@/lib/feedback';
+import { ensureNativeMicrophonePermission } from '@/lib/native';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { format } from 'date-fns';
 import { ru, enUS } from 'date-fns/locale';
 
 const GLOBAL_CHAT_ID = 'p7gSC3o9OxVezsjDbrFq';
+
+/** Firestore-документ ограничен 1 МБ, поэтому фото сжимаем и ограничиваем количество. */
+const MAX_IMAGES = 4;
+const MAX_IMAGE_SIDE = 1280;
+const MAX_IMAGES_TOTAL_LENGTH = 700_000;
+
+/** Сжимаем картинку в JPEG с ограничением стороны, чтобы вложение влезло в документ. */
+function compressChatImage(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(img.width, img.height));
+        const width = Math.max(1, Math.round(img.width * scale));
+        const height = Math.max(1, Math.round(img.height * scale));
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+
+        let quality = 0.75;
+        let dataUrl = canvas.toDataURL('image/jpeg', quality);
+        while (dataUrl.length > 180_000 && quality > 0.4) {
+          quality -= 0.1;
+          dataUrl = canvas.toDataURL('image/jpeg', quality);
+        }
+        resolve(dataUrl);
+      };
+      img.onerror = reject;
+    };
+    reader.onerror = reject;
+  });
+}
 
 interface ChatWindowProps {
   chatId: string;
@@ -58,6 +101,8 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
   const [lang, setLang] = React.useState<Language>('ru');
   const [replyTo, setReplyTo] = React.useState<any>(null);
   const [selectedImages, setSelectedImages] = React.useState<string[]>([]);
+  const [isProcessingImages, setIsProcessingImages] = React.useState(false);
+  const [previewImage, setPreviewImage] = React.useState<string | null>(null);
   const [stickerPickerOpen, setStickerPickerOpen] = React.useState(false);
   const [pollDialogOpen, setPollDialogOpen] = React.useState(false);
   const [pollQuestion, setPollQuestion] = React.useState('');
@@ -70,6 +115,8 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
   const stickToBottomRef = React.useRef(true);
+  const imageInputRef = React.useRef<HTMLInputElement>(null);
+  const lastMessageCountRef = React.useRef(0);
 
   React.useEffect(() => {
     const storedLang = localStorage.getItem('lang') as Language;
@@ -123,8 +170,50 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
   // При открытии чата всегда показываем последние сообщения
   React.useEffect(() => {
     stickToBottomRef.current = true;
+    lastMessageCountRef.current = 0;
     scrollRef.current?.scrollIntoView({ block: 'end' });
   }, [chatId]);
+
+  // Звук/вибрация/системное уведомление на входящие сообщения (по настройкам).
+  React.useEffect(() => {
+    const messages = rawMessages ?? [];
+    const previous = lastMessageCountRef.current;
+    lastMessageCountRef.current = messages.length;
+
+    // Первая загрузка истории не должна «звенеть» на все старые сообщения.
+    if (previous === 0 || messages.length <= previous) return;
+
+    const last = messages[messages.length - 1];
+    if (!last || last.senderId === user?.uid || last.type === 'system') return;
+
+    if (settings.messageSounds) playMessageSound('incoming');
+    if (settings.vibration) vibrate(26);
+
+    if (settings.desktopNotifications) {
+      const preview =
+        settings.notificationPreview && typeof last.text === 'string' && last.text.trim()
+          ? last.text.trim()
+          : 'Новое сообщение';
+      showMessageNotification({
+        title:
+          chatData?.type === 'individual'
+            ? last.senderName || 'SLink'
+            : chatData?.name || last.senderName || 'SLink',
+        body: preview,
+        tag: chatId,
+      });
+    }
+  }, [
+    rawMessages,
+    user?.uid,
+    chatId,
+    chatData?.name,
+    chatData?.type,
+    settings.messageSounds,
+    settings.vibration,
+    settings.desktopNotifications,
+    settings.notificationPreview,
+  ]);
 
   const handleSend = async (
     options: { audioUrl?: string; duration?: number; poll?: any; sticker?: { id: string; packId: string } } = {},
@@ -165,9 +254,14 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
       if (sticker) last = '🎨 Стикер';
       if (poll) last = '📊 Опрос';
       if (audioUrl) last = '🎤 Голосовое сообщение';
+      if (selectedImages.length > 0) {
+        last = selectedImages.length > 1 ? `📷 Фото (${selectedImages.length})` : '📷 Фото';
+      }
       if (chatRef) {
         await updateDoc(chatRef, { lastMessage: last, lastMessageTime: Date.now() });
       }
+      if (settings.messageSounds) playMessageSound('outgoing');
+      if (settings.vibration) vibrate(12);
       setMessage('');
       setSelectedImages([]);
       setReplyTo(null);
@@ -179,17 +273,61 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
     }
   };
 
+  const handleImageSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = '';
+    if (files.length === 0) return;
+
+    const freeSlots = MAX_IMAGES - selectedImages.length;
+    if (freeSlots <= 0) {
+      toast({ variant: 'destructive', title: `Максимум ${MAX_IMAGES} фото в сообщении` });
+      return;
+    }
+
+    const picked = files.filter((file) => file.type.startsWith('image/')).slice(0, freeSlots);
+    if (picked.length === 0) return;
+
+    setIsProcessingImages(true);
+    try {
+      const encoded: string[] = [];
+      for (const file of picked) {
+        encoded.push(await compressChatImage(file));
+      }
+
+      const totalLength = [...selectedImages, ...encoded].reduce((sum, item) => sum + item.length, 0);
+      if (totalLength > MAX_IMAGES_TOTAL_LENGTH) {
+        toast({
+          variant: 'destructive',
+          title: 'Фото слишком тяжёлые',
+          description: 'Выберите изображения поменьше или отправьте их по одному.',
+        });
+        return;
+      }
+
+      setSelectedImages((current) => [...current, ...encoded].slice(0, MAX_IMAGES));
+    } catch {
+      toast({ variant: 'destructive', title: 'Не удалось обработать фото' });
+    } finally {
+      setIsProcessingImages(false);
+    }
+  };
+
+  const removeSelectedImage = (index: number) => {
+    setSelectedImages((current) => current.filter((_, i) => i !== index));
+  };
+
   const handleVote = async (msgId: string, optionIndex: number) => {
     if (!db || !user) return;
-    const msgRef = doc(db, 'chats', chatId, 'messages', msgId);
-    const snap = await getDoc(msgRef);
-    if (!snap.exists()) return;
+    try {
+      const msgRef = doc(db, 'chats', chatId, 'messages', msgId);
+      const snap = await getDoc(msgRef);
+      if (!snap.exists()) return;
 
-    const poll = snap.data().poll;
-    const votes = poll.votes || {};
-    votes[user.uid] = optionIndex;
-
-    await updateDoc(msgRef, { 'poll.votes': votes });
+      // Пишем только свой голос, чтобы не перезаписать голоса других участников.
+      await updateDoc(msgRef, { [`poll.votes.${user.uid}`]: optionIndex });
+    } catch {
+      toast({ variant: 'destructive', title: 'Не удалось проголосовать' });
+    }
   };
 
   const handleLeaveChat = async () => {
@@ -248,13 +386,60 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
     return `${chatData?.participants?.length || 0} ${t.members}`;
   };
 
-  const targetId = chatData?.type === 'individual' ? otherParticipantId : chatId;
   const isIndividualOnline = chatData?.type === 'individual' && otherUserData?.status === 'online';
   const isServiceChat = isServiceChatId(chatId) || Boolean(chatData?.isService);
   const isGlobalChat = chatId === GLOBAL_CHAT_ID;
+  const canOpenProfile =
+    !isServiceChat && !isGlobalChat && chatData?.type === 'individual' && Boolean(otherParticipantId);
+
+  const chatIdentity = (
+    <div
+      key={chatId}
+      className={cn(
+        'anim-slide-left flex min-w-0 items-center gap-3 rounded-full pr-2 transition-colors',
+        canOpenProfile && 'cursor-pointer hover:bg-on-surface/5',
+      )}
+    >
+      <div className="relative shrink-0">
+        {isServiceChat ? (
+          <SlinkLogo className="h-10 w-10 rounded-full" />
+        ) : isGlobalChat ? (
+          <div className="slink-gradient flex h-10 w-10 items-center justify-center rounded-full text-white">
+            <Globe className="h-5 w-5" />
+          </div>
+        ) : chatData?.type === 'group' || chatData?.type === 'channel' ? (
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-tertiary-container text-tertiary-on-container">
+            {chatData?.type === 'channel' ? <Globe className="h-5 w-5" /> : <MessageSquare className="h-5 w-5" />}
+          </div>
+        ) : (
+          <UserAvatar
+            userId={otherParticipantId || ''}
+            fallback={otherUserData?.displayName}
+            className="h-10 w-10"
+          />
+        )}
+        {isIndividualOnline && (
+          <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-surface-low bg-success" />
+        )}
+      </div>
+      <div className="flex min-w-0 flex-col">
+        <h2 className="truncate text-[15px] font-bold leading-tight text-on-surface">
+          {getChatTitle()}
+        </h2>
+        <span
+          className={cn(
+            'truncate text-[11px] font-medium',
+            isIndividualOnline ? 'text-success' : 'text-on-surface-variant',
+          )}
+        >
+          {getChatStatus()}
+        </span>
+      </div>
+    </div>
+  );
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden bg-background">
+    <div className="chat-surface relative flex h-full flex-col overflow-hidden bg-background">
       {/* M3 top app bar */}
       <header className="z-10 flex h-16 shrink-0 items-center justify-between gap-2 border-b border-outline-variant/60 bg-surface-low/95 px-2 backdrop-blur-xl md:px-4">
         <div className="flex min-w-0 items-center gap-1">
@@ -270,68 +455,12 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
             </Button>
           )}
 
-          {isServiceChat ? (
-            <div className="flex min-w-0 cursor-pointer items-center gap-3 rounded-full pr-2 transition-colors cursor-default hover:bg-transparent">
-              <div className="relative shrink-0">
-                {isServiceChat ? (
-                  <SlinkLogo className="h-10 w-10 rounded-full" />
-                ) : chatId === GLOBAL_CHAT_ID ? (
-                  <div className="slink-gradient flex h-10 w-10 items-center justify-center rounded-full text-white">
-                    <Globe className="h-5 w-5" />
-                  </div>
-                ) : (
-                  <UserAvatar userId={targetId || ''} className="h-10 w-10" />
-                )}
-                {isIndividualOnline && (
-                  <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-surface-low bg-success" />
-                )}
-              </div>
-              <div className="flex min-w-0 flex-col">
-                <h2 className="truncate text-[15px] font-bold leading-tight text-on-surface">
-                  {getChatTitle()}
-                </h2>
-                <span
-                  className={cn(
-                    'truncate text-[11px] font-medium',
-                    isIndividualOnline ? 'text-success' : 'text-on-surface-variant',
-                  )}
-                >
-                  {getChatStatus()}
-                </span>
-              </div>
-            </div>
-          ) : (
-            <UserProfileDialog userId={targetId || ''} onStartChat={() => {}}>
-            <div className="flex min-w-0 cursor-pointer items-center gap-3 rounded-full pr-2 transition-colors hover:bg-on-surface/5">
-              <div className="relative shrink-0">
-                {isServiceChat ? (
-                  <SlinkLogo className="h-10 w-10 rounded-full" />
-                ) : chatId === GLOBAL_CHAT_ID ? (
-                  <div className="slink-gradient flex h-10 w-10 items-center justify-center rounded-full text-white">
-                    <Globe className="h-5 w-5" />
-                  </div>
-                ) : (
-                  <UserAvatar userId={targetId || ''} className="h-10 w-10" />
-                )}
-                {isIndividualOnline && (
-                  <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-surface-low bg-success" />
-                )}
-              </div>
-              <div className="flex min-w-0 flex-col">
-                <h2 className="truncate text-[15px] font-bold leading-tight text-on-surface">
-                  {getChatTitle()}
-                </h2>
-                <span
-                  className={cn(
-                    'truncate text-[11px] font-medium',
-                    isIndividualOnline ? 'text-success' : 'text-on-surface-variant',
-                  )}
-                >
-                  {getChatStatus()}
-                </span>
-              </div>
-            </div>
+          {canOpenProfile && otherParticipantId ? (
+            <UserProfileDialog userId={otherParticipantId} onStartChat={onStartDirectChat}>
+              {chatIdentity}
             </UserProfileDialog>
+          ) : (
+            chatIdentity
           )}
         </div>
 
@@ -442,19 +571,27 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
                       {msg.type === 'image' && msg.imageUrls?.length > 0 && (
                         <div className="mb-1 grid grid-cols-2 gap-1.5">
                           {msg.imageUrls.map((src: string, idx: number) => (
-                            <img
+                            <button
                               key={idx}
-                              src={src}
-                              alt="Вложение"
-                              className="max-h-56 w-full rounded-xl object-cover"
-                            />
+                              type="button"
+                              onClick={() => setPreviewImage(src)}
+                              className="anim-pop overflow-hidden rounded-xl transition-transform active:scale-[0.98]"
+                              aria-label="Открыть фото"
+                            >
+                              <img
+                                src={src}
+                                alt="Вложение"
+                                loading="lazy"
+                                className="max-h-56 w-full object-cover"
+                              />
+                            </button>
                           ))}
                         </div>
                       )}
 
                       {msg.type === 'poll' && msg.poll && (
                         <div className="min-w-[200px] space-y-3">
-                          <p className="flex items-center gap-2 text-sm font-bold">
+                          <p className="chat-text flex items-center gap-2 text-sm font-bold">
                             <BarChart2 className="h-4 w-4" /> {msg.poll.question}
                           </p>
                           <div className="space-y-2">
@@ -497,7 +634,9 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
                         <VoiceMessage src={msg.audioUrl} duration={msg.duration} mine={mine} />
                       )}
 
-                      {msg.text && <p className="whitespace-pre-wrap break-words">{msg.text}</p>}
+                      {msg.text && (
+                        <p className="chat-text whitespace-pre-wrap break-words">{msg.text}</p>
+                      )}
 
                       <div
                         className={cn(
@@ -557,6 +696,41 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
       ) : (
       <div className="safe-bottom shrink-0 border-t border-outline-variant/60 bg-surface-low/95 px-3 pb-3 pt-2 backdrop-blur-xl md:px-4">
         <div className="mx-auto w-full max-w-3xl">
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={handleImageSelect}
+          />
+
+          {selectedImages.length > 0 && (
+            <div className="anim-fade-up mb-2 flex gap-2 overflow-x-auto pb-1">
+              {selectedImages.map((src, index) => (
+                <div
+                  key={`${src.slice(0, 24)}-${index}`}
+                  className="anim-pop relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-outline-variant/60"
+                >
+                  <img src={src} alt="Выбранное фото" className="h-full w-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => removeSelectedImage(index)}
+                    className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur"
+                    aria-label="Убрать фото"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+              {isProcessingImages && (
+                <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-surface-high">
+                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                </div>
+              )}
+            </div>
+          )}
+
           {replyTo && (
             <div className="mb-2 flex items-center justify-between rounded-2xl bg-surface-high px-3 py-2 text-xs animate-in slide-in-from-bottom-2">
               <div className="flex min-w-0 items-center gap-2">
@@ -590,6 +764,13 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" side="top" className="w-52 rounded-3xl p-2">
+                <DropdownMenuItem
+                  className="cursor-pointer gap-3 rounded-2xl py-2.5"
+                  disabled={isProcessingImages}
+                  onClick={() => imageInputRef.current?.click()}
+                >
+                  <ImagePlus className="h-4 w-4 text-secondary" /> Фото
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   className="cursor-pointer gap-3 rounded-2xl py-2.5"
                   onClick={() => setPollDialogOpen(true)}
@@ -630,14 +811,18 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
               />
             </div>
 
-            {message.trim() ? (
+            {message.trim() || selectedImages.length > 0 || isProcessingImages ? (
               <Button
                 className="h-12 w-12 shrink-0 rounded-2xl bg-primary p-0 text-primary-foreground shadow-m3 transition-transform active:scale-95"
                 onClick={() => handleSend()}
-                disabled={isSending}
+                disabled={isSending || isProcessingImages}
                 aria-label="Отправить"
               >
-                <Send className="h-5 w-5" />
+                {isProcessingImages ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <Send className="h-5 w-5" />
+                )}
               </Button>
             ) : (
               <VoiceRecorder onSend={({ url, duration }) => handleSend({ audioUrl: url, duration })} />
@@ -647,6 +832,19 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
       </div>
 
       )}
+
+      <Dialog open={Boolean(previewImage)} onOpenChange={(open) => !open && setPreviewImage(null)}>
+        <DialogContent className="max-w-3xl rounded-[28px] border-none bg-surface-container p-2 shadow-m3-strong">
+          <DialogTitle className="sr-only">Просмотр фото</DialogTitle>
+          {previewImage && (
+            <img
+              src={previewImage}
+              alt="Просмотр фото"
+              className="max-h-[80vh] w-full rounded-[22px] object-contain"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={pollDialogOpen} onOpenChange={setPollDialogOpen}>
         <DialogContent className="max-w-sm rounded-[28px] border-none bg-surface-container p-6 shadow-m3-strong">
@@ -697,9 +895,16 @@ export function ChatWindow({ chatId, onBack, onStartDirectChat }: ChatWindowProp
             </div>
             <Button
               className="h-12 w-full rounded-full bg-primary font-bold text-primary-foreground"
+              disabled={
+                !pollQuestion.trim() || pollOptions.filter((option) => option.trim()).length < 2
+              }
               onClick={() => {
                 handleSend({
-                  poll: { question: pollQuestion, options: pollOptions.filter((o) => o.trim()), votes: {} },
+                  poll: {
+                    question: pollQuestion.trim(),
+                    options: pollOptions.map((option) => option.trim()).filter(Boolean),
+                    votes: {},
+                  },
                 });
                 setPollDialogOpen(false);
                 setPollQuestion('');
@@ -868,6 +1073,18 @@ function VoiceRecorder({ onSend }: { onSend: (payload: { url: string; duration: 
     }
 
     try {
+      // В APK сначала показываем системный диалог разрешения — иначе WebView
+      // молча отклоняет getUserMedia() и голосовое записать нельзя.
+      const permitted = await ensureNativeMicrophonePermission();
+      if (!permitted) {
+        toast({
+          variant: 'destructive',
+          title: 'Нет доступа к микрофону',
+          description: 'Разрешите микрофон в настройках приложения.',
+        });
+        return;
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mimeType = pickMimeType();
       const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);

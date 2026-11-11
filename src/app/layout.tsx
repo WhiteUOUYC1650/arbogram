@@ -15,8 +15,8 @@ export const metadata: Metadata = {
   applicationName: APP_NAME,
   manifest: '/manifest.json',
   icons: {
-    icon: [{ url: '/icons/slink-icon.svg', type: 'image/svg+xml' }],
-    apple: [{ url: '/icons/slink-icon.svg', type: 'image/svg+xml' }],
+    icon: [{ url: '/icons/SLinkLogo.jpg', type: 'image/jpeg' }],
+    apple: [{ url: '/icons/SLinkLogo.jpg', type: 'image/jpeg' }],
   },
   appleWebApp: {
     capable: true,
@@ -43,16 +43,35 @@ export const viewport: Viewport = {
 const themeInitScript = `
 (function(){
   try {
-    var stored = localStorage.getItem('theme');
-    var dark = stored ? stored === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
-    document.documentElement.classList.toggle('dark', dark);
+    var mode = 'system';
+    var hasExplicitTheme = false;
+    var raw = localStorage.getItem('slink:settings');
 
     // Настройки интерфейса применяем до первой отрисовки, чтобы не было «прыжка».
-    var raw = localStorage.getItem('slink:settings');
     if (raw) {
-      var settings = JSON.parse(raw);
-      if (settings.animations === false) document.documentElement.classList.add('animations-off');
+      try {
+        var settings = JSON.parse(raw);
+        if (settings.theme === 'light' || settings.theme === 'dark' || settings.theme === 'system') {
+          mode = settings.theme;
+          hasExplicitTheme = true;
+        }
+        if (settings.animations === false) document.documentElement.classList.add('animations-off');
+        if (settings.chatFontSize) document.documentElement.classList.add('text-size-' + settings.chatFontSize);
+        if (settings.chatWallpaper) document.documentElement.dataset.chatWallpaper = settings.chatWallpaper;
+      } catch (e) {}
     }
+
+    // Старый ключ 'theme' — только если новой настройки темы ещё нет.
+    if (!hasExplicitTheme) {
+      var stored = localStorage.getItem('theme');
+      if (stored === 'dark' || stored === 'light') mode = stored;
+    }
+
+    var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    var dark = mode === 'dark' || (mode !== 'light' && prefersDark);
+    document.documentElement.classList.toggle('dark', dark);
+    document.documentElement.dataset.themeMode = mode;
+    document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
   } catch (e) {}
 })();
 `;

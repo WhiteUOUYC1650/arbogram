@@ -2,27 +2,47 @@
 
 import { useSyncExternalStore } from 'react';
 
+export type ThemeMode = 'light' | 'dark' | 'system';
+export type ChatFontSize = 'small' | 'medium' | 'large';
+export type ChatWallpaper = 'default' | 'banner' | 'pattern' | 'plain';
+export type MusicProfile = 'none' | 'custom';
+
 export interface AppSettings {
-  /** Плавные анимации интерфейса */
   animations: boolean;
-  /** Компактные строки в списке чатов */
   compactChats: boolean;
-  /** Показывать блок историй в сайдбаре */
   showStories: boolean;
-  /** Enter отправляет сообщение (Shift+Enter — перенос строки) */
   sendOnEnter: boolean;
+  theme: ThemeMode;
+  chatFontSize: ChatFontSize;
+  chatWallpaper: ChatWallpaper;
+  messageSounds: boolean;
+  vibration: boolean;
+  desktopNotifications: boolean;
+  notificationPreview: boolean;
+  chatBanner: string | null;
+  musicProfile: MusicProfile;
 }
 
 export const SETTINGS_STORAGE_KEY = 'slink:settings';
 
-/** Эти ключи очистка кэша не трогает — иначе «слетят» тема, язык и настройки. */
 export const PRESERVED_STORAGE_KEYS = [SETTINGS_STORAGE_KEY, 'theme', 'lang'];
+
+export const PRESERVED_STORAGE_PREFIXES = ['firebase:', 'slink:settings'];
 
 export const DEFAULT_SETTINGS: AppSettings = {
   animations: true,
   compactChats: false,
   showStories: true,
   sendOnEnter: true,
+  theme: 'system',
+  chatFontSize: 'medium',
+  chatWallpaper: 'default',
+  messageSounds: true,
+  vibration: true,
+  desktopNotifications: false,
+  notificationPreview: true,
+  chatBanner: null,
+  musicProfile: 'none',
 };
 
 let cached: AppSettings | null = null;
@@ -32,19 +52,25 @@ function readFromStorage(): AppSettings {
   if (typeof window === 'undefined') return DEFAULT_SETTINGS;
   try {
     const raw = window.localStorage.getItem(SETTINGS_STORAGE_KEY);
-    if (!raw) return DEFAULT_SETTINGS;
-    const parsed = JSON.parse(raw) as Partial<AppSettings>;
-    return { ...DEFAULT_SETTINGS, ...parsed };
+    const parsed = raw ? (JSON.parse(raw) as Partial<AppSettings>) : {};
+    return {
+      ...DEFAULT_SETTINGS,
+      ...parsed,
+      theme: parsed.theme === 'light' || parsed.theme === 'dark' || parsed.theme === 'system' ? parsed.theme : 'system',
+      chatFontSize: parsed.chatFontSize === 'small' || parsed.chatFontSize === 'medium' || parsed.chatFontSize === 'large' ? parsed.chatFontSize : 'medium',
+      chatWallpaper: parsed.chatWallpaper === 'default' || parsed.chatWallpaper === 'banner' || parsed.chatWallpaper === 'pattern' ? parsed.chatWallpaper : 'default',
+      chatBanner: parsed.chatBanner || null,
+    };
   } catch {
     return DEFAULT_SETTINGS;
   }
 }
 
-/** Применяем настройки к <html>: CSS-классы управляют анимациями и плотностью. */
-export function applyAppSettings(settings: AppSettings) {
-  if (typeof document === 'undefined') return;
-  const root = document.documentElement;
-  root.classList.toggle('animations-off', !settings.animations);
+function subscribeAppSettings(listener: () => void) {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
 }
 
 export function getAppSettings(): AppSettings {
@@ -54,11 +80,11 @@ export function getAppSettings(): AppSettings {
   return cached;
 }
 
-export function subscribeAppSettings(listener: () => void) {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
+export function resetAppSettings() {
+  return updateAppSettings({
+    ...DEFAULT_SETTINGS,
+    theme: getAppSettings().theme,
+  });
 }
 
 export function updateAppSettings(patch: Partial<AppSettings>) {
@@ -74,11 +100,27 @@ export function updateAppSettings(patch: Partial<AppSettings>) {
   return next;
 }
 
-export function resetAppSettings() {
-  return updateAppSettings(DEFAULT_SETTINGS);
-}
-
-/** Реактивные настройки: компонент перерисуется при любом изменении. */
 export function useAppSettings(): AppSettings {
   return useSyncExternalStore(subscribeAppSettings, getAppSettings, () => DEFAULT_SETTINGS);
+}
+
+export function syncAppSettingsFromStorage() {
+  cached = readFromStorage();
+  applyAppSettings(cached);
+  listeners.forEach((listener) => listener());
+}
+
+export function applyAppSettings(settings: AppSettings) {
+  if (typeof document === 'undefined') return;
+  const root = document.documentElement;
+
+  root.classList.toggle('animations-off', !settings.animations);
+
+  root.classList.remove(...['text-size-small', 'text-size-medium', 'text-size-large'] as const);
+  root.classList.add('text-size-' + settings.chatFontSize);
+
+  root.dataset.chatWallpaper = settings.chatWallpaper;
+  root.dataset.themeMode = settings.theme;
+
+  root.dataset.chatBanner = settings.chatBanner || '';
 }

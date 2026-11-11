@@ -20,6 +20,12 @@ import {
   List,
   Image as ImageIcon,
   CornerDownLeft,
+  Bell,
+  Volume2,
+  Vibrate,
+  Monitor,
+  Mic,
+  Type,
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -34,11 +40,21 @@ import { translations, Language } from '@/lib/i18n';
 import { normalizePhoneNumber } from '@/lib/phone-utils';
 import { APP_NAME, APP_VERSION_LABEL } from '@/lib/brand';
 import { notifyServiceBot } from '@/lib/service-bot';
-import { getAppSettings, resetAppSettings, updateAppSettings, useAppSettings } from '@/lib/app-settings';
+import { getAppSettings, resetAppSettings, updateAppSettings, useAppSettings, type ThemeMode } from '@/lib/app-settings';
 import { clearAppCache, formatBytes, getCacheStats, type CacheStats } from '@/lib/cache';
+import {
+  getMicrophonePermissionState,
+  requestMicrophonePermission,
+  type MicrophonePermissionState,
+} from '@/lib/native';
+import {
+  notificationPermission,
+  notificationsSupported,
+  requestNotificationPermission,
+} from '@/lib/feedback';
 import { cn } from '@/lib/utils';
 
-type SettingsTab = 'profile' | 'appearance' | 'data' | 'language';
+type SettingsTab = 'profile' | 'appearance' | 'notifications' | 'data' | 'language';
 
 /** Сжимаем аватарку в квадрат 512×512, чтобы не раздувать Firestore. */
 function compressAvatar(file: File): Promise<string> {
@@ -100,12 +116,16 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
   const [tab, setTab] = React.useState<SettingsTab>('profile');
   const [isUpdating, setIsUpdating] = React.useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = React.useState(false);
-  const [isDarkMode, setIsDarkMode] = React.useState(false);
   const [lang, setLang] = React.useState<Language>('ru');
   const [stats, setStats] = React.useState<CacheStats | null>(null);
   const [isClearing, setIsClearing] = React.useState(false);
   const [confirmClear, setConfirmClear] = React.useState(false);
   const [lastCleared, setLastCleared] = React.useState<number | null>(null);
+  const [notifyPermission, setNotifyPermission] = React.useState<NotificationPermission | 'unsupported'>(
+    'default',
+  );
+  const [micState, setMicState] = React.useState<MicrophonePermissionState>('unknown');
+  const [isCheckingMic, setIsCheckingMic] = React.useState(false);
 
   const settings = useAppSettings();
 
@@ -132,7 +152,6 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
     }
     const storedLang = localStorage.getItem('lang') as Language;
     if (storedLang) setLang(storedLang);
-    setIsDarkMode(document.documentElement.classList.contains('dark'));
   }, [userData]);
 
   const refreshStats = React.useCallback(async () => {
@@ -143,6 +162,8 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
     if (!open) return;
     const stored = localStorage.getItem('slink:lastCacheClear');
     setLastCleared(stored ? Number(stored) : null);
+    setNotifyPermission(notificationsSupported() ? notificationPermission() : 'unsupported');
+    void getMicrophonePermissionState().then(setMicState);
     if (tab === 'data') refreshStats();
   }, [open, tab, refreshStats]);
 
@@ -191,10 +212,64 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const toggleTheme = (val: boolean) => {
-    setIsDarkMode(val);
-    document.documentElement.classList.toggle('dark', val);
-    localStorage.setItem('theme', val ? 'dark' : 'light');
+  const handleThemeChange = (theme: ThemeMode) => {
+    updateAppSettings({ theme });
+  };
+
+  const handleNotificationsToggle = async (value: boolean) => {
+    if (!value) {
+      updateAppSettings({ desktopNotifications: false });
+      return;
+    }
+
+    if (!notificationsSupported()) {
+      updateAppSettings({ desktopNotifications: false });
+      toast({
+        variant: 'destructive',
+        title: 'Уведомления не поддерживаются',
+        description: 'Этот браузер или WebView не умеет показывать системные уведомления.',
+      });
+      return;
+    }
+
+    const permission = await requestNotificationPermission();
+    setNotifyPermission(permission);
+
+    if (permission === 'granted') {
+      updateAppSettings({ desktopNotifications: true });
+      toast({ title: 'Уведомления включены' });
+    } else {
+      updateAppSettings({ desktopNotifications: false });
+      toast({
+        variant: 'destructive',
+        title: 'Уведомления заблокированы',
+        description: 'Разрешите уведомления в настройках браузера или системы.',
+      });
+    }
+  };
+
+  const handleCheckMic = async () => {
+    setIsCheckingMic(true);
+    try {
+      const granted = await requestMicrophonePermission();
+      const fresh = await getMicrophonePermissionState();
+      setMicState(granted ? 'granted' : fresh === 'unknown' ? 'denied' : fresh);
+
+      toast(
+        granted
+          ? {
+              title: 'Микрофон доступен',
+              description: 'Голосовые сообщения можно записывать.',
+            }
+          : {
+              variant: 'destructive',
+              title: 'Нет доступа к микрофону',
+              description: 'Разрешите микрофон в настройках приложения или браузера.',
+            },
+      );
+    } finally {
+      setIsCheckingMic(false);
+    }
   };
 
   const changeLanguage = (newLang: Language) => {
@@ -247,14 +322,35 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
     const link = document.createElement('a');
     link.href = url;
     link.download = `slink-profile-${(userData?.username || 'me').replace('@', '')}.json`;
+    document.body.appendChild(link);
     link.click();
+    link.remove();
     URL.revokeObjectURL(url);
     toast({ title: 'Экспорт готов', description: 'JSON-файл профиля скачан' });
   };
 
+  const micStatusLabel =
+    micState === 'granted'
+      ? 'Разрешён'
+      : micState === 'denied'
+        ? 'Запрещён'
+        : micState === 'prompt'
+          ? 'Ещё не запрашивался'
+          : 'Статус неизвестен';
+
+  const notifyStatusLabel =
+    notifyPermission === 'granted'
+      ? 'Разрешены'
+      : notifyPermission === 'denied'
+        ? 'Заблокированы в системе'
+        : notifyPermission === 'unsupported'
+          ? 'Не поддерживаются'
+          : 'Спросим при включении';
+
   const tabs: { key: SettingsTab; label: string; icon: typeof UserIcon }[] = [
     { key: 'profile', label: t.profile, icon: UserIcon },
     { key: 'appearance', label: t.appearance, icon: Palette },
+    { key: 'notifications', label: 'Уведомления', icon: Bell },
     { key: 'data', label: 'Данные', icon: HardDrive },
     { key: 'language', label: t.language, icon: Languages },
   ];
@@ -274,7 +370,7 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
         </DialogHeader>
 
         <div className="px-4 pt-4">
-          <div className="grid grid-cols-4 gap-1 rounded-full bg-surface-high p-1">
+          <div className="grid grid-cols-5 gap-1 rounded-full bg-surface-high p-1">
             {tabs.map(({ key, label, icon: Icon }) => (
               <button
                 key={key}
@@ -286,9 +382,11 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
                     ? 'bg-surface-lowest text-primary shadow-sm'
                     : 'text-on-surface-variant hover:text-on-surface',
                 )}
+                aria-label={label}
+                title={label}
               >
                 <Icon className="h-4 w-4" />
-                <span className="hidden sm:inline">{label}</span>
+                <span className="hidden lg:inline">{label}</span>
               </button>
             ))}
           </div>
@@ -362,14 +460,105 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
           )}
 
           {tab === 'appearance' && (
-            <div className="space-y-2.5 animate-in fade-in duration-200">
+            <div className="space-y-4 animate-in fade-in duration-200">
+              <div className="rounded-3xl border border-outline-variant/60 p-4">
+                <p className="m3-label mb-3">Тема</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { value: 'light' as ThemeMode, label: 'Светлая', icon: Sun },
+                    { value: 'dark' as ThemeMode, label: 'Тёмная', icon: Moon },
+                    { value: 'system' as ThemeMode, label: 'Системная', icon: Monitor },
+                  ].map(({ value, label, icon: Icon }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => handleThemeChange(value)}
+                      className={cn(
+                        'flex flex-col items-center gap-2 rounded-2xl border p-3 text-[11px] font-semibold transition-all',
+                        settings.theme === value
+                          ? 'border-primary bg-primary-container text-primary-on-container'
+                          : 'border-outline-variant/60 text-on-surface-variant hover:bg-on-surface/5',
+                      )}
+                    >
+                      <Icon className="h-5 w-5" />
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <SettingRow
-                icon={isDarkMode ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
-                title={t.darkMode}
-                description={t.darkModeHint}
+                icon={<Type className="h-5 w-5" />}
+                title="Размер текста"
+                description="Применяется к сообщениям в чате"
               >
-                <Switch checked={isDarkMode} onCheckedChange={toggleTheme} />
+                <div className="flex rounded-full bg-surface-high p-1">
+                  {[
+                    { value: 'small' as const, label: 'A', className: 'text-xs' },
+                    { value: 'medium' as const, label: 'A', className: 'text-sm' },
+                    { value: 'large' as const, label: 'A', className: 'text-base' },
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => updateAppSettings({ chatFontSize: option.value })}
+                      className={cn(
+                        'flex h-7 w-8 items-center justify-center rounded-full font-bold transition-colors',
+                        option.className,
+                        settings.chatFontSize === option.value
+                          ? 'bg-primary text-primary-foreground'
+                          : 'text-on-surface-variant',
+                      )}
+                      aria-label={`Размер текста ${option.value}`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
               </SettingRow>
+
+              <div className="rounded-3xl border border-outline-variant/60 p-4">
+                <p className="m3-label mb-3">Фон чата</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { value: 'default' as const, label: 'Градиент' },
+                    { value: 'plain' as const, label: 'Без фона' },
+                    { value: 'pattern' as const, label: 'Узор' },
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => updateAppSettings({ chatWallpaper: option.value })}
+                      className={cn(
+                        'rounded-2xl border p-2 text-[11px] font-semibold transition-all',
+                        settings.chatWallpaper === option.value
+                          ? 'border-primary bg-primary-container/60 text-primary-on-container'
+                          : 'border-outline-variant/60 text-on-surface-variant hover:bg-on-surface/5',
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          'mb-2 block h-12 w-full rounded-xl border border-outline-variant/40',
+                          option.value === 'plain' && 'bg-surface',
+                          option.value === 'default' &&
+                            'bg-gradient-to-br from-primary/25 via-surface to-secondary/20',
+                          option.value === 'pattern' && 'bg-surface-high',
+                        )}
+                        style={
+                          option.value === 'pattern'
+                            ? {
+                                backgroundImage:
+                                  'radial-gradient(hsl(var(--outline-variant)) 1px, transparent 1px)',
+                                backgroundSize: '8px 8px',
+                              }
+                            : undefined
+                        }
+                      />
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               <SettingRow
                 icon={<Sparkles className="h-5 w-5" />}
@@ -414,16 +603,86 @@ export function SettingsDialog({ children }: { children: React.ReactNode }) {
                   onCheckedChange={(value) => updateAppSettings({ sendOnEnter: value })}
                 />
               </SettingRow>
+            </div>
+          )}
+
+          {tab === 'notifications' && (
+            <div className="space-y-3 animate-in fade-in duration-200">
+              <p className="m3-label px-1">Сообщения</p>
+
+              <SettingRow
+                icon={<Volume2 className="h-5 w-5" />}
+                title="Звуки сообщений"
+                description="Короткий сигнал при отправке и получении"
+              >
+                <Switch
+                  checked={settings.messageSounds}
+                  onCheckedChange={(value) => updateAppSettings({ messageSounds: value })}
+                />
+              </SettingRow>
+
+              <SettingRow
+                icon={<Vibrate className="h-5 w-5" />}
+                title="Вибрация"
+                description="Короткий отклик на новые сообщения (если поддерживается)"
+              >
+                <Switch
+                  checked={settings.vibration}
+                  onCheckedChange={(value) => updateAppSettings({ vibration: value })}
+                />
+              </SettingRow>
+
+              <p className="m3-label px-1 pt-2">Системные уведомления</p>
+
+              <SettingRow
+                icon={<Bell className="h-5 w-5" />}
+                title="Уведомления"
+                description={`Статус: ${notifyStatusLabel}`}
+              >
+                <Switch
+                  checked={settings.desktopNotifications && notifyPermission === 'granted'}
+                  onCheckedChange={handleNotificationsToggle}
+                />
+              </SettingRow>
+
+              <SettingRow
+                icon={<Bell className="h-5 w-5" />}
+                title="Показывать текст"
+                description="Отображать сообщение в уведомлении"
+              >
+                <Switch
+                  checked={settings.notificationPreview}
+                  disabled={!settings.desktopNotifications}
+                  onCheckedChange={(value) => updateAppSettings({ notificationPreview: value })}
+                />
+              </SettingRow>
+
+              <p className="m3-label px-1 pt-2">Голосовые сообщения</p>
 
               <div className="rounded-3xl border border-outline-variant/60 p-4">
-                <p className="m3-label mb-3">Палитра SLink</p>
-                <div className="flex gap-2">
-                  <span className="h-10 flex-1 rounded-xl bg-primary" />
-                  <span className="h-10 flex-1 rounded-xl bg-primary-container" />
-                  <span className="h-10 flex-1 rounded-xl bg-secondary" />
-                  <span className="h-10 flex-1 rounded-xl bg-secondary-container" />
-                  <span className="h-10 flex-1 rounded-xl bg-tertiary-container" />
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-secondary-container text-secondary-on-container">
+                      <Mic className="h-5 w-5" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-on-surface">Доступ к микрофону</p>
+                      <p className="text-[11px] text-on-surface-variant">{micStatusLabel}</p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    className="h-9 shrink-0 rounded-full px-3 text-xs font-semibold"
+                    onClick={handleCheckMic}
+                    disabled={isCheckingMic}
+                  >
+                    {isCheckingMic ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Проверить'}
+                  </Button>
                 </div>
+                <p className="mt-3 text-[11px] leading-snug text-on-surface-variant">
+                  Нужен для записи голосовых. В APK запрос показывается системным диалогом Android,
+                  в браузере — стандартным запросом сайта.
+                </p>
               </div>
             </div>
           )}

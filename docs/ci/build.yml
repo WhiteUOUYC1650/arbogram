@@ -80,6 +80,9 @@ jobs:
       - name: Sync web assets into Android project
         run: npx cap sync android
 
+      - name: Ensure microphone permissions in Android manifest
+        run: node scripts/patch-android-permissions.mjs
+
       - name: Set up Gradle cache
         uses: gradle/actions/setup-gradle@v3
 

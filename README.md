@@ -104,31 +104,37 @@ src/lib/i18n.ts    локализации (ru/en)
 Голосовые сообщения используют `getUserMedia` + `MediaRecorder` внутри WebView. Чтобы Android
 разрешил запись, в **итоговом** манифесте должны быть `RECORD_AUDIO` и `MODIFY_AUDIO_SETTINGS`:
 
-- [`plugins/slink-native`](plugins/slink-native) — локальный Android-плагин, чей манифест Gradle
-  вливает в манифест приложения при сборке. Он подключается автоматически при `npx cap sync`,
-  поэтому **менять CI-воркфлоу не нужно**: в `capacitor.settings.gradle` появляется
-  `include ':slink-native'`.
-- Runtime-разрешение запрашивает сам мост Capacitor
-  (`BridgeWebChromeClient.onPermissionRequest` → `RECORD_AUDIO`) в момент вызова `getUserMedia`.
+- [`plugins/slink-native`](plugins/slink-native) — локальный Android-плагин. Его манифест Gradle
+  вливает в манифест приложения при сборке, а сам плагин умеет **запросить разрешение в рантайме**
+  (`SlinkNative.checkMicrophonePermission()` / `requestMicrophonePermission()`; см.
+  `src/lib/native.ts`). Он подключается автоматически при `npx cap sync`.
+- Перед записью веб-часть вызывает `ensureNativeMicrophonePermission()`, поэтому Android показывает
+  системный диалог, а уже потом `getUserMedia` получает доступ. На вебе шаг пропускается.
 - `npm run android:permissions` (`scripts/patch-android-permissions.mjs`) — страховка для
-  локальных сборок: правит `android/app/src/main/AndroidManifest.xml`, если плагин не подключён.
-- В `docs/ci/build.yml` добавлен шаг проверки: билд падает, если `RECORD_AUDIO` нет в
-  merged-манифесте.
+  локальных сборок: правит `android/app/src/main/AndroidManifest.xml`, если плагин не подключён,
+  и добавляет `<uses-feature android:name="android.hardware.microphone" android:required="false" />`.
+- В CI (`docs/ci/build.yml` и `.github/workflows/build.yml`) есть шаг проверки: билд падает, если
+  `RECORD_AUDIO` нет в merged-манифесте.
 
 ## Настройки
 
-Вкладки: **Профиль**, **Оформление**, **Данные**, **Язык**.
+Вкладки: **Профиль**, **Оформление**, **Уведомления**, **Данные**, **Язык**.
 
-- Оформление: тёмная тема, анимации, компактный список чатов, показ историй, Enter-отправка.
+- Оформление: тема (светлая / тёмная / системная), размер текста в переписке, фон чата
+  (градиент / без фона / узор), анимации, компактный список чатов, показ историй, Enter-отправка.
   Всё хранится в `localStorage` (`slink:settings`) и применяется до первой отрисовки.
+- Уведомления: звуки, вибрация, системные уведомления с превью текста и проверка доступа к
+  микрофону (полезно в APK: сразу видно, выдан ли `RECORD_AUDIO`).
 - Данные: размер кэша и хранилища, **очистка кэша** (`src/lib/cache.ts`), экспорт профиля в JSON,
   сброс настроек оформления. Очистка удаляет кэш/Cache API/временные ключи, но **не трогает**
-  `slink:settings`, `theme`, `lang` и сессию входа (IndexedDB Firebase не чистится).
+  `slink:settings`, `theme`, `lang`, ключи `firebase:*` и сессию входа (IndexedDB Firebase не чистится),
+  поэтому настройки после очистки не сбрасываются.
 
 ## Анимации
 
-Набор утилит в `globals.css`: `anim-fade-up`, `anim-pop`, `anim-slide-right`, `anim-float`,
-`anim-pulse-ring`, `anim-shimmer`, `anim-gradient`, `anim-press`, задержки `anim-delay-1…5`.
-Используются в списке чатов, сообщениях, пустых состояниях, логине и диалогах.
+Набор утилит в `globals.css`: `anim-fade-up`, `anim-pop`, `anim-slide-right`, `anim-bubble`,
+`anim-slide-left`, `anim-fab`, `anim-float`, `anim-pulse-ring`, `anim-shimmer`, `anim-gradient`,
+`anim-press`, задержки `anim-delay-1…5`.
+Используются в списке чатов, сообщениях, вложениях, пустых состояниях, логине и диалогах.
 Отключаются тумблером «Анимации» (класс `animations-off` на `<html>`) и уважают системный
 `prefers-reduced-motion`.

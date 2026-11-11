@@ -60,6 +60,8 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
     chats: [],
   });
   const [isSearching, setIsSearching] = React.useState(false);
+  const searchRequestRef = React.useRef(0);
+  const searchTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const [filter, setFilter] = React.useState<ChatFilter>('all');
   const [isOpeningBot, setIsOpeningBot] = React.useState(false);
 
@@ -72,14 +74,12 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
     const storedLang = localStorage.getItem('lang') as Language;
     if (storedLang) setLang(storedLang);
   }, []);
+  // Admin panel broadcast and button removal completed
 
   const t = translations[lang];
 
   const userRef = useMemoFirebase(() => (db && user ? doc(db, 'users', user.uid) : null), [db, user?.uid]);
   const { data: userData } = useDoc(userRef);
-  const isAdmin =
-    userData?.username?.toLowerCase() === '@nexus90kyt' ||
-    userData?.username?.toLowerCase() === '@white';
 
   const myChatsQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
@@ -105,44 +105,65 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
     return sortedChats.filter((c) => c.type === typeMap[filter]);
   }, [sortedChats, filter]);
 
-  const handleGlobalSearch = async (val: string) => {
+  const handleGlobalSearch = (val: string) => {
     setSearchTerm(val);
-    if (!db || val.length < 2) {
+
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+
+    if (!db || val.trim().length < 2) {
+      searchRequestRef.current += 1;
       setSearchResults({ users: [], chats: [] });
+      setIsSearching(false);
       return;
     }
 
+    const requestId = searchRequestRef.current + 1;
+    searchRequestRef.current = requestId;
     setIsSearching(true);
-    try {
-      const userQ = query(
-        collection(db, 'users'),
-        where('username', '>=', val.startsWith('@') ? val : '@' + val),
-        where('username', '<=', (val.startsWith('@') ? val : '@' + val) + '\uf8ff'),
-        limit(5),
-      );
 
-      const chatQ = query(
-        collection(db, 'chats'),
-        where('isPublic', '==', true),
-        where('name', '>=', val),
-        where('name', '<=', val + '\uf8ff'),
-        limit(5),
-      );
+    // Небольшой дебаунс, чтобы не отправлять запрос на каждую букву.
+    searchTimerRef.current = setTimeout(async () => {
+      try {
+        const handle = val.startsWith('@') ? val : '@' + val;
+        const userQ = query(
+          collection(db, 'users'),
+          where('username', '>=', handle),
+          where('username', '<=', handle + '\uf8ff'),
+          limit(5),
+        );
 
-      const [userSnap, chatSnap] = await Promise.all([getDocs(userQ), getDocs(chatQ)]);
+        const chatQ = query(
+          collection(db, 'chats'),
+          where('isPublic', '==', true),
+          where('name', '>=', val),
+          where('name', '<=', val + '\uf8ff'),
+          limit(5),
+        );
 
-      setSearchResults({
-        users: userSnap.docs
-          .map((d) => ({ ...d.data(), id: d.id } as any))
-          .filter((u) => u.uid !== user?.uid),
-        chats: chatSnap.docs.map((d) => ({ ...d.data(), id: d.id })),
-      });
-    } catch (e) {
-      console.error('Search error:', e);
-    } finally {
-      setIsSearching(false);
-    }
+        const [userSnap, chatSnap] = await Promise.all([getDocs(userQ), getDocs(chatQ)]);
+
+        // Пока шёл запрос, пользователь мог набрать другой текст.
+        if (requestId !== searchRequestRef.current) return;
+
+        setSearchResults({
+          users: userSnap.docs
+            .map((d) => ({ ...d.data(), id: d.id } as any))
+            .filter((u) => u.uid !== user?.uid),
+          chats: chatSnap.docs.map((d) => ({ ...d.data(), id: d.id })),
+        });
+      } catch (e) {
+        console.error('Search error:', e);
+      } finally {
+        if (requestId === searchRequestRef.current) setIsSearching(false);
+      }
+    }, 280);
   };
+
+  React.useEffect(() => {
+    return () => {
+      if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    };
+  }, []);
 
   const handleOpenGlobalChat = async () => {
     if (!db || !user) return;
@@ -152,7 +173,8 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
 
       if (snap.exists()) {
         const data = snap.data();
-        if (!data.participants.includes(user.uid)) {
+        const participants: string[] = Array.isArray(data.participants) ? data.participants : [];
+        if (!participants.includes(user.uid)) {
           await updateDoc(globalChatRef, { participants: arrayUnion(user.uid) });
           await sendSystemNotification(
             db,
@@ -206,15 +228,6 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
           </div>
 
           <div className="-mr-1 flex shrink-0 items-center">
-            {isAdmin && (
-              <Button variant="ghost" size="icon" asChild className="h-9 w-9 rounded-full text-destructive">
-                <Link href="/admin" aria-label="Админ-панель">
-                  <ShieldAlert className="h-5 w-5" />
-                </Link>
-              </Button>
-            )}
-
-            <Dialog>
               <DialogTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full" aria-label={t.whatsNew}>
                   <Info className="h-5 w-5 text-on-surface-variant" />
@@ -451,7 +464,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
       <div className="pointer-events-none absolute bottom-6 right-5 z-20">
         <CreateChatDialog onChatCreated={onChatSelect}>
           <Button
-            className="pointer-events-auto h-16 w-16 rounded-[24px] bg-primary p-0 text-primary-foreground shadow-m3-strong transition-transform hover:scale-105 active:scale-95"
+            className="anim-fab pointer-events-auto h-16 w-16 rounded-[24px] bg-primary p-0 text-primary-foreground shadow-m3-strong transition-transform hover:scale-105 active:scale-95"
             aria-label={t.newChat}
           >
             <Pencil className="h-6 w-6" />

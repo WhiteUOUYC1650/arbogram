@@ -27,10 +27,7 @@ export default function AdminPage() {
   const usersQuery = React.useMemo(() => (db ? collection(db, 'users') : null), [db]);
   const { data: allUsers, loading: usersLoading } = useCollection(usersQuery);
 
-  const [pinDialogOpen, setPinDialogOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [newPin, setNewPin] = useState('');
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     if (!authLoading && !userRef.loading && !isAdmin && userUsername !== '') {
