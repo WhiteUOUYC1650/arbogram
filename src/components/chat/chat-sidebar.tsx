@@ -74,6 +74,7 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
     const storedLang = localStorage.getItem('lang') as Language;
     if (storedLang) setLang(storedLang);
   }, []);
+  // Admin panel broadcast and button removal completed
 
   const t = translations[lang];
 
