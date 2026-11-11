@@ -1,6 +1,6 @@
 import { APP_NAME, APP_VERSION_LABEL } from './brand';
 
-export type Language = 'ru' | 'en' | 'be' | 'es';
+export type Language = 'ru' | 'en';
 
 export const translations = {
   ru: {
