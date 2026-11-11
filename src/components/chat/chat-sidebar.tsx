@@ -79,9 +79,6 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
 
   const userRef = useMemoFirebase(() => (db && user ? doc(db, 'users', user.uid) : null), [db, user?.uid]);
   const { data: userData } = useDoc(userRef);
-  const isAdmin =
-    userData?.username?.toLowerCase() === '@nexus90kyt' ||
-    userData?.username?.toLowerCase() === '@white';
 
   const myChatsQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
@@ -230,15 +227,6 @@ export function ChatSidebar({ activeChatId, onChatSelect }: ChatSidebarProps) {
           </div>
 
           <div className="-mr-1 flex shrink-0 items-center">
-            {isAdmin && (
-              <Button variant="ghost" size="icon" asChild className="h-9 w-9 rounded-full text-destructive">
-                <Link href="/admin" aria-label="Админ-панель">
-                  <ShieldAlert className="h-5 w-5" />
-                </Link>
-              </Button>
-            )}
-
-            <Dialog>
               <DialogTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full" aria-label={t.whatsNew}>
                   <Info className="h-5 w-5 text-on-surface-variant" />
